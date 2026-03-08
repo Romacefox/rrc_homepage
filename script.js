@@ -1,12 +1,12 @@
+﻿
 const STORAGE_KEY = "rrc-site-db-v3";
-const ADMIN_PASSWORD = "rrc2020";
+const ADMIN_PASSWORD = "RRC_Admin_2026!Seoul";
 const WINTER_MONTHS = [12, 1, 2];
 const DRAW_WINNER_COUNT = 4;
 const MONTHLY_FEE = 5000;
-const SUPABASE_URL = "https://aqpszgycsfpxtlsuaqrt.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_C20xXZZRWdjmkzGneCcpjw_mrRnXucq";
+const SUPABASE_URL = "";
+const SUPABASE_ANON_KEY = "";
 const PHOTO_BUCKET = "rrc-photos";
-
 
 const defaultData = {
   notices: [
@@ -94,7 +94,7 @@ const rouletteTrack = document.getElementById("roulette-track");
 const raffleRule = document.getElementById("raffle-rule");
 const nextDraw = document.getElementById("next-draw");
 
-
+init();
 
 function init() {
   yearNode.textContent = new Date().getFullYear();
@@ -1306,9 +1306,6 @@ async function loadPhotos() {
     photoGrid.appendChild(card);
   });
 }
-
-
-init();
 
 
 

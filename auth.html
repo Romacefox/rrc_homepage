@@ -1,0 +1,68 @@
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RRC | 회원 로그인/사진첩</title>
+  <meta name="description" content="RRC 회원가입, 로그인, 사진첩 업로드 페이지" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=SUIT:wght@300;400;500;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="container nav-wrap">
+      <a href="index.html" class="logo">RRC</a>
+      <nav class="nav-links">
+        <a href="index.html#about">소개</a>
+        <a href="index.html#schedule">정기런</a>
+        <a href="index.html#notice">공지</a>
+        <a href="auth.html">사진첩</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="section alt">
+      <div class="container two-col">
+        <article class="panel">
+          <h2>회원가입 / 로그인</h2>
+          <p class="list-meta">회원가입 후 로그인하면 사진 업로드가 가능합니다.</p>
+          <form class="form compact" id="auth-form">
+            <input id="auth-email" type="email" placeholder="이메일" required />
+            <input id="auth-password" type="password" placeholder="비밀번호" required />
+            <div class="inline-form">
+              <button id="auth-signup" class="btn ghost" type="button">회원가입</button>
+              <button id="auth-login" class="btn primary" type="button">로그인</button>
+              <button id="auth-logout" class="btn ghost" type="button">로그아웃</button>
+            </div>
+          </form>
+          <p id="auth-status" class="list-meta">로그인 필요</p>
+        </article>
+
+        <article class="panel">
+          <h2>RRC 사진첩</h2>
+          <form class="form compact" id="photo-upload-form">
+            <input id="photo-file" type="file" accept="image/*" />
+            <input id="photo-caption" type="text" placeholder="한 줄 설명 (예: 화요일 잠실 정기런)" />
+            <button id="photo-upload" class="btn primary" type="button">사진 업로드</button>
+          </form>
+          <p id="photo-status" class="list-meta">로그인 후 업로드 가능합니다.</p>
+          <div id="photo-grid" class="photo-grid"></div>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-wrap">
+      <p>© <span id="year"></span> RRC</p>
+      <p><a href="index.html">메인으로 돌아가기</a></p>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="auth.js"></script>
+</body>
+</html>
