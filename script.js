@@ -3,8 +3,8 @@ const ADMIN_PASSWORD = "rrc2020";
 const WINTER_MONTHS = [12, 1, 2];
 const DRAW_WINNER_COUNT = 4;
 const MONTHLY_FEE = 5000;
-const SUPABASE_URL = "여기에 API URL";
-const SUPABASE_ANON_KEY = "여기에 Publishable key";
+const SUPABASE_URL = "https://aqpszgycsfpxtlsuaqrt.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_C20xXZZRWdjmkzGneCcpjw_mrRnXucq";
 const PHOTO_BUCKET = "rrc-photos";
 
 
@@ -1309,6 +1309,7 @@ async function loadPhotos() {
 
 
 init();
+
 
 
 
