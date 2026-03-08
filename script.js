@@ -103,7 +103,6 @@ function init() {
   setDefaultBulkDate();
   renderAll();
   checkScheduledDraw(false);
-  initAuthGallery();
 
   guestForm.addEventListener("submit", handleGuestSubmit);
   adminLoginButton.addEventListener("click", handleAdminLogin);
@@ -130,6 +129,12 @@ function init() {
   feeDownloadCsvButton.addEventListener("click", downloadFeeCsv);
 
   runRouletteButton.addEventListener("click", () => checkScheduledDraw(true));
+
+  try {
+    initAuthGallery();
+  } catch (error) {
+    console.error("Auth init failed", error);
+  }
 
   setInterval(() => {
     renderRaffle();
@@ -1306,6 +1311,8 @@ async function loadPhotos() {
     photoGrid.appendChild(card);
   });
 }
+
+
 
 
 
