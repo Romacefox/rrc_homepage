@@ -94,7 +94,7 @@ const rouletteTrack = document.getElementById("roulette-track");
 const raffleRule = document.getElementById("raffle-rule");
 const nextDraw = document.getElementById("next-draw");
 
-init();
+
 
 function init() {
   yearNode.textContent = new Date().getFullYear();
@@ -1308,6 +1308,7 @@ async function loadPhotos() {
 }
 
 
+init();
 
 
 
