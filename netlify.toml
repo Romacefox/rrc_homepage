@@ -1,0 +1,9 @@
+﻿[build]
+  publish = "."
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+[functions."monthly-draw"]
+  schedule = "0 3 1 * *"

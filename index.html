@@ -1,0 +1,275 @@
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RRC | Rising Star Running Crew</title>
+  <meta name="description" content="Rising Star Running Crew 공식 홈페이지. 정기런 일정, 회칙, 게스트 신청, 공지, 운영 관리" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=SUIT:wght@300;400;500;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="container nav-wrap">
+      <a href="#home" class="logo">RRC</a>
+      <nav class="nav-links">
+        <a href="#about">소개</a>
+        <a href="#schedule">정기런</a>
+        <a href="#rules">회칙</a>
+        <a href="#notice">공지</a>
+        <a href="#guest">게스트</a>
+        <a href="#gallery">사진첩</a>
+        <a href="#admin">운영진</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="home">
+    <section class="hero">
+      <div class="hero-overlay"></div>
+      <div class="container hero-inner">
+        <p class="eyebrow">SINCE 2020.08.06 | SONGPA RUNNING CREW</p>
+        <h1>Rising Star<br />Running Crew</h1>
+        <p class="hero-copy">소수정예 50명 정원. 같이 뛰고, 같이 성장하는 러닝 크루.</p>
+        <div class="hero-actions">
+          <a class="btn primary" href="#guest">게스트 문의</a>
+          <a class="btn ghost" href="https://open.kakao.com/o/g6yADRXf" target="_blank" rel="noopener">오픈카톡 입장</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="about" class="section">
+      <div class="container two-col">
+        <div>
+          <h2>RRC 소개</h2>
+          <p>RRC는 잠실/송파 중심으로 활동하는 소수정예 러닝크루입니다. 유령회원 없이 끈끈하게 오래 가는 커뮤니티를 목표로 운영합니다.</p>
+          <ul class="bullet">
+            <li>활동 지역: 잠실한강공원, 올림픽공원, 석촌호수, 뚝섬 등</li>
+            <li>가입 가능 연령: 1989년생 ~ 2000년생</li>
+            <li>정원: 상시 활동 인원 50명 제한</li>
+          </ul>
+        </div>
+        <aside class="panel highlight">
+          <h3>RRC 링크</h3>
+          <p><a href="https://open.kakao.com/o/g6yADRXf" target="_blank" rel="noopener">게스트 문의방 바로가기</a></p>
+          <p><a href="https://instagram.com/rrcseoul" target="_blank" rel="noopener">인스타그램 @rrcseoul</a></p>
+        </aside>
+      </div>
+    </section>
+
+    <section id="schedule" class="section alt">
+      <div class="container">
+        <h2>정기 모임 일정</h2>
+        <div class="cards">
+          <article class="card"><h3>화요일 20:30</h3><p>잠실 한강공원 (5~8km / 초보자 걷뛰 가능)</p></article>
+          <article class="card"><h3>목요일 20:30</h3><p>올림픽공원 (페이스별 그룹 런)</p></article>
+          <article class="card"><h3>토요일 07:30~08:30</h3><p>석촌호수 (기본 오전 8시 시작 기준 운영)</p></article>
+          <article class="card"><h3>일요일</h3><p>아침/저녁 변동 운영 (LSD, 남산, 등산 등)</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="rules" class="section">
+      <div class="container">
+        <h2>회칙 & 공지사항</h2>
+        <div class="rule-grid">
+          <article class="panel"><h3>추구 방향</h3><p>편안한 분위기, 메달 정복, 달리기 친구, 다양한 활동, 일당백.</p></article>
+          <article class="panel"><h3>적합한 사람</h3><p>달리기를 좋아하고, 소속감/열정/진정성을 가진 분.</p></article>
+          <article class="panel"><h3>어울리지 않는 사람</h3><p>온리 이성 목적, 영업/다단계, 무책임한 태도.</p></article>
+          <article class="panel"><h3>가입 조건</h3><p>실력보다 의지. 1km 초보도 환영. 89~00년생.</p></article>
+          <article class="panel"><h3>운영 방식</h3><p>월 2회 이상 정기런 참여 필수. 번개/행사 참여 인정.</p></article>
+          <article class="panel"><h3>강퇴 조건</h3><p>신규 미참여, 월 2회 미참여, 무단불참, 회비 미납, 비상식 행동 등.</p></article>
+          <article class="panel"><h3>회비 규정</h3><p>월 5,000원(첫달 면제). 토스 모임통장으로 투명 관리.</p></article>
+          <article class="panel"><h3>운영진</h3><p>이벤트/커뮤니티 관리, 지속적인 혜택 확대.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="notice" class="section alt">
+      <div class="container">
+        <div class="section-head"><h2>공지사항</h2><span class="badge">관리자 등록형</span></div>
+        <ul id="notice-list" class="list"></ul>
+      </div>
+    </section>
+
+    <section id="guest" class="section">
+      <div class="container two-col">
+        <div>
+          <h2>게스트 신청</h2>
+          <p>러닝 참여 희망자는 아래 폼을 남겨주세요. 운영진이 확인 후 연락합니다.</p>
+          <form id="guest-form" class="form">
+            <label for="guest-name">이름</label><input id="guest-name" name="name" type="text" required />
+            <label for="guest-year">출생연도</label><input id="guest-year" name="birthYear" type="number" min="1989" max="2000" required />
+            <label for="guest-phone">연락처</label><input id="guest-phone" name="phone" type="text" placeholder="010-0000-0000" required />
+            <label for="guest-message">메시지</label><textarea id="guest-message" name="message" rows="4" placeholder="러닝 경험, 참여 희망 일정"></textarea>
+            <button class="btn primary" type="submit">신청 저장</button>
+          </form>
+          <p class="muted">입력 데이터는 현재 브라우저(또는 추후 DB)에 저장됩니다.</p>
+        </div>
+        <aside class="panel">
+          <h3>가입 전 체크</h3>
+          <ul class="bullet">
+            <li>월 2회 이상 정기런 참여 가능 여부</li>
+            <li>소수정예 운영 방식에 대한 공감</li>
+            <li>회칙 준수 의지</li>
+          </ul>
+        </aside>
+      </div>
+    </section>
+
+    <section id="admin" class="section admin-section">
+      <div class="container">
+        <h2>운영진 관리</h2>
+        <div id="admin-lock" class="panel">
+          <p>운영진 비밀번호를 입력하면 관리 기능이 열립니다.</p>
+          <div class="inline-form"><input id="admin-password" type="password" placeholder="운영진 비밀번호" /><button id="admin-login" class="btn primary" type="button">로그인</button></div>
+          <p class="muted">초기 비밀번호는 `rrc2020` 입니다. script.js에서 변경하세요.</p>
+        </div>
+
+        <div id="admin-panel" class="hidden">
+          <div class="admin-grid">
+            <article class="panel">
+              <h3>공지 등록</h3>
+              <form id="notice-form" class="form compact">
+                <input id="notice-title" type="text" placeholder="공지 제목" required />
+                <textarea id="notice-content" rows="3" placeholder="공지 내용" required></textarea>
+                <button class="btn primary" type="submit">공지 추가</button>
+              </form>
+            </article>
+
+            <article class="panel">
+              <h3>회원 관리</h3>
+              <form id="member-form" class="form compact">
+                <input id="member-name" type="text" placeholder="회원 이름" required />
+                <input id="member-birth" type="number" placeholder="출생연도" min="1989" max="2000" required />
+                <button class="btn primary" type="submit">회원 추가</button>
+              </form>
+              <div class="inline-form" style="margin-top:0.6rem;">
+                <input id="attendance-name" type="text" placeholder="출석 이름 입력 (예: 홍길동, 김철수, 김가영)" />
+                <button id="attendance-add" class="btn primary" type="button">입력 이름 전체 +1</button>
+              </div>
+              <p id="attendance-result" class="list-meta"></p>
+              <ul id="member-list" class="list small"></ul>
+            </article>
+
+            <article class="panel">
+              <h3>소모임 명단 붙여넣기 출석</h3>
+              <label for="bulk-attendance-date">출석일</label>
+              <input id="bulk-attendance-date" type="date" />
+              <label for="bulk-attendance-type">유형</label>
+              <select id="bulk-attendance-type">
+                <option value="정기런">정기런</option>
+                <option value="번개런">번개런</option>
+                <option value="행사">행사</option>
+              </select>
+              <label for="bulk-attendance-input">참석자 명단 (쉼표/줄바꿈 구분)</label>
+              <textarea id="bulk-attendance-input" rows="6" placeholder="홍길동, 김철수, 김가영"></textarea>
+              <button id="bulk-attendance-apply" class="btn primary" type="button">명단 일괄 +1 반영</button>
+              <p id="bulk-attendance-result" class="list-meta"></p>
+              <ul id="attendance-log-list" class="list small"></ul>
+            </article>
+
+            <article class="panel">
+              <h3>회비 관리</h3>
+              <div class="inline-form">
+                <select id="fee-month"></select>
+                <button id="fee-mark-all-unpaid" class="btn ghost" type="button">이번달 전체 미납 초기화</button>
+              </div>
+              <div class="inline-form" style="margin-top:0.5rem; align-items:center;">
+                <label style="margin:0; display:flex; gap:0.35rem; align-items:center;"><input id="fee-only-unpaid" type="checkbox" style="width:auto;" />미납자만 보기</label>
+                <button id="fee-download-csv" class="btn ghost" type="button">CSV 다운로드</button>
+              </div>
+              <p id="fee-summary" class="list-meta"></p>
+              <p class="list-meta" style="margin:0.3rem 0 0.4rem;">2개월 이상 연속 미납 경고</p>
+              <ul id="fee-warning-list" class="list small"></ul>
+              <ul id="fee-list" class="list small" style="margin-top:0.6rem;"></ul>
+            </article>
+
+            <article class="panel">
+              <h3>강퇴 위험 자동 판정</h3>
+              <p class="list-meta">기준: 신규 2~3주 참여 조건, 기존 월 2회 미참여, 회비 미납(매월 7일 이후)</p>
+              <ul id="risk-list" class="list small"></ul>
+            </article>
+
+            <article class="panel">
+              <h3>운영 대시보드</h3>
+              <div class="stats-grid">
+                <div class="stat-card"><span>활동 회원</span><strong id="stat-members">0</strong></div>
+                <div class="stat-card"><span>이번달 평균 참여</span><strong id="stat-avg-runs">0</strong></div>
+                <div class="stat-card"><span>추첨 대상</span><strong id="stat-eligible">0</strong></div>
+                <div class="stat-card"><span>회비 납부율</span><strong id="stat-fee-rate">0%</strong></div>
+                <div class="stat-card"><span>위험 인원</span><strong id="stat-risk">0</strong></div>
+              </div>
+              <p class="list-meta" style="margin-top:0.7rem;">최근 6개월 참여 추이</p>
+              <ul id="runs-trend" class="trend-list"></ul>
+              <p class="list-meta" style="margin-top:0.7rem;">최근 6개월 회비 납부율</p>
+              <ul id="fee-trend" class="trend-list"></ul>
+            </article>
+
+            <article class="panel">
+              <h3>게스트 신청 관리</h3>
+              <ul id="guest-list" class="list small"></ul>
+            </article>
+
+            <article class="panel">
+              <h3>참여상 룰렛 자동 추첨</h3>
+              <p id="raffle-rule" class="list-meta"></p>
+              <p id="next-draw" class="list-meta"></p>
+              <div class="roulette-shell"><div id="roulette-track" class="roulette-track">READY</div></div>
+              <button id="run-roulette" class="btn primary" type="button">룰렛 테스트 실행</button>
+              <p id="winner-result" class="winner"></p>
+              <h4>최근 추첨 기록</h4>
+              <ul id="winner-history" class="list small"></ul>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+  
+    <section id="gallery" class="section alt">
+      <div class="container two-col">
+        <div class="panel">
+          <h2>회원 로그인</h2>
+          <p class="list-meta">회원가입 후 로그인하면 사진첩 업로드가 가능합니다.</p>
+          <form id="auth-form" class="form compact">
+            <input id="auth-email" type="email" placeholder="이메일" required />
+            <input id="auth-password" type="password" placeholder="비밀번호" required />
+            <div class="inline-form">
+              <button id="auth-signup" class="btn ghost" type="button">회원가입</button>
+              <button id="auth-login" class="btn primary" type="button">로그인</button>
+              <button id="auth-logout" class="btn ghost" type="button">로그아웃</button>
+            </div>
+          </form>
+          <p id="auth-status" class="list-meta">로그인 필요</p>
+        </div>
+
+        <div class="panel">
+          <h2>RRC 사진첩</h2>
+          <form id="photo-upload-form" class="form compact">
+            <input id="photo-file" type="file" accept="image/*" />
+            <input id="photo-caption" type="text" placeholder="한 줄 설명 (예: 목요일 올림픽공원 페이스런)" />
+            <button id="photo-upload" class="btn primary" type="button">사진 업로드</button>
+          </form>
+          <p id="photo-status" class="list-meta">로그인 후 업로드 가능</p>
+          <div id="photo-grid" class="photo-grid"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-wrap">
+      <p>© <span id="year"></span> RRC | Rising Star Running Crew</p>
+      <p>토스뱅크 회비 계좌: 1000-7920-1759</p>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="script.js"></script>
+</body>
+</html>
+
+
+
