@@ -95,6 +95,14 @@
       </div>
     </section>
 
+    <section id="raffle-public" class="section alt">
+      <div class="container">
+        <h2>참가상 룰렛</h2>
+        <p id="public-raffle-rule" class="list-meta"></p>
+        <p id="public-next-draw" class="list-meta"></p>
+        <ul id="public-winner-history" class="list small"></ul>
+      </div>
+    </section>
     <section id="guest" class="section">
       <div class="container two-col">
         <div>
@@ -188,9 +196,16 @@
               <ul id="fee-list" class="list small" style="margin-top:0.6rem;"></ul>
             </article>            <article class="panel">
               <h3>회원 가입 승인</h3>
-              <p class="list-meta">가입 신청자는 운영진 승인 후 사진 업로드가 가능합니다.</p>
-              <button id="approval-refresh" class="btn ghost" type="button">승인 대기 목록 새로고침</button>
+              <p class="list-meta">회원가입은 누구나 가능하며, 운영진/승인 관리는 모임장이 관리합니다.</p>
+              <button id="approval-refresh" class="btn ghost" type="button">가입자 목록 새로고침</button>
               <ul id="approval-list" class="list small" style="margin-top:0.6rem;"></ul>
+            </article>
+
+            <article class="panel">
+              <h3>운영진 권한 관리</h3>
+              <p class="list-meta">모임장이 운영진 권한(admin)을 부여/해제합니다.</p>
+              <button id="role-refresh" class="btn ghost" type="button">권한 목록 새로고침</button>
+              <ul id="role-list" class="list small" style="margin-top:0.6rem;"></ul>
             </article>
 
             <article class="panel">
@@ -253,6 +268,8 @@
   <script src="script.js"></script>
 </body>
 </html>
+
+
 
 
 

@@ -98,6 +98,11 @@ const approvalRefreshButton = document.getElementById("approval-refresh");
 const approvalList = document.getElementById("approval-list");
 const syncSupabaseButton = document.getElementById("sync-supabase");
 const syncStatus = document.getElementById("sync-status");
+const roleRefreshButton = document.getElementById("role-refresh");
+const roleList = document.getElementById("role-list");
+const publicRaffleRule = document.getElementById("public-raffle-rule");
+const publicNextDraw = document.getElementById("public-next-draw");
+const publicWinnerHistory = document.getElementById("public-winner-history");
 
 let adminAuthClient = null;
 let currentAdminToken = "";
@@ -143,6 +148,9 @@ function init() {
   }
   if (syncSupabaseButton) {
     syncSupabaseButton.addEventListener("click", syncDataToSupabase);
+  }
+  if (roleRefreshButton) {
+    roleRefreshButton.addEventListener("click", loadRoleList);
   }
 
   setInterval(() => {
@@ -299,6 +307,7 @@ async function handleAdminLogin() {
     adminPanel.classList.remove("hidden");
     renderAll();
     loadApprovalQueue();
+  loadRoleList();
   } catch (error) {
     alert(`운영진 로그인 오류: ${String(error?.message || error)}`);
   }
@@ -971,25 +980,47 @@ function renderRaffle() {
   const currentEligibleCount = getEligibleMembers(currentKey).length;
   const schedule = getDrawSchedule(now);
 
-  raffleRule.textContent = `${monthKeyToLabel(currentKey)} 기준: ${currentThreshold}회 이상 참여 시 자동 추첨 대상 (${currentEligibleCount}명 대상)`;
-  nextDraw.textContent = `다음 자동 추첨: ${formatDateTime(getNextDrawAt(now))} (매월 1일 12:00)`;
+  const ruleText = `${monthKeyToLabel(currentKey)} 기준: ${currentThreshold}회 이상 참여 시 자동 추첨 대상 (${currentEligibleCount}명 대상)`;
+  const nextText = `다음 자동 추첨: ${formatDateTime(getNextDrawAt(now))} (매월 1일 12:00)`;
 
-  winnerHistory.innerHTML = "";
-  if (!db.raffle.history.length) {
-    winnerHistory.innerHTML = `<li class="list-item"><p class="list-meta">추첨 기록이 없습니다.</p></li>`;
-  } else {
-    db.raffle.history.forEach((record) => {
-      const names = record.winners.length ? record.winners.map((winner) => winner.name).join(", ") : "당첨자 없음";
-      const item = document.createElement("li");
-      item.className = "list-item";
-      item.innerHTML = `<div class="list-top"><span class="list-title">${monthKeyToLabel(record.targetMonthKey)} 추첨</span><span class="list-meta">${formatDate(record.createdAt)}</span></div><p class="list-meta">기준 ${record.threshold}회 / ${record.winnerCount}명 추첨</p><p>${escapeHtml(names)}</p>`;
-      winnerHistory.appendChild(item);
-    });
+  if (raffleRule) {
+    raffleRule.textContent = ruleText;
+  }
+  if (nextDraw) {
+    nextDraw.textContent = nextText;
+  }
+  if (publicRaffleRule) {
+    publicRaffleRule.textContent = ruleText;
+  }
+  if (publicNextDraw) {
+    publicNextDraw.textContent = nextText;
   }
 
-  if (db.raffle.lastDrawId === schedule.drawId) {
+  renderRaffleHistoryList(winnerHistory);
+  renderRaffleHistoryList(publicWinnerHistory);
+
+  if (winnerResult && db.raffle.lastDrawId === schedule.drawId) {
     winnerResult.textContent = `${monthKeyToLabel(schedule.targetMonthKey)} 자동 추첨 완료 상태입니다.`;
   }
+}
+
+function renderRaffleHistoryList(target) {
+  if (!target) {
+    return;
+  }
+  target.innerHTML = "";
+  if (!db.raffle.history.length) {
+    target.innerHTML = `<li class="list-item"><p class="list-meta">추첨 기록이 없습니다.</p></li>`;
+    return;
+  }
+
+  db.raffle.history.forEach((record) => {
+    const names = record.winners.length ? record.winners.map((winner) => winner.name).join(", ") : "당첨자 없음";
+    const item = document.createElement("li");
+    item.className = "list-item";
+    item.innerHTML = `<div class="list-top"><span class="list-title">${monthKeyToLabel(record.targetMonthKey)} 추첨</span><span class="list-meta">${formatDate(record.createdAt)}</span></div><p class="list-meta">기준 ${record.threshold}회 / ${record.winnerCount}명 추첨</p><p>${escapeHtml(names)}</p>`;
+    target.appendChild(item);
+  });
 }
 function getEligibleMembers(monthKey) {
   const threshold = getThresholdForMonthKey(monthKey);
@@ -1268,7 +1299,7 @@ async function loadApprovalQueue() {
   approvalList.innerHTML = '<li class="list-item"><p class="list-meta">불러오는 중...</p></li>';
 
   try {
-    const response = await fetch("/.netlify/functions/member-approval?action=list", {
+    const response = await fetch("/.netlify/functions/member-approval?action=list-all", {
       headers: {
         Authorization: `Bearer ${currentAdminToken}`
       }
@@ -1282,7 +1313,7 @@ async function loadApprovalQueue() {
 
     const list = Array.isArray(result.items) ? result.items : [];
     if (!list.length) {
-      approvalList.innerHTML = '<li class="list-item"><p class="list-meta">승인 대기자가 없습니다.</p></li>';
+      approvalList.innerHTML = '<li class="list-item"><p class="list-meta">가입자가 없습니다.</p></li>';
       return;
     }
 
@@ -1293,7 +1324,7 @@ async function loadApprovalQueue() {
       row.innerHTML = `
         <div class="list-top">
           <span class="list-title">${escapeHtml(item.name || "이름없음")} (${item.birth_year || "-"})</span>
-          <span class="list-meta">${escapeHtml(item.approval_status || "pending")}</span>
+          <span class="list-meta">${escapeHtml(item.approval_status || "pending")} / ${escapeHtml(item.role || "member")}</span>
         </div>
         <p class="list-meta">${escapeHtml(item.email || "")}</p>
         <p>${escapeHtml(item.intro || "-")}</p>
@@ -1303,6 +1334,7 @@ async function loadApprovalQueue() {
       actions.className = "item-actions";
       actions.appendChild(buildTinyButton("승인", () => updateApprovalStatus(item.user_id, "approved")));
       actions.appendChild(buildTinyButton("반려", () => updateApprovalStatus(item.user_id, "rejected")));
+      actions.appendChild(buildTinyButton("운영진", () => updateApprovalStatus(item.user_id, "approved", "admin")));
       row.appendChild(actions);
 
       approvalList.appendChild(row);
@@ -1312,7 +1344,55 @@ async function loadApprovalQueue() {
   }
 }
 
-async function updateApprovalStatus(userId, status) {
+async function loadRoleList() {
+  if (!roleList) {
+    return;
+  }
+  if (!currentAdminToken) {
+    roleList.innerHTML = '<li class="list-item"><p class="list-meta">운영진 로그인 후 사용 가능합니다.</p></li>';
+    return;
+  }
+
+  roleList.innerHTML = '<li class="list-item"><p class="list-meta">불러오는 중...</p></li>';
+
+  try {
+    const response = await fetch("/.netlify/functions/member-approval?action=list-all", {
+      headers: {
+        Authorization: `Bearer ${currentAdminToken}`
+      }
+    });
+
+    const result = await response.json();
+    if (!response.ok || !result.ok) {
+      throw new Error(result.error || "unknown");
+    }
+
+    const items = Array.isArray(result.items) ? result.items : [];
+    roleList.innerHTML = "";
+    if (!items.length) {
+      roleList.innerHTML = '<li class="list-item"><p class="list-meta">회원 정보가 없습니다.</p></li>';
+      return;
+    }
+
+    items.slice(0, 200).forEach((item) => {
+      const row = document.createElement("li");
+      row.className = "list-item";
+      row.innerHTML = `<div class="list-top"><span class="list-title">${escapeHtml(item.name || "이름없음")}</span><span class="list-meta">${escapeHtml(item.role || "member")}</span></div><p class="list-meta">${escapeHtml(item.email || "")}</p>`;
+
+      const actions = document.createElement("div");
+      actions.className = "item-actions";
+      actions.appendChild(buildTinyButton("운영진 부여", () => updateMemberRole(item.user_id, "admin")));
+      actions.appendChild(buildTinyButton("일반회원", () => updateMemberRole(item.user_id, "member")));
+      row.appendChild(actions);
+
+      roleList.appendChild(row);
+    });
+  } catch (error) {
+    roleList.innerHTML = `<li class="list-item"><p class="list-meta">로드 실패: ${escapeHtml(String(error.message || error))}</p></li>`;
+  }
+}
+
+async function updateMemberRole(userId, role) {
   if (!currentAdminToken) {
     return;
   }
@@ -1323,7 +1403,36 @@ async function updateApprovalStatus(userId, status) {
       "Content-Type": "application/json",
       Authorization: `Bearer ${currentAdminToken}`
     },
-    body: JSON.stringify({ user_id: userId, approval_status: status })
+    body: JSON.stringify({ user_id: userId, role })
+  });
+
+  const result = await response.json();
+  if (!response.ok || !result.ok) {
+    alert(`권한 변경 실패: ${result.error || "unknown"}`);
+    return;
+  }
+
+  loadApprovalQueue();
+  loadRoleList();
+}
+
+async function updateApprovalStatus(userId, status, role = null) {
+  if (!currentAdminToken) {
+    return;
+  }
+
+  const payload = { user_id: userId, approval_status: status };
+  if (role) {
+    payload.role = role;
+  }
+
+  const response = await fetch("/.netlify/functions/member-approval", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${currentAdminToken}`
+    },
+    body: JSON.stringify(payload)
   });
 
   const result = await response.json();
@@ -1333,7 +1442,23 @@ async function updateApprovalStatus(userId, status) {
   }
 
   loadApprovalQueue();
+  loadRoleList();
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

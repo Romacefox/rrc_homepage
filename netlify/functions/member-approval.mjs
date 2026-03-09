@@ -11,24 +11,42 @@ export default async (request) => {
       const url = new URL(request.url);
       const action = url.searchParams.get("action") || "list";
 
-      if (action !== "list") {
-        return json(400, { ok: false, error: "invalid action" });
+      if (action === "list") {
+        const items = await supabaseSelect(`${TABLE}?approval_status=eq.pending&order=created_at.desc&select=user_id,email,name,birth_year,intro,approval_status,role,created_at`);
+        return json(200, { ok: true, items });
       }
 
-      const items = await supabaseSelect(`${TABLE}?approval_status=eq.pending&order=created_at.desc&select=user_id,email,name,birth_year,intro,approval_status,created_at`);
-      return json(200, { ok: true, items });
+      if (action === "list-all") {
+        const items = await supabaseSelect(`${TABLE}?order=created_at.desc&select=user_id,email,name,birth_year,intro,approval_status,role,created_at&limit=300`);
+        return json(200, { ok: true, items });
+      }
+
+      return json(400, { ok: false, error: "invalid action" });
     }
 
     if (request.method === "POST") {
       const body = await request.json();
       const userId = body?.user_id;
       const status = body?.approval_status;
+      const role = body?.role;
 
-      if (!userId || !["approved", "rejected", "pending"].includes(status)) {
+      if (!userId) {
+        return json(400, { ok: false, error: "missing user_id" });
+      }
+
+      const patch = {};
+      if (["approved", "rejected", "pending"].includes(status)) {
+        patch.approval_status = status;
+      }
+      if (["member", "admin"].includes(role)) {
+        patch.role = role;
+      }
+
+      if (Object.keys(patch).length === 0) {
         return json(400, { ok: false, error: "invalid payload" });
       }
 
-      await supabasePatch(`${TABLE}?user_id=eq.${encodeURIComponent(userId)}`, { approval_status: status });
+      await supabasePatch(`${TABLE}?user_id=eq.${encodeURIComponent(userId)}`, patch);
       return json(200, { ok: true });
     }
 

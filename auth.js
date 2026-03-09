@@ -109,7 +109,7 @@ async function handleSignup() {
     }
   }
 
-  authStatus.textContent = "가입 신청 완료. 운영진 승인 후 사진 업로드가 가능합니다.";
+  authStatus.textContent = "가입 신청 완료. 로그인하면 사진 업로드가 가능합니다.";
   authApprovalStatus.textContent = "승인 상태: 대기";
 }
 
@@ -174,13 +174,7 @@ function renderAuthState() {
     return;
   }
 
-  if (authProfile.approval_status !== "approved") {
-    authApprovalStatus.textContent = `승인 상태: ${statusLabel(authProfile.approval_status)} (업로드 제한)`;
-    disablePhotoUpload();
-    return;
-  }
-
-  authApprovalStatus.textContent = "승인 상태: 승인 완료";
+  authApprovalStatus.textContent = `승인 상태: ${statusLabel(authProfile.approval_status)} / 사진 업로드 가능`;
   enablePhotoUpload();
 }
 
@@ -188,7 +182,7 @@ function disablePhotoUpload() {
   photoUploadButton.disabled = true;
   photoFileInput.disabled = true;
   photoCaptionInput.disabled = true;
-  photoStatus.textContent = "승인된 회원만 업로드 가능합니다.";
+  photoStatus.textContent = "로그인한 회원만 업로드 가능합니다.";
 }
 
 function enablePhotoUpload() {
@@ -199,8 +193,8 @@ function enablePhotoUpload() {
 }
 
 async function handlePhotoUpload() {
-  if (!authUser || !authProfile || authProfile.approval_status !== "approved") {
-    photoStatus.textContent = "승인된 회원만 업로드할 수 있습니다.";
+  if (!authUser || !authProfile) {
+    photoStatus.textContent = "로그인한 회원만 업로드할 수 있습니다.";
     return;
   }
 
@@ -307,4 +301,8 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 }
+
+
+
+
 

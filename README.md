@@ -46,3 +46,8 @@ where email = '운영진이메일@example.com';
   로컬 운영 데이터(`members/notices/guests`)를 Supabase 기준 데이터로 일괄 반영합니다.
 - 월 자동추첨 함수(`monthly-draw`)는 Supabase `members`를 기준으로 동작하므로,
   정기적으로 동기화를 눌러주면 추첨 데이터 불일치를 줄일 수 있습니다.
+
+- 회원은 로그인 시 누구나 사진 업로드 가능
+- 룰렛 결과/기록은 메인에서 전체 공개
+- 운영진(admin) 권한은 모임장(기존 admin)이 부여/해제
+
