@@ -4,8 +4,8 @@ const ADMIN_PASSWORD = "RRC_Admin_2026!Seoul";
 const WINTER_MONTHS = [12, 1, 2];
 const DRAW_WINNER_COUNT = 4;
 const MONTHLY_FEE = 5000;
-const SUPABASE_URL = "";
-const SUPABASE_ANON_KEY = "";
+const SUPABASE_URL = "https://aqpszgycsfpxtlsuaqrt.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_C20xXZZRWdjmkzGneCcpjw_mrRnXucq";
 const PHOTO_BUCKET = "rrc-photos";
 
 const defaultData = {
@@ -1311,6 +1311,7 @@ async function loadPhotos() {
     photoGrid.appendChild(card);
   });
 }
+
 
 
 
