@@ -124,8 +124,8 @@
       <div class="container">
         <h2>운영진 관리</h2>
         <div id="admin-lock" class="panel">
-          <p>운영진 비밀번호를 입력하면 관리 기능이 열립니다.</p>
-          <div class="inline-form"><input id="admin-password" type="password" placeholder="운영진 비밀번호" /><button id="admin-login" class="btn primary" type="button">로그인</button></div>
+          <p>운영진 계정(이메일/비밀번호)으로 로그인하면 관리 기능이 열립니다.</p>
+          <div class="inline-form"><input id="admin-email" type="email" placeholder="운영진 이메일" /><input id="admin-password" type="password" placeholder="운영진 비밀번호" /><button id="admin-login" class="btn primary" type="button">로그인</button></div>
           
         </div>
 
@@ -186,6 +186,18 @@
               <p class="list-meta" style="margin:0.3rem 0 0.4rem;">2개월 이상 연속 미납 경고</p>
               <ul id="fee-warning-list" class="list small"></ul>
               <ul id="fee-list" class="list small" style="margin-top:0.6rem;"></ul>
+            </article>            <article class="panel">
+              <h3>회원 가입 승인</h3>
+              <p class="list-meta">가입 신청자는 운영진 승인 후 사진 업로드가 가능합니다.</p>
+              <button id="approval-refresh" class="btn ghost" type="button">승인 대기 목록 새로고침</button>
+              <ul id="approval-list" class="list small" style="margin-top:0.6rem;"></ul>
+            </article>
+
+            <article class="panel">
+              <h3>Supabase 동기화</h3>
+              <p class="list-meta">자동 추첨/서버 함수 기준 데이터를 최신 상태로 동기화합니다.</p>
+              <button id="sync-supabase" class="btn ghost" type="button">지금 동기화</button>
+              <p id="sync-status" class="list-meta" style="margin-top:0.6rem;">운영진 로그인 후 사용 가능</p>
             </article>
 
             <article class="panel">
@@ -227,7 +239,8 @@
           </div>
         </div>
       </div>
-    </section>`r`n  </main>
+    </section>
+  </main>
 
   <footer class="site-footer">
     <div class="container footer-wrap">
@@ -240,6 +253,12 @@
   <script src="script.js"></script>
 </body>
 </html>
+
+
+
+
+
+
 
 
 

@@ -1,6 +1,6 @@
 ﻿
 const STORAGE_KEY = "rrc-site-db-v3";
-const ADMIN_PASSWORD = "RRC_Admin_2026!Seoul";
+
 const WINTER_MONTHS = [12, 1, 2];
 const DRAW_WINNER_COUNT = 4;
 const MONTHLY_FEE = 5000;
@@ -44,6 +44,7 @@ const noticeList = document.getElementById("notice-list");
 const guestForm = document.getElementById("guest-form");
 
 const adminLoginButton = document.getElementById("admin-login");
+const adminEmailInput = document.getElementById("admin-email");
 const adminPasswordInput = document.getElementById("admin-password");
 const adminLock = document.getElementById("admin-lock");
 const adminPanel = document.getElementById("admin-panel");
@@ -93,6 +94,13 @@ const winnerHistory = document.getElementById("winner-history");
 const rouletteTrack = document.getElementById("roulette-track");
 const raffleRule = document.getElementById("raffle-rule");
 const nextDraw = document.getElementById("next-draw");
+const approvalRefreshButton = document.getElementById("approval-refresh");
+const approvalList = document.getElementById("approval-list");
+const syncSupabaseButton = document.getElementById("sync-supabase");
+const syncStatus = document.getElementById("sync-status");
+
+let adminAuthClient = null;
+let currentAdminToken = "";
 
 init();
 
@@ -130,10 +138,11 @@ function init() {
 
   runRouletteButton.addEventListener("click", () => checkScheduledDraw(true));
 
-  try {
-    initAuthGallery();
-  } catch (error) {
-    console.error("Auth init failed", error);
+  if (approvalRefreshButton) {
+    approvalRefreshButton.addEventListener("click", loadApprovalQueue);
+  }
+  if (syncSupabaseButton) {
+    syncSupabaseButton.addEventListener("click", syncDataToSupabase);
   }
 
   setInterval(() => {
@@ -182,6 +191,19 @@ function migrateLegacyData() {
 
   saveDb();
 }
+function getAdminAuthClient() {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    throw new Error("SUPABASE_URL / SUPABASE_ANON_KEY 설정이 필요합니다.");
+  }
+  if (!window.supabase || !window.supabase.createClient) {
+    throw new Error("Supabase 라이브러리를 불러오지 못했습니다.");
+  }
+  if (!adminAuthClient) {
+    adminAuthClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }
+  return adminAuthClient;
+}
+
 function setDefaultBulkDate() {
   if (!bulkAttendanceDateInput) {
     return;
@@ -223,15 +245,63 @@ function handleGuestSubmit(event) {
   alert("게스트 신청이 저장되었습니다.");
 }
 
-function handleAdminLogin() {
-  if (adminPasswordInput.value !== ADMIN_PASSWORD) {
-    alert("비밀번호가 일치하지 않습니다.");
+async function handleAdminLogin() {
+  const email = String(adminEmailInput?.value || "").trim();
+  const password = String(adminPasswordInput?.value || "").trim();
+
+  if (!email || !password) {
+    alert("운영진 이메일과 비밀번호를 입력해 주세요.");
     return;
   }
 
-  adminLock.classList.add("hidden");
-  adminPanel.classList.remove("hidden");
-  renderAll();
+  try {
+    const client = getAdminAuthClient();
+    const signInResult = await client.auth.signInWithPassword({ email, password });
+    if (signInResult.error) {
+      alert(`로그인 실패: ${signInResult.error.message}`);
+      return;
+    }
+
+    const session = signInResult.data?.session;
+    const user = signInResult.data?.user;
+    const accessToken = session?.access_token || "";
+
+    if (!user || !accessToken) {
+      alert("로그인 세션을 확인하지 못했습니다.");
+      return;
+    }
+
+    const profileResult = await client
+      .from("member_profiles")
+      .select("role,approval_status")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (profileResult.error) {
+      alert(`권한 확인 실패: ${profileResult.error.message}`);
+      await client.auth.signOut();
+      return;
+    }
+
+    const profile = profileResult.data;
+    const isAdmin = profile?.role === "admin" && profile?.approval_status === "approved";
+    if (!isAdmin) {
+      alert("운영진 권한이 없습니다. 운영진 승인/권한을 확인해 주세요.");
+      await client.auth.signOut();
+      return;
+    }
+
+    currentAdminToken = accessToken;
+    if (syncStatus) {
+      syncStatus.textContent = "동기화 준비 완료";
+    }
+    adminLock.classList.add("hidden");
+    adminPanel.classList.remove("hidden");
+    renderAll();
+    loadApprovalQueue();
+  } catch (error) {
+    alert(`운영진 로그인 오류: ${String(error?.message || error)}`);
+  }
 }
 
 function handleNoticeAdd(event) {
@@ -1117,201 +1187,153 @@ function makeId() {
 }
 
 
-let supabaseClient = null;
-let authUser = null;
 
-const authEmailInput = document.getElementById("auth-email");
-const authPasswordInput = document.getElementById("auth-password");
-const authSignupButton = document.getElementById("auth-signup");
-const authLoginButton = document.getElementById("auth-login");
-const authLogoutButton = document.getElementById("auth-logout");
-const authStatus = document.getElementById("auth-status");
+function buildSupabaseSyncPayload() {
+  const members = (Array.isArray(db.members) ? db.members : []).map((member) => ({
+    name: String(member.name || "이름없음"),
+    birth_year: Number(member.birthYear || 1994),
+    total_runs: Number(member.totalRuns || 0),
+    monthly_runs: member.monthlyRuns && typeof member.monthlyRuns === "object" ? member.monthlyRuns : {},
+    is_active: true
+  }));
 
-const photoFileInput = document.getElementById("photo-file");
-const photoCaptionInput = document.getElementById("photo-caption");
-const photoUploadButton = document.getElementById("photo-upload");
-const photoStatus = document.getElementById("photo-status");
-const photoGrid = document.getElementById("photo-grid");
+  const notices = (Array.isArray(db.notices) ? db.notices : []).map((notice) => ({
+    title: String(notice.title || "공지"),
+    content: String(notice.content || ""),
+    created_at: notice.createdAt || new Date().toISOString()
+  }));
 
-function initAuthGallery() {
-  if (!authStatus || !photoGrid) {
+  const guests = (Array.isArray(db.guests) ? db.guests : []).map((guest) => ({
+    name: String(guest.name || "게스트"),
+    birth_year: Number(guest.birthYear || 1994),
+    phone: String(guest.phone || ""),
+    message: String(guest.message || ""),
+    status: String(guest.status || "대기"),
+    created_at: guest.createdAt || new Date().toISOString()
+  }));
+
+  return { members, notices, guests };
+}
+
+async function syncDataToSupabase() {
+  if (!currentAdminToken) {
+    alert("운영진 로그인 후 사용해 주세요.");
+    return;
+  }
+  if (syncSupabaseButton) {
+    syncSupabaseButton.disabled = true;
+  }
+  if (syncStatus) {
+    syncStatus.textContent = "동기화 중...";
+  }
+
+  try {
+    const payload = buildSupabaseSyncPayload();
+    const response = await fetch("/.netlify/functions/admin-sync", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${currentAdminToken}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const result = await response.json();
+    if (!response.ok || !result.ok) {
+      throw new Error(result.error || "unknown");
+    }
+
+    if (syncStatus) {
+      syncStatus.textContent = `동기화 완료: members ${result.counts?.members || 0}, notices ${result.counts?.notices || 0}, guests ${result.counts?.guests || 0}`;
+    }
+  } catch (error) {
+    if (syncStatus) {
+      syncStatus.textContent = `동기화 실패: ${String(error.message || error)}`;
+    }
+  } finally {
+    if (syncSupabaseButton) {
+      syncSupabaseButton.disabled = false;
+    }
+  }
+}
+async function loadApprovalQueue() {
+  if (!approvalList) {
+    return;
+  }
+  if (!currentAdminToken) {
+    approvalList.innerHTML = '<li class="list-item"><p class="list-meta">운영진 로그인 후 사용 가능합니다.</p></li>';
     return;
   }
 
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    authStatus.textContent = "사진첩 비활성화: SUPABASE 설정값이 필요합니다.";
-    photoStatus.textContent = "README의 Supabase 설정 후 사용 가능합니다.";
+  approvalList.innerHTML = '<li class="list-item"><p class="list-meta">불러오는 중...</p></li>';
+
+  try {
+    const response = await fetch("/.netlify/functions/member-approval?action=list", {
+      headers: {
+        Authorization: `Bearer ${currentAdminToken}`
+      }
+    });
+
+    const result = await response.json();
+    if (!response.ok || !result.ok) {
+      approvalList.innerHTML = `<li class="list-item"><p class="list-meta">로드 실패: ${escapeHtml(result.error || "unknown")}</p></li>`;
+      return;
+    }
+
+    const list = Array.isArray(result.items) ? result.items : [];
+    if (!list.length) {
+      approvalList.innerHTML = '<li class="list-item"><p class="list-meta">승인 대기자가 없습니다.</p></li>';
+      return;
+    }
+
+    approvalList.innerHTML = "";
+    list.forEach((item) => {
+      const row = document.createElement("li");
+      row.className = "list-item";
+      row.innerHTML = `
+        <div class="list-top">
+          <span class="list-title">${escapeHtml(item.name || "이름없음")} (${item.birth_year || "-"})</span>
+          <span class="list-meta">${escapeHtml(item.approval_status || "pending")}</span>
+        </div>
+        <p class="list-meta">${escapeHtml(item.email || "")}</p>
+        <p>${escapeHtml(item.intro || "-")}</p>
+      `;
+
+      const actions = document.createElement("div");
+      actions.className = "item-actions";
+      actions.appendChild(buildTinyButton("승인", () => updateApprovalStatus(item.user_id, "approved")));
+      actions.appendChild(buildTinyButton("반려", () => updateApprovalStatus(item.user_id, "rejected")));
+      row.appendChild(actions);
+
+      approvalList.appendChild(row);
+    });
+  } catch (error) {
+    approvalList.innerHTML = `<li class="list-item"><p class="list-meta">로드 실패: ${escapeHtml(String(error.message || error))}</p></li>`;
+  }
+}
+
+async function updateApprovalStatus(userId, status) {
+  if (!currentAdminToken) {
     return;
   }
 
-  if (!window.supabase || !window.supabase.createClient) {
-    authStatus.textContent = "사진첩 비활성화: Supabase 라이브러리를 불러오지 못했습니다.";
-    return;
-  }
-
-  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-  authSignupButton.addEventListener("click", handleSignup);
-  authLoginButton.addEventListener("click", handleLogin);
-  authLogoutButton.addEventListener("click", handleLogout);
-  photoUploadButton.addEventListener("click", handlePhotoUpload);
-
-  supabaseClient.auth.onAuthStateChange((_event, session) => {
-    authUser = session?.user || null;
-    renderAuthState();
-    loadPhotos();
+  const response = await fetch("/.netlify/functions/member-approval", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${currentAdminToken}`
+    },
+    body: JSON.stringify({ user_id: userId, approval_status: status })
   });
 
-  supabaseClient.auth.getSession().then(({ data }) => {
-    authUser = data?.session?.user || null;
-    renderAuthState();
-    loadPhotos();
-  });
+  const result = await response.json();
+  if (!response.ok || !result.ok) {
+    alert(`승인 상태 변경 실패: ${result.error || "unknown"}`);
+    return;
+  }
+
+  loadApprovalQueue();
 }
-
-async function handleSignup() {
-  const email = String(authEmailInput.value || "").trim();
-  const password = String(authPasswordInput.value || "").trim();
-
-  if (!email || !password) {
-    authStatus.textContent = "이메일/비밀번호를 입력하세요.";
-    return;
-  }
-
-  const { error } = await supabaseClient.auth.signUp({ email, password });
-  if (error) {
-    authStatus.textContent = `회원가입 실패: ${error.message}`;
-    return;
-  }
-
-  authStatus.textContent = "회원가입 완료. 이메일 인증이 설정된 경우 메일을 확인하세요.";
-}
-
-async function handleLogin() {
-  const email = String(authEmailInput.value || "").trim();
-  const password = String(authPasswordInput.value || "").trim();
-
-  if (!email || !password) {
-    authStatus.textContent = "이메일/비밀번호를 입력하세요.";
-    return;
-  }
-
-  const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-  if (error) {
-    authStatus.textContent = `로그인 실패: ${error.message}`;
-    return;
-  }
-
-  authStatus.textContent = "로그인 성공";
-}
-
-async function handleLogout() {
-  if (!supabaseClient) {
-    return;
-  }
-  await supabaseClient.auth.signOut();
-  authStatus.textContent = "로그아웃 완료";
-}
-
-function renderAuthState() {
-  if (!authUser) {
-    authStatus.textContent = "로그인 필요";
-    photoStatus.textContent = "로그인 후 업로드 가능합니다.";
-    return;
-  }
-
-  authStatus.textContent = `로그인됨: ${authUser.email}`;
-  photoStatus.textContent = "사진 업로드 가능";
-}
-
-async function handlePhotoUpload() {
-  if (!authUser) {
-    photoStatus.textContent = "로그인 후 업로드하세요.";
-    return;
-  }
-
-  const file = photoFileInput.files?.[0];
-  if (!file) {
-    photoStatus.textContent = "업로드할 사진 파일을 선택하세요.";
-    return;
-  }
-
-  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-  const path = `${authUser.id}/${Date.now()}-${Math.random().toString(16).slice(2)}.${ext}`;
-
-  photoStatus.textContent = "업로드 중...";
-
-  const uploadResult = await supabaseClient.storage.from(PHOTO_BUCKET).upload(path, file, {
-    upsert: false,
-    contentType: file.type
-  });
-
-  if (uploadResult.error) {
-    photoStatus.textContent = `업로드 실패: ${uploadResult.error.message}`;
-    return;
-  }
-
-  const caption = String(photoCaptionInput.value || "").trim();
-
-  const insertResult = await supabaseClient.from("photos").insert({
-    user_id: authUser.id,
-    file_path: path,
-    caption
-  });
-
-  if (insertResult.error) {
-    photoStatus.textContent = `메타 저장 실패: ${insertResult.error.message}`;
-    return;
-  }
-
-  photoFileInput.value = "";
-  photoCaptionInput.value = "";
-  photoStatus.textContent = "업로드 완료";
-  await loadPhotos();
-}
-
-async function loadPhotos() {
-  if (!supabaseClient || !photoGrid) {
-    return;
-  }
-
-  const { data, error } = await supabaseClient
-    .from("photos")
-    .select("id,user_id,file_path,caption,created_at")
-    .order("created_at", { ascending: false })
-    .limit(60);
-
-  if (error) {
-    photoStatus.textContent = `사진 목록 로드 실패: ${error.message}`;
-    return;
-  }
-
-  photoGrid.innerHTML = "";
-  if (!data || !data.length) {
-    photoGrid.innerHTML = '<p class="list-meta">아직 업로드된 사진이 없습니다.</p>';
-    return;
-  }
-
-  data.forEach((photo) => {
-    const { data: urlData } = supabaseClient.storage.from(PHOTO_BUCKET).getPublicUrl(photo.file_path);
-    const card = document.createElement("article");
-    card.className = "photo-item";
-
-    const safeCaption = escapeHtml(photo.caption || "");
-    const safeDate = formatDate(photo.created_at);
-
-    card.innerHTML = `
-      <img src="${urlData.publicUrl}" alt="RRC photo" loading="lazy" />
-      <div class="photo-meta">
-        <div>${safeCaption || "무설명"}</div>
-        <div>${safeDate}</div>
-      </div>
-    `;
-
-    photoGrid.appendChild(card);
-  });
-}
-
 
 
 

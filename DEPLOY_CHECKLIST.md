@@ -5,15 +5,20 @@
 - `SUPABASE_URL`
 - `SUPABASE_ANON_KEY`
 
-2. Supabase SQL 실행
+2. `auth.js` 상단에 입력
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+
+3. Supabase SQL 실행
 - `supabase/schema.sql`
 - `supabase/policies.sql`
 
-3. Netlify 환경변수 입력
+4. Netlify 환경변수 입력
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_ANON_KEY`
 
-4. 배포
+5. 배포
 - Netlify에서 Deploy 진행
 
 ## B. 기능 검수 (필수)
@@ -21,7 +26,8 @@
 - PC/모바일에서 메인, 메뉴 이동 정상
 
 2. 운영진 로그인
-- 운영진 비밀번호 로그인 가능
+- 운영진 이메일/비밀번호 로그인 가능
+- 운영진 role 계정만 관리 페이지 열림
 - 공지 등록/삭제 정상
 
 3. 회원/출석
@@ -47,11 +53,13 @@
 7. 룰렛/추첨
 - 룰렛 테스트 실행 정상
 - 추첨 기록 표시 정상
+- 운영진 로그인 후 `Supabase 동기화` 버튼 정상 동작
 
 8. 사진첩
 - 회원가입 가능
 - 로그인/로그아웃 가능
-- 사진 업로드 가능
+- 승인 대기 상태에서 업로드 차단
+- 승인 후 사진 업로드 가능
 - 업로드 후 목록에 썸네일 표시
 
 ## C. 자동 추첨 검수
@@ -63,8 +71,9 @@
 - `notices`에 추첨 결과 공지 생성
 
 ## D. 보안/운영 확인
-1. 관리자 비밀번호 변경
-- `script.js`의 `ADMIN_PASSWORD` 변경 후 재배포
+1. 운영진 계정 권한 확인
+- `member_profiles.role = 'admin'`
+- `member_profiles.approval_status = 'approved'`
 
 2. Supabase Auth 설정
 - 이메일 인증 정책 선택(권장: 이메일 확인)
@@ -72,7 +81,13 @@
 3. Storage 버킷 확인
 - `rrc-photos` public 설정 및 정책 적용 확인
 
+4. 키 관리
+- `SUPABASE_SERVICE_ROLE_KEY`는 Netlify env에만 저장
+- 브라우저 코드에는 절대 노출 금지
+
 ## E. 완료 후 공유해주실 것
 1. Netlify 배포 URL
 2. 테스트 계정 이메일(운영진/일반 1개씩)
 3. 에러가 난 화면 캡처(있으면)
+
+

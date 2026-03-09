@@ -32,13 +32,21 @@
           <form class="form compact" id="auth-form">
             <input id="auth-email" type="email" placeholder="이메일" required />
             <input id="auth-password" type="password" placeholder="비밀번호" required />
+            <input id="auth-name" type="text" placeholder="이름(실명)" />
+            <input id="auth-birth-year" type="number" min="1989" max="2000" placeholder="출생연도(1989~2000)" />
+            <textarea id="auth-intro" rows="3" placeholder="자기소개(러닝 경험/가입 동기)"></textarea>
+            <label style="display:flex;gap:0.4rem;align-items:flex-start;">
+              <input id="auth-agree" type="checkbox" style="width:auto;margin-top:0.1rem;" />
+              <span class="list-meta">개인정보(이메일/이름/출생연도/소개) 수집 및 운영진 검토에 동의합니다.</span>
+            </label>
             <div class="inline-form">
-              <button id="auth-signup" class="btn ghost" type="button">회원가입</button>
+              <button id="auth-signup" class="btn ghost" type="button">가입 신청</button>
               <button id="auth-login" class="btn primary" type="button">로그인</button>
               <button id="auth-logout" class="btn ghost" type="button">로그아웃</button>
             </div>
           </form>
           <p id="auth-status" class="list-meta">로그인 필요</p>
+          <p id="auth-approval-status" class="list-meta">가입 신청 후 운영진 승인 시 업로드가 가능합니다.</p>
         </article>
 
         <article class="panel">
@@ -66,3 +74,4 @@
   <script src="auth.js"></script>
 </body>
 </html>
+
