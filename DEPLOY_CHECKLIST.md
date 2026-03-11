@@ -17,6 +17,7 @@
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `SUPABASE_ANON_KEY`
+- `OWNER_EMAIL` (모임장 계정 이메일)
 
 5. 배포
 - Netlify에서 Deploy 진행
@@ -29,6 +30,7 @@
 - 운영진 이메일/비밀번호 로그인 가능
 - 운영진 role 계정만 관리 페이지 열림
 - 공지 등록/삭제 정상
+- `OWNER_EMAIL` 계정만 운영진 권한 부여/해제 가능
 
 3. 회원/출석
 - 회원 추가 가능
@@ -74,12 +76,14 @@
 1. 운영진 계정 권한 확인
 - `member_profiles.role = 'admin'`
 - `member_profiles.approval_status = 'approved'`
+- Netlify `OWNER_EMAIL`이 실제 모임장 계정 이메일과 일치
 
 2. Supabase Auth 설정
 - 이메일 인증 정책 선택(권장: 이메일 확인)
 
 3. Storage 버킷 확인
 - `rrc-photos` public 설정 및 정책 적용 확인
+- 변경한 `supabase/policies.sql`이 재적용되었는지 확인
 
 4. 키 관리
 - `SUPABASE_SERVICE_ROLE_KEY`는 Netlify env에만 저장
@@ -89,6 +93,3 @@
 1. Netlify 배포 URL
 2. 테스트 계정 이메일(운영진/일반 1개씩)
 3. 에러가 난 화면 캡처(있으면)
-
-
-

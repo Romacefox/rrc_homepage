@@ -20,6 +20,19 @@ as $$
   );
 $$;
 
+create or replace function public.is_approved_member()
+returns boolean
+language sql
+stable
+as $$
+  select exists (
+    select 1
+    from public.member_profiles mp
+    where mp.user_id = auth.uid()
+      and mp.approval_status = 'approved'
+  );
+$$;
+
 -- Public read
 
 drop policy if exists "public read notices" on public.notices;
@@ -81,6 +94,24 @@ with check (auth.uid() = user_id and role = 'member' and approval_status = 'pend
 -- Do not allow users to update their own role/approval_status directly.
 -- Admin updates are handled by Netlify function with service role key.
 
+-- Approved-member photo policies
+
+drop policy if exists "approved member upload photo rows" on public.photos;
+create policy "approved member upload photo rows" on public.photos
+for insert to authenticated
+with check (
+  public.is_approved_member()
+  and auth.uid() = user_id
+);
+
+drop policy if exists "approved member delete own photo rows" on public.photos;
+create policy "approved member delete own photo rows" on public.photos
+for delete to authenticated
+using (
+  public.is_approved_member()
+  and auth.uid() = user_id
+);
+
 -- Storage bucket + object policies
 insert into storage.buckets (id, name, public)
 values ('rrc-photos', 'rrc-photos', true)
@@ -90,21 +121,20 @@ drop policy if exists "public read rrc photos" on storage.objects;
 create policy "public read rrc photos" on storage.objects
 for select using (bucket_id = 'rrc-photos');
 
-drop policy if exists "auth upload own folder" on storage.objects;
-create policy "auth upload own folder" on storage.objects
+drop policy if exists "approved member upload own folder" on storage.objects;
+create policy "approved member upload own folder" on storage.objects
 for insert to authenticated
 with check (
   bucket_id = 'rrc-photos'
+  and public.is_approved_member()
   and auth.uid()::text = (storage.foldername(name))[1]
 );
 
-drop policy if exists "auth delete own folder" on storage.objects;
-create policy "auth delete own folder" on storage.objects
+drop policy if exists "approved member delete own folder" on storage.objects;
+create policy "approved member delete own folder" on storage.objects
 for delete to authenticated
 using (
   bucket_id = 'rrc-photos'
+  and public.is_approved_member()
   and auth.uid()::text = (storage.foldername(name))[1]
 );
-
-
-

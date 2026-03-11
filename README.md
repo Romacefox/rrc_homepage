@@ -16,6 +16,8 @@
 - 운영진 로그인은 Supabase Auth(이메일/비밀번호) 사용
 - Netlify 함수는 `Authorization: Bearer <access_token>` 검증 후
   `member_profiles.role = 'admin'` + `approval_status = 'approved'` 조건일 때만 승인 API 허용
+- 운영진 권한(admin) 부여/해제는 Netlify `OWNER_EMAIL`과 일치하는 모임장 계정만 가능
+- Supabase 정책은 승인된 회원만 사진 업로드/삭제 가능하도록 제한
 
 ## 최초 배포 순서
 1. GitHub 업로드
@@ -27,6 +29,7 @@
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `SUPABASE_ANON_KEY`
+- `OWNER_EMAIL` (모임장 계정 이메일)
 5. 프론트 설정
 - `script.js`: `SUPABASE_URL`, `SUPABASE_ANON_KEY`
 - `auth.js`: `SUPABASE_URL`, `SUPABASE_ANON_KEY`
@@ -47,8 +50,7 @@ where email = '운영진이메일@example.com';
 - 월 자동추첨 함수(`monthly-draw`)는 Supabase `members`를 기준으로 동작하므로,
   정기적으로 동기화를 눌러주면 추첨 데이터 불일치를 줄일 수 있습니다.
 
-- 회원은 로그인 시 누구나 사진 업로드 가능
+## 운영 메모
+- 승인된 회원만 사진 업로드 가능
 - 룰렛 결과/기록은 메인에서 전체 공개
-- 운영진(admin) 권한은 모임장(기존 admin)이 부여/해제
-
-
+- 운영진(admin) 권한은 `OWNER_EMAIL`에 지정된 모임장 계정만 부여/해제
