@@ -18,6 +18,7 @@
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `SUPABASE_ANON_KEY`
 - `OWNER_EMAIL` (모임장 계정 이메일)
+- `APPROVAL_NOTIFY_WEBHOOK_URL` (선택, 운영진 알림 웹훅)
 
 5. 배포
 - Netlify에서 Deploy 진행
@@ -59,6 +60,7 @@
 
 8. 사진첩
 - 회원가입 가능
+- 신규 가입 시 운영진 알림 도착(웹훅 설정 시)
 - 로그인/로그아웃 가능
 - 승인 대기 상태에서 업로드 차단
 - 승인 후 사진 업로드 가능
@@ -85,7 +87,10 @@
 - `rrc-photos` public 설정 및 정책 적용 확인
 - 변경한 `supabase/policies.sql`이 재적용되었는지 확인
 
-4. 키 관리
+4. 알림 확인
+- `APPROVAL_NOTIFY_WEBHOOK_URL` 설정 시 신규 가입 알림 도착 확인
+
+5. 키 관리
 - `SUPABASE_SERVICE_ROLE_KEY`는 Netlify env에만 저장
 - 브라우저 코드에는 절대 노출 금지
 
