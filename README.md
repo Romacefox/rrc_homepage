@@ -51,3 +51,4 @@ where email = '운영진이메일@example.com';
 - 룰렛 결과/기록은 메인에서 전체 공개
 - 운영진(admin) 권한은 모임장(기존 admin)이 부여/해제
 
+

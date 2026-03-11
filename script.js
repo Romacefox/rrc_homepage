@@ -100,12 +100,14 @@ const syncSupabaseButton = document.getElementById("sync-supabase");
 const syncStatus = document.getElementById("sync-status");
 const roleRefreshButton = document.getElementById("role-refresh");
 const roleList = document.getElementById("role-list");
+const roleStatus = document.getElementById("role-status");
 const publicRaffleRule = document.getElementById("public-raffle-rule");
 const publicNextDraw = document.getElementById("public-next-draw");
 const publicWinnerHistory = document.getElementById("public-winner-history");
 
 let adminAuthClient = null;
 let currentAdminToken = "";
+let currentAdminUserId = "";
 
 init();
 
@@ -300,14 +302,18 @@ async function handleAdminLogin() {
     }
 
     currentAdminToken = accessToken;
+    currentAdminUserId = user.id;
     if (syncStatus) {
       syncStatus.textContent = "동기화 준비 완료";
+    }
+    if (roleStatus) {
+      roleStatus.textContent = `내 권한: ${profile.role || "unknown"} / 상태: ${profile.approval_status || "unknown"}`;
     }
     adminLock.classList.add("hidden");
     adminPanel.classList.remove("hidden");
     renderAll();
     loadApprovalQueue();
-  loadRoleList();
+    loadRoleList();
   } catch (error) {
     alert(`운영진 로그인 오류: ${String(error?.message || error)}`);
   }
@@ -1374,10 +1380,11 @@ async function loadRoleList() {
       return;
     }
 
-    items.slice(0, 200).forEach((item) => {
+    currentAdminCanManageRoles = Boolean(result.can_manage_roles);`r`n    if (roleStatus) {`r`n      const manageLabel = currentAdminCanManageRoles ? "??" : "??? ??";`r`n      const currentRoleText = roleStatus.textContent || "";`r`n      const trimmedRoleText = currentRoleText.split(" / ??? ?? ??:")[0] || currentRoleText;`r`n      roleStatus.textContent = `${trimmedRoleText} / ??? ?? ??: ${manageLabel}`;`r`n    }`r`n`r`n    items.slice(0, 200).forEach((item) => {
       const row = document.createElement("li");
       row.className = "list-item";
-      row.innerHTML = `<div class="list-top"><span class="list-title">${escapeHtml(item.name || "이름없음")}</span><span class="list-meta">${escapeHtml(item.role || "member")}</span></div><p class="list-meta">${escapeHtml(item.email || "")}</p>`;
+      const isMe = item.user_id === currentAdminUserId;
+      row.innerHTML = `<div class="list-top"><span class="list-title">${escapeHtml(item.name || "이름없음")}${isMe ? " (나)" : ""}</span><span class="list-meta">${escapeHtml(item.role || "member")}</span></div><p class="list-meta">${escapeHtml(item.email || "")}</p>`;
 
       const actions = document.createElement("div");
       actions.className = "item-actions";
@@ -1392,8 +1399,17 @@ async function loadRoleList() {
   }
 }
 
-async function updateMemberRole(userId, role) {
+async function updateMemberRole(userId, role, displayName = "회원") {
   if (!currentAdminToken) {
+    return;
+  }
+  if (userId === currentAdminUserId && role !== "admin") {
+    alert("본인 계정은 일반회원으로 변경할 수 없습니다.");
+    return;
+  }
+
+  const confirmed = confirm(`${displayName}님의 권한을 ${role === "admin" ? "운영진" : "일반회원"}으로 변경할까요?`);
+  if (!confirmed) {
     return;
   }
 
@@ -1413,12 +1429,19 @@ async function updateMemberRole(userId, role) {
   }
 
   loadApprovalQueue();
-  loadRoleList();
+    loadRoleList();
 }
 
 async function updateApprovalStatus(userId, status, role = null) {
   if (!currentAdminToken) {
     return;
+  }
+
+  if (role === "admin") {
+    const confirmed = confirm("이 회원에게 운영진 권한을 부여할까요?");
+    if (!confirmed) {
+      return;
+    }
   }
 
   const payload = { user_id: userId, approval_status: status };
@@ -1442,8 +1465,17 @@ async function updateApprovalStatus(userId, status, role = null) {
   }
 
   loadApprovalQueue();
-  loadRoleList();
+    loadRoleList();
 }
+
+
+
+
+
+
+
+
+
 
 
 

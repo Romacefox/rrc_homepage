@@ -13,12 +13,12 @@ export default async (request) => {
 
       if (action === "list") {
         const items = await supabaseSelect(`${TABLE}?approval_status=eq.pending&order=created_at.desc&select=user_id,email,name,birth_year,intro,approval_status,role,created_at`);
-        return json(200, { ok: true, items });
+        return json(200, { ok: true, items, can_manage_roles: auth.isOwner });
       }
 
       if (action === "list-all") {
         const items = await supabaseSelect(`${TABLE}?order=created_at.desc&select=user_id,email,name,birth_year,intro,approval_status,role,created_at&limit=300`);
-        return json(200, { ok: true, items });
+        return json(200, { ok: true, items, can_manage_roles: auth.isOwner });
       }
 
       return json(400, { ok: false, error: "invalid action" });
@@ -100,7 +100,7 @@ async function fetchAuthedUser(token) {
   return response.json();
 }
 
-function env(name) {
+function envOptional(name) {`r`n  return process.env[name] || "";`r`n}`r`n`r`nfunction env(name) {
   const value = process.env[name];
   if (!value) {
     throw new Error(`Missing env: ${name}`);
@@ -145,3 +145,4 @@ function json(status, body) {
     headers: { "content-type": "application/json; charset=utf-8" }
   });
 }
+
