@@ -95,6 +95,29 @@
       </div>
     </section>
 
+
+    <section id="running-hub" class="section">
+      <div class="container">
+        <div class="section-head"><h2>러닝 정보</h2><span class="badge">루트 · 팁 · 대회</span></div>
+        <div class="cards">
+          <article class="panel">
+            <h3>추천 러닝 루트</h3>
+            <p class="list-meta">처음 오는 멤버도 바로 참고할 수 있는 코스 모음</p>
+            <ul id="running-route-list" class="list small"></ul>
+          </article>
+          <article class="panel">
+            <h3>이번 주 러닝 팁</h3>
+            <p class="list-meta">날씨, 장비, 회복 루틴 같은 실전 팁</p>
+            <ul id="running-tip-list" class="list small"></ul>
+          </article>
+          <article class="panel">
+            <h3>러닝 대회 정보</h3>
+            <p class="list-meta">관심 있는 대회, 접수 일정, 준비 포인트</p>
+            <ul id="running-race-list" class="list small"></ul>
+          </article>
+        </div>
+      </div>
+    </section>
     <section id="raffle-public" class="section alt">
       <div class="container">
         <h2>참가상 룰렛</h2>
@@ -195,8 +218,9 @@
               <ul id="fee-warning-list" class="list small"></ul>
               <ul id="fee-list" class="list small" style="margin-top:0.6rem;"></ul>
             </article>            <article class="panel">
-              <h3>회원 가입 승인</h3>
+              <h3>회원 가입 승인 <span id="approval-pending-badge" class="badge">대기 0</span></h3>
               <p class="list-meta">회원가입은 누구나 가능하며, 운영진/승인 관리는 모임장이 관리합니다.</p>
+              <p id="approval-summary" class="list-meta">대기 0명 / 전체 0명</p>
               <button id="approval-refresh" class="btn ghost" type="button">가입자 목록 새로고침</button>
               <ul id="approval-list" class="list small" style="margin-top:0.6rem;"></ul>
             </article>
@@ -207,6 +231,22 @@
               <p id="role-status" class="list-meta">내 권한: 확인 전</p>
               <button id="role-refresh" class="btn ghost" type="button">권한 목록 새로고침</button>
               <ul id="role-list" class="list small" style="margin-top:0.6rem;"></ul>
+            </article>
+
+            <article class="panel">
+              <h3>러닝 정보 관리</h3>
+              <p class="list-meta">루트 추천, 러닝 팁, 대회 정보를 메인 화면에 공유합니다.</p>
+              <form id="running-info-form" class="form compact">
+                <select id="running-info-category">
+                  <option value="route">추천 루트</option>
+                  <option value="tip">러닝 팁</option>
+                  <option value="race">대회 정보</option>
+                </select>
+                <input id="running-info-title" type="text" placeholder="제목 (예: 잠실 한강공원 5K 루트)" />
+                <input id="running-info-meta" type="text" placeholder="보조 정보 (예: 평지 위주 / 4월 20일 접수 마감)" />
+                <textarea id="running-info-content" rows="4" placeholder="상세 설명을 입력하세요."></textarea>
+                <button class="btn ghost" type="submit">러닝 정보 등록</button>
+              </form>
             </article>
 
             <article class="panel">
@@ -269,6 +309,8 @@
   <script src="script.js"></script>
 </body>
 </html>
+
+
 
 
 
