@@ -45,6 +45,12 @@ export default async (request) => {
       if (Object.keys(patch).length === 0) {
         return json(400, { ok: false, error: "invalid payload" });
       }
+      if (patch.role && !auth.isOwner) {
+        return json(403, { ok: false, error: "owner only" });
+      }
+      if (patch.role && auth.user?.id === userId && patch.role !== "admin") {
+        return json(400, { ok: false, error: "cannot demote self" });
+      }
 
       await supabasePatch(`${TABLE}?user_id=eq.${encodeURIComponent(userId)}`, patch);
       return json(200, { ok: true });
@@ -70,8 +76,11 @@ async function requireAdmin(request) {
   const profiles = await supabaseSelect(`${TABLE}?user_id=eq.${encodeURIComponent(user.id)}&select=role,approval_status&limit=1`);
   const profile = Array.isArray(profiles) ? profiles[0] : null;
   const isAdmin = profile?.role === "admin" && profile?.approval_status === "approved";
+  const ownerEmail = envOptional("OWNER_EMAIL").toLowerCase();
+  const userEmail = String(user.email || "").toLowerCase();
+  const isOwner = Boolean(ownerEmail) && userEmail === ownerEmail;
 
-  return { ok: Boolean(isAdmin), user };
+  return { ok: Boolean(isAdmin), user, isOwner };
 }
 
 function extractBearerToken(header) {
@@ -100,7 +109,11 @@ async function fetchAuthedUser(token) {
   return response.json();
 }
 
-function envOptional(name) {`r`n  return process.env[name] || "";`r`n}`r`n`r`nfunction env(name) {
+function envOptional(name) {
+  return process.env[name] || "";
+}
+
+function env(name) {
   const value = process.env[name];
   if (!value) {
     throw new Error(`Missing env: ${name}`);
@@ -145,4 +158,3 @@ function json(status, body) {
     headers: { "content-type": "application/json; charset=utf-8" }
   });
 }
-

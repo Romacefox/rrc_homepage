@@ -109,6 +109,7 @@ let adminAuthClient = null;
 let currentAdminToken = "";
 let currentAdminUserId = "";
 
+let currentAdminCanManageRoles = false;
 init();
 
 function init() {
@@ -302,6 +303,7 @@ async function handleAdminLogin() {
     }
 
     currentAdminToken = accessToken;
+    currentAdminCanManageRoles = false;
     currentAdminUserId = user.id;
     if (syncStatus) {
       syncStatus.textContent = "동기화 준비 완료";
@@ -1374,13 +1376,21 @@ async function loadRoleList() {
     }
 
     const items = Array.isArray(result.items) ? result.items : [];
+    currentAdminCanManageRoles = Boolean(result.can_manage_roles);
     roleList.innerHTML = "";
     if (!items.length) {
       roleList.innerHTML = '<li class="list-item"><p class="list-meta">회원 정보가 없습니다.</p></li>';
       return;
     }
 
-    currentAdminCanManageRoles = Boolean(result.can_manage_roles);`r`n    if (roleStatus) {`r`n      const manageLabel = currentAdminCanManageRoles ? "??" : "??? ??";`r`n      const currentRoleText = roleStatus.textContent || "";`r`n      const trimmedRoleText = currentRoleText.split(" / ??? ?? ??:")[0] || currentRoleText;`r`n      roleStatus.textContent = `${trimmedRoleText} / ??? ?? ??: ${manageLabel}`;`r`n    }`r`n`r`n    items.slice(0, 200).forEach((item) => {
+    if (roleStatus) {
+      const manageLabel = currentAdminCanManageRoles ? "가능" : "모임장 전용";
+      const currentRoleText = roleStatus.textContent || "";
+      const trimmedRoleText = currentRoleText.split(" / 권한 관리 가능:")[0] || currentRoleText;
+      roleStatus.textContent = `${trimmedRoleText} / 권한 관리 가능: ${manageLabel}`;
+    }
+
+    items.slice(0, 200).forEach((item) => {
       const row = document.createElement("li");
       row.className = "list-item";
       const isMe = item.user_id === currentAdminUserId;
@@ -1388,8 +1398,16 @@ async function loadRoleList() {
 
       const actions = document.createElement("div");
       actions.className = "item-actions";
-      actions.appendChild(buildTinyButton("운영진 부여", () => updateMemberRole(item.user_id, "admin")));
-      actions.appendChild(buildTinyButton("일반회원", () => updateMemberRole(item.user_id, "member")));
+      const promoteButton = buildTinyButton("운영진 부여", () => updateMemberRole(item.user_id, "admin", item.name || "회원"));
+      const demoteButton = buildTinyButton("일반회원", () => updateMemberRole(item.user_id, "member", item.name || "회원"));
+      if (!currentAdminCanManageRoles) {
+        promoteButton.disabled = true;
+        demoteButton.disabled = true;
+        promoteButton.title = "모임장만 권한을 변경할 수 있습니다.";
+        demoteButton.title = "모임장만 권한을 변경할 수 있습니다.";
+      }
+      actions.appendChild(promoteButton);
+      actions.appendChild(demoteButton);
       row.appendChild(actions);
 
       roleList.appendChild(row);
@@ -1401,6 +1419,10 @@ async function loadRoleList() {
 
 async function updateMemberRole(userId, role, displayName = "회원") {
   if (!currentAdminToken) {
+    return;
+  }
+  if (!currentAdminCanManageRoles) {
+    alert("권한 변경은 모임장만 가능합니다.");
     return;
   }
   if (userId === currentAdminUserId && role !== "admin") {
@@ -1429,7 +1451,7 @@ async function updateMemberRole(userId, role, displayName = "회원") {
   }
 
   loadApprovalQueue();
-    loadRoleList();
+  loadRoleList();
 }
 
 async function updateApprovalStatus(userId, status, role = null) {
@@ -1465,8 +1487,11 @@ async function updateApprovalStatus(userId, status, role = null) {
   }
 
   loadApprovalQueue();
-    loadRoleList();
+  loadRoleList();
 }
+
+
+
 
 
 

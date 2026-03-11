@@ -174,15 +174,21 @@ function renderAuthState() {
     return;
   }
 
-  authApprovalStatus.textContent = `승인 상태: ${statusLabel(authProfile.approval_status)} / 사진 업로드 가능`;
-  enablePhotoUpload();
+  const isApproved = authProfile.approval_status === "approved";
+  authApprovalStatus.textContent = `승인 상태: ${statusLabel(authProfile.approval_status)}${isApproved ? " / 사진 업로드 가능" : " / 승인 후 업로드 가능"}`;
+  if (isApproved) {
+    enablePhotoUpload();
+    return;
+  }
+
+  disablePhotoUpload("운영진 승인 후 사진 업로드가 가능합니다.");
 }
 
-function disablePhotoUpload() {
+function disablePhotoUpload(message = "로그인한 회원만 업로드 가능합니다.") {
   photoUploadButton.disabled = true;
   photoFileInput.disabled = true;
   photoCaptionInput.disabled = true;
-  photoStatus.textContent = "로그인한 회원만 업로드 가능합니다.";
+  photoStatus.textContent = message;
 }
 
 function enablePhotoUpload() {
