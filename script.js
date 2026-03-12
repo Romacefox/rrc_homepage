@@ -1,10 +1,11 @@
-﻿
+
 const STORAGE_KEY = "rrc-site-db-v3";
 
 const WINTER_MONTHS = [12, 1, 2];
 const DRAW_WINNER_COUNT = 4;
 const MONTHLY_FEE = 5000;
 const SUPABASE_URL = "https://aqpszgycsfpxtlsuaqrt.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_C20xXZZRWdjmkzGneCcpjw_mrRnXucq";
 const PHOTO_BUCKET = "rrc-photos";
 
 const defaultData = {
@@ -13,32 +14,6 @@ const defaultData = {
       id: makeId(),
       title: "RRC 홈페이지 오픈",
       content: "정기런 일정, 출석/회비/추첨/운영 대시보드 기능이 업데이트되었습니다.",
-      createdAt: new Date().toISOString()
-    }
-  ],
-  runningContent: [
-    {
-      id: makeId(),
-      category: "route",
-      title: "잠실 한강공원 5K 루트",
-      meta: "평지 위주 · 초보/회복런 추천",
-      content: "잠실나루역 출발 후 한강 변을 따라 왕복하기 좋은 코스입니다.",
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: makeId(),
-      category: "tip",
-      title: "주중 야간 러닝 팁",
-      meta: "반사 소재 착용 · 종료 후 수분 보충",
-      content: "야간 러닝은 밝은 상의와 반사 포인트를 챙기고, 종료 후 30분 안에 수분을 보충해 주세요.",
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: makeId(),
-      category: "race",
-      title: "봄 시즌 10K 대회 체크",
-      meta: "접수 일정과 컷오프를 꼭 확인",
-      content: "관심 있는 대회는 접수 오픈일, 기념품, 집결 시간, 컷오프를 먼저 확인하면 준비가 편합니다.",
       createdAt: new Date().toISOString()
     }
   ],
@@ -64,10 +39,8 @@ const defaultData = {
 
 let db = loadDb();
 
+const yearNode = document.getElementById("year");
 const noticeList = document.getElementById("notice-list");
-const runningRouteList = document.getElementById("running-route-list");
-const runningTipList = document.getElementById("running-tip-list");
-const runningRaceList = document.getElementById("running-race-list");
 const guestForm = document.getElementById("guest-form");
 
 const adminLoginButton = document.getElementById("admin-login");
@@ -79,11 +52,6 @@ const adminPanel = document.getElementById("admin-panel");
 const noticeForm = document.getElementById("notice-form");
 const noticeTitleInput = document.getElementById("notice-title");
 const noticeContentInput = document.getElementById("notice-content");
-const runningInfoForm = document.getElementById("running-info-form");
-const runningInfoCategoryInput = document.getElementById("running-info-category");
-const runningInfoTitleInput = document.getElementById("running-info-title");
-const runningInfoMetaInput = document.getElementById("running-info-meta");
-const runningInfoContentInput = document.getElementById("running-info-content");
 
 const memberForm = document.getElementById("member-form");
 const memberNameInput = document.getElementById("member-name");
@@ -108,6 +76,7 @@ const feeSummary = document.getElementById("fee-summary");
 const feeMarkAllUnpaidButton = document.getElementById("fee-mark-all-unpaid");
 const feeOnlyUnpaidInput = document.getElementById("fee-only-unpaid");
 const feeDownloadCsvButton = document.getElementById("fee-download-csv");
+const feeWarningList = document.getElementById("fee-warning-list");
 
 const riskList = document.getElementById("risk-list");
 
@@ -127,8 +96,6 @@ const raffleRule = document.getElementById("raffle-rule");
 const nextDraw = document.getElementById("next-draw");
 const approvalRefreshButton = document.getElementById("approval-refresh");
 const approvalList = document.getElementById("approval-list");
-const approvalPendingBadge = document.getElementById("approval-pending-badge");
-const approvalSummary = document.getElementById("approval-summary");
 const syncSupabaseButton = document.getElementById("sync-supabase");
 const syncStatus = document.getElementById("sync-status");
 const roleRefreshButton = document.getElementById("role-refresh");
@@ -146,6 +113,7 @@ let currentAdminCanManageRoles = false;
 init();
 
 function init() {
+  yearNode.textContent = new Date().getFullYear();
   migrateLegacyData();
   populateFeeMonthOptions();
   setDefaultBulkDate();
@@ -188,6 +156,12 @@ function init() {
     roleRefreshButton.addEventListener("click", loadRoleList);
   }
 
+  setInterval(() => {
+    renderRaffle();
+    checkScheduledDraw(false);
+  }, 60 * 1000);
+}
+
 function migrateLegacyData() {
   db.members = (Array.isArray(db.members) ? db.members : []).map((member) => {
     const totalRuns = Number(member.totalRuns ?? member.runs ?? 0);
@@ -208,18 +182,6 @@ function migrateLegacyData() {
       aliases: Array.isArray(member.aliases) ? member.aliases : [],
       createdAt: member.createdAt || new Date().toISOString()
     };
-  });
-
-  if (!Array.isArray(db.runningContent)) {
-    db.runningContent = structuredClone(defaultData.runningContent);
-  }
-  if (!db.raffle || typeof db.raffle !== "object") {
-    db.raffle = { lastDrawId: "", history: [] };
-  }
-  if (!Array.isArray(db.raffle.history)) {
-    db.raffle.history = [];
-  }
-}
   });
 
   if (!db.raffle || typeof db.raffle !== "object") {
@@ -250,10 +212,12 @@ function getAdminAuthClient() {
   if (!adminAuthClient) {
     adminAuthClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   }
+  return adminAuthClient;
 }
 
 function setDefaultBulkDate() {
   if (!bulkAttendanceDateInput) {
+    return;
   }
   const now = new Date();
   bulkAttendanceDateInput.value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
@@ -269,9 +233,11 @@ function handleGuestSubmit(event) {
 
   if (!name || !phone) {
     alert("이름과 연락처를 입력해 주세요.");
+    return;
   }
   if (birthYear < 1989 || birthYear > 2000) {
     alert("가입 가능 연령(1989~2000년생) 기준을 확인해 주세요.");
+    return;
   }
 
   db.guests.unshift({
@@ -296,6 +262,7 @@ async function handleAdminLogin() {
 
   if (!email || !password) {
     alert("운영진 이메일과 비밀번호를 입력해 주세요.");
+    return;
   }
 
   try {
@@ -303,6 +270,7 @@ async function handleAdminLogin() {
     const signInResult = await client.auth.signInWithPassword({ email, password });
     if (signInResult.error) {
       alert(`로그인 실패: ${signInResult.error.message}`);
+      return;
     }
 
     const session = signInResult.data?.session;
@@ -311,6 +279,7 @@ async function handleAdminLogin() {
 
     if (!user || !accessToken) {
       alert("로그인 세션을 확인하지 못했습니다.");
+      return;
     }
 
     const profileResult = await client
@@ -322,6 +291,7 @@ async function handleAdminLogin() {
     if (profileResult.error) {
       alert(`권한 확인 실패: ${profileResult.error.message}`);
       await client.auth.signOut();
+      return;
     }
 
     const profile = profileResult.data;
@@ -329,6 +299,7 @@ async function handleAdminLogin() {
     if (!isAdmin) {
       alert("운영진 권한이 없습니다. 운영진 승인/권한을 확인해 주세요.");
       await client.auth.signOut();
+      return;
     }
 
     currentAdminToken = accessToken;
@@ -342,6 +313,35 @@ async function handleAdminLogin() {
     }
     adminLock.classList.add("hidden");
     adminPanel.classList.remove("hidden");
+    renderAll();
+    loadApprovalQueue();
+    loadRoleList();
+  } catch (error) {
+    alert(`운영진 로그인 오류: ${String(error?.message || error)}`);
+  }
+}
+
+function handleNoticeAdd(event) {
+  event.preventDefault();
+  const title = noticeTitleInput.value.trim();
+  const content = noticeContentInput.value.trim();
+
+  if (!title || !content) {
+    return;
+  }
+
+  db.notices.unshift({
+    id: makeId(),
+    title,
+    content,
+    createdAt: new Date().toISOString()
+  });
+
+  saveDb();
+  renderNotices();
+  noticeForm.reset();
+}
+
 function handleRunningInfoAdd(event) {
   event.preventDefault();
   const category = String(runningInfoCategoryInput?.value || "route");
@@ -350,6 +350,7 @@ function handleRunningInfoAdd(event) {
   const content = String(runningInfoContentInput?.value || "").trim();
 
   if (!title || !content) {
+    return;
   }
 
   db.runningContent.unshift({
@@ -367,40 +368,16 @@ function handleRunningInfoAdd(event) {
 }
 
 function handleMemberAdd(event) {
-    loadApprovalQueue();
-    loadRoleList();
-  } catch (error) {
-    updateApprovalSummary();
-    alert(`운영진 로그인 오류: ${String(error?.message || error)}`);
-  }
-}
-
-function handleNoticeAdd(event) {
   event.preventDefault();
-  const title = noticeTitleInput.value.trim();
-  const content = noticeContentInput.value.trim();
-
-  if (!title || !content) {
-  }
-
-  db.notices.unshift({
-    id: makeId(),
-    title,
-    content,
-    createdAt: new Date().toISOString()
-  });
-
-  saveDb();
-  noticeForm.reset();
-}
-
-  event.preventDefault();
+  const name = memberNameInput.value.trim();
   const birthYear = Number(memberBirthInput.value);
 
   if (!name) {
+    return;
   }
   if (birthYear < 1989 || birthYear > 2000) {
     alert("회원 출생연도는 1989~2000만 가능합니다.");
+    return;
   }
 
   db.members.unshift({
@@ -423,6 +400,7 @@ function handleAttendanceByName() {
   const rawInput = String(attendanceNameInput.value || "").trim();
   if (!rawInput) {
     attendanceResult.textContent = "이름을 입력해 주세요.";
+    return;
   }
 
   const names = parseNames(rawInput);
@@ -437,6 +415,7 @@ function handleBulkAttendanceApply() {
   const raw = String(bulkAttendanceInput.value || "").trim();
   if (!raw) {
     bulkAttendanceResult.textContent = "명단을 입력해 주세요.";
+    return;
   }
 
   const names = parseNames(raw);
@@ -451,6 +430,7 @@ function applyAttendanceByNames(names, options) {
   const uniqueNames = dedupeNormalized(names);
 
   if (!uniqueNames.length) {
+    return { message: "반영 가능한 이름이 없습니다." };
   }
 
   const matched = [];
@@ -463,10 +443,12 @@ function applyAttendanceByNames(names, options) {
     if (result.type === "unique") {
       updateMemberRuns(result.member.id, 1, monthKeyFromDate(options.date));
       matched.push(result.member.name);
+      return;
     }
 
     if (result.type === "ambiguous") {
       ambiguous.push(name);
+      return;
     }
 
     unmatched.push(name);
@@ -497,32 +479,42 @@ function applyAttendanceByNames(names, options) {
     parts.push(`동명이인 ${ambiguous.length}명`);
   }
 
+  return { message: parts.join(" | ") };
 }
 function findMemberByName(inputName) {
   const normalized = normalizeName(inputName);
 
   const exactMatches = db.members.filter((member) => {
     if (normalizeName(member.name) === normalized) {
+      return true;
     }
+    return (member.aliases || []).some((alias) => normalizeName(alias) === normalized);
   });
 
   if (exactMatches.length === 1) {
+    return { type: "unique", member: exactMatches[0] };
   }
   if (exactMatches.length > 1) {
+    return { type: "ambiguous" };
   }
 
   const partialMatches = db.members.filter((member) => {
     const name = normalizeName(member.name);
+    return name.includes(normalized) || normalized.includes(name);
   });
 
   if (partialMatches.length === 1) {
+    return { type: "unique", member: partialMatches[0] };
   }
   if (partialMatches.length > 1) {
+    return { type: "ambiguous" };
   }
 
+  return { type: "not_found" };
 }
 
 function parseNames(raw) {
+  return raw
     .split(/[\n,;/|]+/)
     .map((name) => name.trim())
     .filter(Boolean);
@@ -536,17 +528,20 @@ function dedupeNormalized(names) {
       map.set(key, name);
     }
   });
+  return Array.from(map.values());
 }
 
 function updateMemberRuns(id, delta, monthKey = currentMonthKey()) {
   db.members = db.members.map((member) => {
     if (member.id !== id) {
+      return member;
     }
 
     const nextTotal = Math.max(0, Number(member.totalRuns || 0) + delta);
     const currentMonthly = getMonthlyRuns(member, monthKey);
     const nextMonthly = Math.max(0, currentMonthly + delta);
 
+    return {
       ...member,
       totalRuns: nextTotal,
       monthlyRuns: { ...(member.monthlyRuns || {}), [monthKey]: nextMonthly }
@@ -559,8 +554,10 @@ function checkScheduledDraw(forceRun) {
   const schedule = getDrawSchedule(now);
 
   if (!forceRun && now < schedule.scheduledAt) {
+    return;
   }
   if (!forceRun && db.raffle.lastDrawId === schedule.drawId) {
+    return;
   }
 
   const threshold = getThresholdForMonthKey(schedule.targetMonthKey);
@@ -577,16 +574,17 @@ function checkScheduledDraw(forceRun) {
       name: member.name,
       runs: getMonthlyRuns(member, schedule.targetMonthKey)
     })),
-function renderAll() {
-  renderRunningHub();
-  renderGuests();
-  renderMembers();
-  renderAttendanceLogs();
-  renderFees();
-  renderRisks();
-  renderDashboard();
-  renderRaffle();
-}
+    createdAt: now.toISOString()
+  };
+
+  db.raffle.lastDrawId = schedule.drawId;
+  db.raffle.history.unshift(record);
+  db.raffle.history = db.raffle.history.slice(0, 12);
+
+  db.notices.unshift({
+    id: makeId(),
+    title: `${monthKeyToLabel(schedule.targetMonthKey)} 참여상 추첨 결과`,
+    content: winners.length > 0
       ? `${winners.map((w) => w.name).join(", ")} 축하합니다!`
       : `조건(${threshold}회 이상) 충족 회원이 없어 당첨자가 없습니다.`,
     createdAt: now.toISOString()
@@ -599,11 +597,13 @@ function renderAll() {
 
 function runRouletteAnimation(candidates, winners, monthKey, threshold, isManual) {
   if (!rouletteTrack) {
+    return;
   }
 
   if (!candidates.length) {
     rouletteTrack.textContent = "NO CANDIDATE";
     winnerResult.textContent = `${monthKeyToLabel(monthKey)} 기준 ${threshold}회 이상 대상자가 없습니다.`;
+    return;
   }
 
   let tick = 0;
@@ -620,6 +620,7 @@ function runRouletteAnimation(candidates, winners, monthKey, threshold, isManual
     if (!winners.length) {
       rouletteTrack.textContent = "NO WINNER";
       winnerResult.textContent = `${monthKeyToLabel(monthKey)} 당첨자가 없습니다.`;
+      return;
     }
 
     const names = winners.map((winner) => winner.name).join(" / ");
@@ -629,6 +630,7 @@ function runRouletteAnimation(candidates, winners, monthKey, threshold, isManual
 }
 
 function renderAll() {
+  renderNotices();
   renderGuests();
   renderMembers();
   renderAttendanceLogs();
@@ -637,9 +639,11 @@ function renderAll() {
   renderDashboard();
   renderRaffle();
 }
+function renderNotices() {
   noticeList.innerHTML = "";
   if (!db.notices.length) {
     noticeList.innerHTML = `<li class="list-item"><p class="list-meta">등록된 공지가 없습니다.</p></li>`;
+    return;
   }
 
   db.notices.forEach((notice) => {
@@ -653,6 +657,7 @@ function renderAll() {
       actions.appendChild(buildTinyButton("삭제", () => {
         db.notices = db.notices.filter((entry) => entry.id !== notice.id);
         saveDb();
+        renderNotices();
       }));
       item.appendChild(actions);
     }
@@ -669,6 +674,7 @@ function renderRunningHub() {
 
 function renderRunningCategory(target, category, emptyMessage) {
   if (!target) {
+    return;
   }
 
   const items = (db.runningContent || [])
@@ -678,6 +684,7 @@ function renderRunningCategory(target, category, emptyMessage) {
   target.innerHTML = "";
   if (!items.length) {
     target.innerHTML = `<li class="list-item"><p class="list-meta">${emptyMessage}</p></li>`;
+    return;
   }
 
   items.forEach((item) => {
@@ -699,10 +706,12 @@ function renderRunningCategory(target, category, emptyMessage) {
     target.appendChild(row);
   });
 }
+
 function renderGuests() {
   guestList.innerHTML = "";
   if (!db.guests.length) {
     guestList.innerHTML = `<li class="list-item"><p class="list-meta">게스트 신청이 없습니다.</p></li>`;
+    return;
   }
 
   db.guests.forEach((guest) => {
@@ -735,6 +744,7 @@ function renderMembers() {
   memberList.innerHTML = "";
   if (!db.members.length) {
     memberList.innerHTML = `<li class="list-item"><p class="list-meta">등록된 회원이 없습니다.</p></li>`;
+    return;
   }
 
   const monthKey = currentMonthKey();
@@ -747,6 +757,8 @@ function renderMembers() {
 
     const riskChip = risk.level === "danger"
       ? '<span class="status-chip danger">강퇴 위험</span>'
+      : risk.level === "warn"
+        ? '<span class="status-chip warn">주의</span>'
         : "";
 
     const item = document.createElement("li");
@@ -780,6 +792,7 @@ function renderAttendanceLogs() {
   attendanceLogList.innerHTML = "";
   if (!db.attendanceLogs.length) {
     attendanceLogList.innerHTML = `<li class="list-item"><p class="list-meta">출석 로그가 없습니다.</p></li>`;
+    return;
   }
 
   db.attendanceLogs.slice(0, 20).forEach((log) => {
@@ -791,15 +804,19 @@ function renderAttendanceLogs() {
 }
 
 function renderFees() {
+  if (!feeList || !feeSummary || !feeMonthSelect || !feeWarningList) {
+    return;
   }
 
   const monthKey = feeMonthSelect.value || currentMonthKey();
   const onlyUnpaid = Boolean(feeOnlyUnpaidInput?.checked);
   feeList.innerHTML = "";
+  feeWarningList.innerHTML = "";
 
   if (!db.members.length) {
     feeList.innerHTML = `<li class="list-item"><p class="list-meta">등록된 회원이 없습니다.</p></li>`;
     feeSummary.textContent = "";
+    return;
   }
 
   let paidCount = 0;
@@ -817,6 +834,7 @@ function renderFees() {
     }
 
     if (onlyUnpaid && status !== "unpaid") {
+      return;
     }
 
     visibleCount += 1;
@@ -836,20 +854,28 @@ function renderFees() {
     feeList.innerHTML = `<li class="list-item"><p class="list-meta">표시할 회원이 없습니다.</p></li>`;
   }
 
+  const warningMembers = getOverdueMembers(monthKey, 2);
+  if (!warningMembers.length) {
+    feeWarningList.innerHTML = `<li class="list-item"><p class="list-meta">경고 대상 없음</p></li>`;
   } else {
+    warningMembers.forEach((entry) => {
       const item = document.createElement("li");
       item.className = "list-item";
       item.innerHTML = `<div class="list-top"><span class="list-title">${escapeHtml(entry.name)}</span><span class="list-meta">${entry.consecutive}개월 연속 미납</span></div>`;
+      feeWarningList.appendChild(item);
     });
   }
 
   const totalDue = db.members.length * MONTHLY_FEE;
   const totalPaid = paidCount * MONTHLY_FEE;
+  feeSummary.textContent = `${monthKeyToLabel(monthKey)} | 납부 ${paidCount}명 (${formatWon(totalPaid)}) / 미납 ${unpaidCount}명 | 총 회비 ${formatWon(totalDue)} | 미납자: ${unpaidNames.length ? unpaidNames.join(", ") : "없음"} | 경고 ${warningMembers.length}명`;
 }
 function updateMemberFeeStatus(id, monthKey, status) {
   db.members = db.members.map((member) => {
     if (member.id !== id) {
+      return member;
     }
+    return { ...member, feeStatus: { ...(member.feeStatus || {}), [monthKey]: status } };
   });
 
   saveDb();
@@ -872,6 +898,7 @@ function resetCurrentMonthFees() {
 
 function populateFeeMonthOptions() {
   if (!feeMonthSelect) {
+    return;
   }
 
   const now = new Date();
@@ -909,6 +936,7 @@ function downloadFeeCsv() {
 
 function renderRisks() {
   if (!riskList) {
+    return;
   }
 
   const risks = db.members
@@ -919,6 +947,7 @@ function renderRisks() {
   riskList.innerHTML = "";
   if (!risks.length) {
     riskList.innerHTML = `<li class="list-item"><p class="list-meta">강퇴 위험/주의 대상이 없습니다.</p></li>`;
+    return;
   }
 
   risks.forEach((entry) => {
@@ -952,11 +981,13 @@ function computeMemberRisk(member, now) {
       level = "danger";
       reasons.push("월 2회 미참여(기존회원)");
     } else if (dayOfMonth >= 15 && monthRuns < 1 && level !== "danger") {
+      level = "warn";
       reasons.push("월 중순 기준 참여 부족");
     }
   }
   if (dayOfMonth > 7 && feeStatus !== "paid") {
     if (level !== "danger") {
+      level = "warn";
     }
     reasons.push("회비 납부기한 경과(1~7일)");
   }
@@ -964,10 +995,12 @@ function computeMemberRisk(member, now) {
   const overdue = getConsecutiveUnpaidMonths(member, monthKey);
   if (overdue >= 2) {
     if (level !== "danger") {
+      level = "warn";
     }
     reasons.push(`${overdue}개월 연속 회비 미납`);
   }
 
+  return { level, reasons: reasons.length ? reasons : ["정상"] };
 }
 
 function renderDashboard() {
@@ -990,6 +1023,7 @@ function renderDashboard() {
   const runSeries = keys.map((key) => ({ key, value: db.members.reduce((sum, member) => sum + getMonthlyRuns(member, key), 0) }));
   const feeSeries = keys.map((key) => {
     const paid = db.members.filter((member) => getFeeStatus(member, key) === "paid").length;
+    return { key, value: memberCount ? (paid / memberCount) * 100 : 0 };
   });
 
   renderTrend(runsTrend, runSeries, "회");
@@ -998,6 +1032,7 @@ function renderDashboard() {
 
 function renderTrend(target, series, suffix) {
   if (!target) {
+    return;
   }
 
   const max = Math.max(1, ...series.map((entry) => entry.value));
@@ -1045,10 +1080,12 @@ function renderRaffle() {
 
 function renderRaffleHistoryList(target) {
   if (!target) {
+    return;
   }
   target.innerHTML = "";
   if (!db.raffle.history.length) {
     target.innerHTML = `<li class="list-item"><p class="list-meta">추첨 기록이 없습니다.</p></li>`;
+    return;
   }
 
   db.raffle.history.forEach((record) => {
@@ -1061,9 +1098,11 @@ function renderRaffleHistoryList(target) {
 }
 function getEligibleMembers(monthKey) {
   const threshold = getThresholdForMonthKey(monthKey);
+  return db.members.filter((member) => getMonthlyRuns(member, monthKey) >= threshold);
 }
 
 function getDrawSchedule(now) {
+  return {
     drawId: `${now.getFullYear()}-${pad(now.getMonth() + 1)}`,
     targetMonthKey: previousMonthKey(now),
     scheduledAt: new Date(now.getFullYear(), now.getMonth(), 1, 12, 0, 0, 0)
@@ -1073,21 +1112,27 @@ function getDrawSchedule(now) {
 function getNextDrawAt(now) {
   const thisMonthDrawAt = new Date(now.getFullYear(), now.getMonth(), 1, 12, 0, 0, 0);
   if (now < thisMonthDrawAt) {
+    return thisMonthDrawAt;
   }
+  return new Date(now.getFullYear(), now.getMonth() + 1, 1, 12, 0, 0, 0);
 }
 
 function getThresholdForMonthKey(monthKey) {
   const month = Number(monthKey.split("-")[1]);
+  return WINTER_MONTHS.includes(month) ? 4 : 5;
 }
 
 function getMonthlyRuns(member, monthKey) {
   const monthlyRuns = member.monthlyRuns || {};
+  return Number(monthlyRuns[monthKey] || 0);
 }
 
 function getFeeStatus(member, monthKey) {
+  return member.feeStatus && member.feeStatus[monthKey] === "paid" ? "paid" : "unpaid";
 }
 
 function getOverdueMembers(monthKey, minConsecutive) {
+  return db.members
     .map((member) => ({ id: member.id, name: member.name, consecutive: getConsecutiveUnpaidMonths(member, monthKey) }))
     .filter((entry) => entry.consecutive >= minConsecutive)
     .sort((a, b) => b.consecutive - a.consecutive);
@@ -1102,6 +1147,7 @@ function getConsecutiveUnpaidMonths(member, monthKey) {
     }
     count += 1;
   }
+  return count;
 }
 
 function pickWinners(candidates, count) {
@@ -1110,6 +1156,7 @@ function pickWinners(candidates, count) {
     const j = Math.floor(Math.random() * (i + 1));
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
+  return shuffled.slice(0, count);
 }
 
 function getRecentMonthKeys(count) {
@@ -1119,57 +1166,70 @@ function getRecentMonthKeys(count) {
     const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
     keys.push(`${date.getFullYear()}-${pad(date.getMonth() + 1)}`);
   }
-function loadDb() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-    }
-
-    const parsed = JSON.parse(raw);
-      notices: Array.isArray(parsed.notices) ? parsed.notices : [],
-      runningContent: Array.isArray(parsed.runningContent) ? parsed.runningContent : structuredClone(defaultData.runningContent),
-      guests: Array.isArray(parsed.guests) ? parsed.guests : [],
-      members: Array.isArray(parsed.members) ? parsed.members : [],
-      raffle: parsed.raffle || { lastDrawId: "", history: [] },
-      attendanceLogs: Array.isArray(parsed.attendanceLogs) ? parsed.attendanceLogs : []
-    };
-  } catch (error) {
-    console.error("DB load failed", error);
-  }
+  return keys;
 }
+
+function monthKeyFromDate(dateText) {
+  const dt = new Date(dateText);
+  return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}`;
+}
+
+function shiftMonthKey(monthKey, diff) {
+  const [year, month] = monthKey.split("-").map(Number);
+  const date = new Date(year, month - 1 + diff, 1);
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}`;
+}
+
+function currentMonthKey(date = new Date()) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}`;
+}
+
+function previousMonthKey(date = new Date()) {
   const previous = new Date(date.getFullYear(), date.getMonth() - 1, 1);
+  return `${previous.getFullYear()}-${pad(previous.getMonth() + 1)}`;
 }
 
 function monthKeyToLabel(key) {
   const [year, month] = key.split("-");
+  return `${year}년 ${month}월`;
 }
 
 function severityScore(level) {
   if (level === "danger") {
+    return 2;
   }
+  if (level === "warn") {
+    return 1;
   }
+  return 0;
 }
 
 function normalizeName(name) {
+  return String(name || "").replaceAll(" ", "").toLowerCase();
 }
 
 function toIsoDate(date) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
 function csvCell(value) {
   const text = String(value ?? "");
+  return `"${text.replaceAll('"', '""')}"`;
 }
 
 function formatWon(value) {
+  return `${Number(value).toLocaleString("ko-KR")}원`;
 }
 
 function loadDb() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
+      return structuredClone(defaultData);
     }
 
     const parsed = JSON.parse(raw);
+    return {
       notices: Array.isArray(parsed.notices) ? parsed.notices : [],
       guests: Array.isArray(parsed.guests) ? parsed.guests : [],
       members: Array.isArray(parsed.members) ? parsed.members : [],
@@ -1178,6 +1238,7 @@ function loadDb() {
     };
   } catch (error) {
     console.error("DB load failed", error);
+    return structuredClone(defaultData);
   }
 }
 
@@ -1186,6 +1247,7 @@ function saveDb() {
 }
 
 function formatDate(iso) {
+  return new Date(iso).toLocaleDateString("ko-KR", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit"
@@ -1193,6 +1255,7 @@ function formatDate(iso) {
 }
 
 function formatDateTime(date) {
+  return date.toLocaleString("ko-KR", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -1203,6 +1266,7 @@ function formatDateTime(date) {
 }
 
 function escapeHtml(value) {
+  return String(value)
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
@@ -1216,12 +1280,15 @@ function buildTinyButton(text, onClick) {
   button.className = "btn tiny ghost";
   button.textContent = text;
   button.addEventListener("click", onClick);
+  return button;
 }
 
 function pad(value) {
+  return String(value).padStart(2, "0");
 }
 
 function makeId() {
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 
@@ -1250,12 +1317,13 @@ function buildSupabaseSyncPayload() {
     created_at: guest.createdAt || new Date().toISOString()
   }));
 
+  return { members, notices, guests };
 }
 
 async function syncDataToSupabase() {
   if (!currentAdminToken) {
-    updateApprovalSummary();
     alert("운영진 로그인 후 사용해 주세요.");
+    return;
   }
   if (syncSupabaseButton) {
     syncSupabaseButton.disabled = true;
@@ -1277,7 +1345,6 @@ async function syncDataToSupabase() {
 
     const result = await response.json();
     if (!response.ok || !result.ok) {
-      updateApprovalSummary();
       throw new Error(result.error || "unknown");
     }
 
@@ -1294,24 +1361,13 @@ async function syncDataToSupabase() {
     }
   }
 }
-function updateApprovalSummary(items = []) {
-  const safeItems = Array.isArray(items) ? items : [];
-  const pendingCount = safeItems.filter((item) => item?.approval_status === "pending").length;
-  const totalCount = safeItems.length;
-
-  if (approvalPendingBadge) {
-    approvalPendingBadge.textContent = `대기 ${pendingCount}`;
-    approvalPendingBadge.style.opacity = pendingCount > 0 ? "1" : "0.65";
-  }
-  if (approvalSummary) {
-    approvalSummary.textContent = `대기 ${pendingCount}명 / 전체 ${totalCount}명`;
-  }
-}
 async function loadApprovalQueue() {
   if (!approvalList) {
+    return;
   }
   if (!currentAdminToken) {
     approvalList.innerHTML = '<li class="list-item"><p class="list-meta">운영진 로그인 후 사용 가능합니다.</p></li>';
+    return;
   }
 
   approvalList.innerHTML = '<li class="list-item"><p class="list-meta">불러오는 중...</p></li>';
@@ -1326,12 +1382,13 @@ async function loadApprovalQueue() {
     const result = await response.json();
     if (!response.ok || !result.ok) {
       approvalList.innerHTML = `<li class="list-item"><p class="list-meta">로드 실패: ${escapeHtml(result.error || "unknown")}</p></li>`;
+      return;
     }
 
     const list = Array.isArray(result.items) ? result.items : [];
-    updateApprovalSummary(list);
     if (!list.length) {
       approvalList.innerHTML = '<li class="list-item"><p class="list-meta">가입자가 없습니다.</p></li>';
+      return;
     }
 
     approvalList.innerHTML = "";
@@ -1363,9 +1420,11 @@ async function loadApprovalQueue() {
 
 async function loadRoleList() {
   if (!roleList) {
+    return;
   }
   if (!currentAdminToken) {
     roleList.innerHTML = '<li class="list-item"><p class="list-meta">운영진 로그인 후 사용 가능합니다.</p></li>';
+    return;
   }
 
   roleList.innerHTML = '<li class="list-item"><p class="list-meta">불러오는 중...</p></li>';
@@ -1387,6 +1446,7 @@ async function loadRoleList() {
     roleList.innerHTML = "";
     if (!items.length) {
       roleList.innerHTML = '<li class="list-item"><p class="list-meta">회원 정보가 없습니다.</p></li>';
+      return;
     }
 
     if (roleStatus) {
@@ -1425,16 +1485,20 @@ async function loadRoleList() {
 
 async function updateMemberRole(userId, role, displayName = "회원") {
   if (!currentAdminToken) {
+    return;
   }
   if (!currentAdminCanManageRoles) {
     alert("권한 변경은 모임장만 가능합니다.");
+    return;
   }
   if (userId === currentAdminUserId && role !== "admin") {
     alert("본인 계정은 일반회원으로 변경할 수 없습니다.");
+    return;
   }
 
   const confirmed = confirm(`${displayName}님의 권한을 ${role === "admin" ? "운영진" : "일반회원"}으로 변경할까요?`);
   if (!confirmed) {
+    return;
   }
 
   const response = await fetch("/.netlify/functions/member-approval", {
@@ -1449,6 +1513,7 @@ async function updateMemberRole(userId, role, displayName = "회원") {
   const result = await response.json();
   if (!response.ok || !result.ok) {
     alert(`권한 변경 실패: ${result.error || "unknown"}`);
+    return;
   }
 
   loadApprovalQueue();
@@ -1457,11 +1522,13 @@ async function updateMemberRole(userId, role, displayName = "회원") {
 
 async function updateApprovalStatus(userId, status, role = null) {
   if (!currentAdminToken) {
+    return;
   }
 
   if (role === "admin") {
     const confirmed = confirm("이 회원에게 운영진 권한을 부여할까요?");
     if (!confirmed) {
+      return;
     }
   }
 
@@ -1482,14 +1549,12 @@ async function updateApprovalStatus(userId, status, role = null) {
   const result = await response.json();
   if (!response.ok || !result.ok) {
     alert(`승인 상태 변경 실패: ${result.error || "unknown"}`);
+    return;
   }
 
   loadApprovalQueue();
   loadRoleList();
 }
-
-
-
 
 
 
