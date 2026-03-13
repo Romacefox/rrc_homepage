@@ -1,4 +1,4 @@
-
+﻿
 const STORAGE_KEY = "rrc-site-db-v3";
 
 const WINTER_MONTHS = [12, 1, 2];
@@ -342,31 +342,6 @@ function handleNoticeAdd(event) {
   noticeForm.reset();
 }
 
-function handleRunningInfoAdd(event) {
-  event.preventDefault();
-  const category = String(runningInfoCategoryInput?.value || "route");
-  const title = String(runningInfoTitleInput?.value || "").trim();
-  const meta = String(runningInfoMetaInput?.value || "").trim();
-  const content = String(runningInfoContentInput?.value || "").trim();
-
-  if (!title || !content) {
-    return;
-  }
-
-  db.runningContent.unshift({
-    id: makeId(),
-    category,
-    title,
-    meta,
-    content,
-    createdAt: new Date().toISOString()
-  });
-
-  saveDb();
-  renderRunningHub();
-  runningInfoForm.reset();
-}
-
 function handleMemberAdd(event) {
   event.preventDefault();
   const name = memberNameInput.value.trim();
@@ -663,47 +638,6 @@ function renderNotices() {
     }
 
     noticeList.appendChild(item);
-  });
-}
-
-function renderRunningHub() {
-  renderRunningCategory(runningRouteList, "route", "등록된 러닝 루트가 없습니다.");
-  renderRunningCategory(runningTipList, "tip", "공유된 러닝 팁이 없습니다.");
-  renderRunningCategory(runningRaceList, "race", "등록된 대회 정보가 없습니다.");
-}
-
-function renderRunningCategory(target, category, emptyMessage) {
-  if (!target) {
-    return;
-  }
-
-  const items = (db.runningContent || [])
-    .filter((item) => item.category === category)
-    .slice(0, 6);
-
-  target.innerHTML = "";
-  if (!items.length) {
-    target.innerHTML = `<li class="list-item"><p class="list-meta">${emptyMessage}</p></li>`;
-    return;
-  }
-
-  items.forEach((item) => {
-    const row = document.createElement("li");
-    row.className = "list-item";
-    row.innerHTML = `<div class="list-top"><span class="list-title">${escapeHtml(item.title || "제목없음")}</span><span class="list-meta">${escapeHtml(item.meta || formatDate(item.createdAt))}</span></div><p>${escapeHtml(item.content || "-")}</p>`;
-
-    if (!adminPanel.classList.contains("hidden")) {
-      const actions = document.createElement("div");
-      actions.className = "item-actions";
-      actions.appendChild(buildTinyButton("삭제", () => {
-        db.runningContent = (db.runningContent || []).filter((entry) => entry.id !== item.id);
-        saveDb();
-        renderRunningHub();
-      }));
-      row.appendChild(actions);
-    }
-
-    target.appendChild(row);
   });
 }
 
