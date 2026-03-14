@@ -1,4 +1,4 @@
-﻿const SUPABASE_URL = "https://aqpszgycsfpxtlsuaqrt.supabase.co";
+const SUPABASE_URL = "https://aqpszgycsfpxtlsuaqrt.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_C20xXZZRWdjmkzGneCcpjw_mrRnXucq";
 const PHOTO_BUCKET = "rrc-photos";
 const PENDING_SIGNUP_PREFIX = "rrc-pending-signup:";
@@ -25,6 +25,12 @@ const loginSubmitButton = document.getElementById("login-submit");
 const loginLogoutButton = document.getElementById("login-logout");
 const loginStatus = document.getElementById("login-status");
 const loginApprovalStatus = document.getElementById("login-approval-status");
+const loginPanel = document.getElementById("login-panel");
+const loginPanelTitle = document.getElementById("login-panel-title");
+const loginForm = document.getElementById("login-form");
+const loginGuestActions = document.getElementById("login-guest-actions");
+const loginMemberActions = document.getElementById("login-member-actions");
+const authShell = document.querySelector(".auth-shell");
 
 const galleryAuthStatus = document.getElementById("gallery-auth-status");
 const galleryApprovalStatus = document.getElementById("gallery-approval-status");
@@ -68,7 +74,14 @@ function init() {
     return;
   }
 
-  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      storageKey: "rrc-auth"
+    }
+  });
 
   signupSubmitButton?.addEventListener("click", handleSignup);
   loginSubmitButton?.addEventListener("click", handleLogin);
@@ -90,21 +103,30 @@ function init() {
 
   supabaseClient.auth.onAuthStateChange(async (_event, session) => {
     authUser = session?.user || null;
-    await ensurePendingProfile();
-    await loadMyProfile();
-    renderAuthState();
-    await loadPhotos();
-    await loadActivityBoard();
+    await refreshAuthSession();
   });
 
   supabaseClient.auth.getSession().then(async ({ data }) => {
     authUser = data?.session?.user || null;
-    await ensurePendingProfile();
-    await loadMyProfile();
-    renderAuthState();
-    await loadPhotos();
-    await loadActivityBoard();
+    await refreshAuthSession();
   });
+
+  document.addEventListener("visibilitychange", async () => {
+    if (document.visibilityState !== "visible" || !supabaseClient) {
+      return;
+    }
+    const { data } = await supabaseClient.auth.getSession();
+    authUser = data?.session?.user || null;
+    await refreshAuthSession();
+  });
+}
+
+async function refreshAuthSession() {
+  await ensurePendingProfile();
+  await loadMyProfile();
+  renderAuthState();
+  await loadPhotos();
+  await loadActivityBoard();
 }
 
 async function handleSignup() {
@@ -190,6 +212,9 @@ async function handleLogout() {
     return;
   }
   await supabaseClient.auth.signOut();
+  if (loginPasswordInput) {
+    loginPasswordInput.value = "";
+  }
   setStatus(loginStatus, "로그아웃 완료");
   setStatus(galleryAuthStatus, "로그인 필요");
   setStatus(galleryApprovalStatus, "승인 상태 확인 후 업로드가 열립니다.");
@@ -244,6 +269,7 @@ async function loadMyProfile() {
 
 function renderAuthState() {
   if (!authUser) {
+    updateLoginLayout(false);
     setStatus(loginStatus, loginStatus ? "로그인 필요" : null);
     setStatus(loginApprovalStatus, loginApprovalStatus ? "승인 상태: 로그인 필요" : null);
     setStatus(galleryAuthStatus, galleryAuthStatus ? "로그인 필요" : null);
@@ -252,6 +278,7 @@ function renderAuthState() {
     return;
   }
 
+  updateLoginLayout(true);
   const roleSuffix = authProfile?.role === "admin" ? " / 모임장·운영진 권한 포함" : "";
   setStatus(loginStatus, loginStatus ? `로그인됨: ${authUser.email}` : null);
   setStatus(galleryAuthStatus, galleryAuthStatus ? `로그인됨: ${authUser.email}` : null);
@@ -273,6 +300,27 @@ function renderAuthState() {
   }
 
   disablePhotoUpload("운영진 승인 후 사진 업로드가 가능합니다.");
+}
+
+function updateLoginLayout(isLoggedIn) {
+  if (loginForm) {
+    loginForm.classList.toggle("hidden", isLoggedIn);
+  }
+  if (loginGuestActions) {
+    loginGuestActions.classList.toggle("hidden", isLoggedIn);
+  }
+  if (loginMemberActions) {
+    loginMemberActions.classList.toggle("hidden", !isLoggedIn);
+  }
+  if (loginPanelTitle) {
+    loginPanelTitle.textContent = isLoggedIn ? "내 활동" : "로그인";
+  }
+  if (loginPanel) {
+    loginPanel.classList.toggle("login-panel-success", isLoggedIn);
+  }
+  if (authShell) {
+    authShell.classList.toggle("auth-shell-logged-in", isLoggedIn);
+  }
 }
 
 function disablePhotoUpload(message = "로그인한 회원만 업로드 가능합니다.") {

@@ -1,4 +1,4 @@
-﻿const SUPABASE_URL = "https://aqpszgycsfpxtlsuaqrt.supabase.co";
+const SUPABASE_URL = "https://aqpszgycsfpxtlsuaqrt.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_C20xXZZRWdjmkzGneCcpjw_mrRnXucq";
 
 let runningClient = null;
@@ -33,23 +33,41 @@ function initRunningHub() {
     return;
   }
 
-  runningClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  runningClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      storageKey: "rrc-auth"
+    }
+  });
   runningPostSubmit?.addEventListener("click", submitRunningPost);
   runningAdminRefresh?.addEventListener("click", loadRunningAdminList);
 
   runningClient.auth.onAuthStateChange(async (_event, session) => {
     runningUser = session?.user || null;
-    await loadRunningProfile();
-    renderRunningAuthState();
-    await loadRunningHub();
+    await refreshRunningSession();
   });
 
   runningClient.auth.getSession().then(async ({ data }) => {
     runningUser = data?.session?.user || null;
-    await loadRunningProfile();
-    renderRunningAuthState();
-    await loadRunningHub();
+    await refreshRunningSession();
   });
+
+  document.addEventListener("visibilitychange", async () => {
+    if (document.visibilityState !== "visible" || !runningClient) {
+      return;
+    }
+    const { data } = await runningClient.auth.getSession();
+    runningUser = data?.session?.user || null;
+    await refreshRunningSession();
+  });
+}
+
+async function refreshRunningSession() {
+  await loadRunningProfile();
+  renderRunningAuthState();
+  await loadRunningHub();
 }
 
 async function loadRunningProfile() {
