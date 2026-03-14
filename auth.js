@@ -26,6 +26,18 @@ const photoUploadButton = document.getElementById("photo-upload");
 const photoStatus = document.getElementById("photo-status");
 const photoGrid = document.getElementById("photo-grid");
 
+const activityMonthSelect = document.getElementById("activity-month");
+const activityRefreshButton = document.getElementById("activity-refresh");
+const activityLock = document.getElementById("activity-lock");
+const activityBoard = document.getElementById("activity-board");
+const myMonthRuns = document.getElementById("my-month-runs");
+const myTotalRuns = document.getElementById("my-total-runs");
+const myStreak = document.getElementById("my-streak");
+const runnerMonthLabel = document.getElementById("runner-month-label");
+const runnerCard = document.getElementById("runner-card");
+const attendanceBoard = document.getElementById("attendance-board");
+const boardRaffleHistory = document.getElementById("board-raffle-history");
+
 yearNode.textContent = new Date().getFullYear();
 init();
 
@@ -43,24 +55,29 @@ function init() {
   }
 
   supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  populateActivityMonthOptions();
 
   authSignupButton.addEventListener("click", handleSignup);
   authLoginButton.addEventListener("click", handleLogin);
   authLogoutButton.addEventListener("click", handleLogout);
   photoUploadButton.addEventListener("click", handlePhotoUpload);
+  activityRefreshButton?.addEventListener("click", loadActivityBoard);
+  activityMonthSelect?.addEventListener("change", loadActivityBoard);
 
   supabaseClient.auth.onAuthStateChange(async (_event, session) => {
     authUser = session?.user || null;
     await loadMyProfile();
     renderAuthState();
-    loadPhotos();
+    await loadPhotos();
+    await loadActivityBoard();
   });
 
   supabaseClient.auth.getSession().then(async ({ data }) => {
     authUser = data?.session?.user || null;
     await loadMyProfile();
     renderAuthState();
-    loadPhotos();
+    await loadPhotos();
+    await loadActivityBoard();
   });
 }
 
@@ -111,9 +128,10 @@ async function handleSignup() {
     notifySignupRequest({ email, name, birthYear, intro });
   }
 
-  authStatus.textContent = "가입 신청 완료. 운영진 승인 후 사진 업로드가 가능합니다.";
+  authStatus.textContent = "가입 신청 완료. 운영진 승인 후 사진 업로드와 활동 보드 확인이 가능합니다.";
   authApprovalStatus.textContent = "승인 상태: 대기";
 }
+
 async function handleLogin() {
   const email = String(authEmailInput.value || "").trim();
   const password = String(authPasswordInput.value || "").trim();
@@ -140,6 +158,7 @@ async function handleLogout() {
   authStatus.textContent = "로그아웃 완료";
   authApprovalStatus.textContent = "로그인 필요";
   disablePhotoUpload();
+  renderBoardLocked("승인된 회원 로그인 후 활동 보드를 볼 수 있습니다.");
 }
 
 async function loadMyProfile() {
@@ -198,6 +217,7 @@ function enablePhotoUpload() {
   photoCaptionInput.disabled = false;
   photoStatus.textContent = "승인 완료. 사진을 업로드할 수 있습니다.";
 }
+
 async function handlePhotoUpload() {
   if (!authUser || !authProfile) {
     photoStatus.textContent = "로그인한 회원만 업로드할 수 있습니다.";
@@ -284,6 +304,196 @@ async function loadPhotos() {
     photoGrid.appendChild(card);
   });
 }
+
+async function loadActivityBoard() {
+  if (!supabaseClient || !activityBoard || !activityLock) {
+    return;
+  }
+  const selectedMonth = activityMonthSelect?.value || currentMonthKey();
+  if (runnerMonthLabel) {
+    runnerMonthLabel.textContent = `${monthKeyToLabel(selectedMonth)} 기준`;
+  }
+
+  if (!authUser || !authProfile || authProfile.approval_status !== "approved") {
+    renderBoardLocked("승인된 회원 로그인 후 월별 출석, 출석 스트릭, 이달의 러너를 볼 수 있습니다.");
+    return;
+  }
+
+  const membersResult = await supabaseClient
+    .from("members")
+    .select("id,name,total_runs,monthly_runs")
+    .order("name", { ascending: true });
+
+  if (membersResult.error) {
+    renderBoardLocked(`활동 보드 로드 실패: ${membersResult.error.message}`);
+    return;
+  }
+
+  const raffleResult = await supabaseClient
+    .from("raffle_history")
+    .select("target_month_key,threshold,winner_count,winners,created_at")
+    .order("created_at", { ascending: false })
+    .limit(4);
+
+  const members = Array.isArray(membersResult.data) ? membersResult.data : [];
+  const rows = members
+    .map((member) => ({
+      ...member,
+      monthRuns: getMonthlyRuns(member, selectedMonth),
+      streak: getAttendanceStreak(member)
+    }))
+    .sort((a, b) => (b.monthRuns - a.monthRuns) || (Number(b.total_runs || 0) - Number(a.total_runs || 0)) || String(a.name || "").localeCompare(String(b.name || ""), "ko"));
+
+  const me = rows.find((member) => normalizeName(member.name) === normalizeName(authProfile.name));
+  const runner = rows.find((member) => member.monthRuns > 0) || null;
+
+  activityLock.textContent = `${monthKeyToLabel(selectedMonth)} 출석 기준입니다. 운영진이 동기화한 데이터로 표시됩니다.`;
+  activityLock.classList.remove("hidden");
+  activityBoard.classList.remove("hidden");
+
+  myMonthRuns.textContent = `${me?.monthRuns || 0}회`;
+  myTotalRuns.textContent = `${Number(me?.total_runs || 0)}회`;
+  myStreak.textContent = `${me?.streak || 0}개월`;
+
+  renderAttendanceBoard(rows, selectedMonth);
+  renderRunnerCard(runner, selectedMonth);
+  renderBoardRaffleHistory(Array.isArray(raffleResult.data) ? raffleResult.data : []);
+}
+
+function renderBoardLocked(message) {
+  activityLock.textContent = message;
+  activityLock.classList.remove("hidden");
+  activityBoard.classList.add("hidden");
+}
+
+function renderAttendanceBoard(rows, monthKey) {
+  attendanceBoard.innerHTML = "";
+  if (!rows.length) {
+    attendanceBoard.innerHTML = '<li class="list-item"><p class="list-meta">동기화된 회원 데이터가 없습니다.</p></li>';
+    return;
+  }
+
+  rows.forEach((member, index) => {
+    const item = document.createElement("li");
+    item.className = "list-item";
+    const badge = index === 0 && member.monthRuns > 0
+      ? '<span class="status-chip">선두</span>'
+      : member.monthRuns >= 5
+        ? '<span class="status-chip">추첨대상</span>'
+        : "";
+    item.innerHTML = `
+      <div class="list-top">
+        <span class="list-title">${index + 1}. ${escapeHtml(member.name || "이름없음")}${badge}</span>
+        <span class="list-meta">${monthKeyToLabel(monthKey)} ${member.monthRuns}회</span>
+      </div>
+      <p class="list-meta">누적 ${Number(member.total_runs || 0)}회 / 출석 스트릭 ${member.streak}개월</p>
+    `;
+    attendanceBoard.appendChild(item);
+  });
+}
+
+function renderRunnerCard(runner, monthKey) {
+  if (!runnerCard) {
+    return;
+  }
+  if (!runner || runner.monthRuns === 0) {
+    runnerCard.innerHTML = `<p class="list-meta">${monthKeyToLabel(monthKey)}에는 아직 출석 기록이 없습니다.</p>`;
+    return;
+  }
+
+  runnerCard.innerHTML = `
+    <p class="list-meta">${monthKeyToLabel(monthKey)} 최다 출석</p>
+    <h3 style="margin:0.2rem 0 0.4rem;">${escapeHtml(runner.name || "이름없음")}</h3>
+    <p>${runner.monthRuns}회 출석 / 누적 ${Number(runner.total_runs || 0)}회</p>
+    <p class="list-meta">출석 스트릭 ${runner.streak}개월</p>
+  `;
+}
+
+function renderBoardRaffleHistory(records) {
+  if (!boardRaffleHistory) {
+    return;
+  }
+  boardRaffleHistory.innerHTML = "";
+  if (!records.length) {
+    boardRaffleHistory.innerHTML = '<li class="list-item"><p class="list-meta">추첨 기록이 없습니다.</p></li>';
+    return;
+  }
+
+  records.forEach((record) => {
+    const winners = Array.isArray(record.winners) ? record.winners.map((winner) => winner.name).join(", ") : "";
+    const item = document.createElement("li");
+    item.className = "list-item";
+    item.innerHTML = `
+      <div class="list-top">
+        <span class="list-title">${monthKeyToLabel(record.target_month_key)} 추첨</span>
+        <span class="list-meta">${formatDate(record.created_at)}</span>
+      </div>
+      <p class="list-meta">기준 ${record.threshold}회 / ${record.winner_count}명 추첨</p>
+      <p>${escapeHtml(winners || "당첨자 없음")}</p>
+    `;
+    boardRaffleHistory.appendChild(item);
+  });
+}
+
+function populateActivityMonthOptions() {
+  if (!activityMonthSelect) {
+    return;
+  }
+  const now = new Date();
+  const options = [];
+  for (let i = 0; i < 6; i += 1) {
+    const dt = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}`;
+    options.push(`<option value="${key}">${monthKeyToLabel(key)}</option>`);
+  }
+  activityMonthSelect.innerHTML = options.join("");
+  activityMonthSelect.value = currentMonthKey();
+}
+
+function getAttendanceStreak(member) {
+  let streak = 0;
+  for (let i = 0; i < 12; i += 1) {
+    const key = shiftMonthKey(currentMonthKey(), -i);
+    if (getMonthlyRuns(member, key) <= 0) {
+      break;
+    }
+    streak += 1;
+  }
+  return streak;
+}
+
+function getMonthlyRuns(member, monthKey) {
+  const monthlyRuns = member?.monthly_runs && typeof member.monthly_runs === "object"
+    ? member.monthly_runs
+    : member?.monthlyRuns && typeof member.monthlyRuns === "object"
+      ? member.monthlyRuns
+      : {};
+  return Number(monthlyRuns[monthKey] || 0);
+}
+
+function shiftMonthKey(monthKey, diff) {
+  const [year, month] = monthKey.split("-").map(Number);
+  const date = new Date(year, month - 1 + diff, 1);
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}`;
+}
+
+function currentMonthKey(date = new Date()) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}`;
+}
+
+function monthKeyToLabel(key) {
+  const [year, month] = key.split("-");
+  return `${year}년 ${month}월`;
+}
+
+function normalizeName(name) {
+  return String(name || "").replaceAll(" ", "").toLowerCase();
+}
+
+function pad(value) {
+  return String(value).padStart(2, "0");
+}
+
 function statusLabel(status) {
   if (status === "approved") {
     return "승인";
@@ -310,6 +520,7 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 }
+
 async function notifySignupRequest(payload) {
   try {
     await fetch("/.netlify/functions/signup-notify", {
@@ -320,6 +531,6 @@ async function notifySignupRequest(payload) {
       body: JSON.stringify(payload)
     });
   } catch (_error) {
-    // Notification failure should not block signup flow.
+      // Notification failure should not block signup flow.
   }
 }

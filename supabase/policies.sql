@@ -67,6 +67,11 @@ for all to authenticated
 using (public.is_admin())
 with check (public.is_admin());
 
+drop policy if exists "approved member read members" on public.members;
+create policy "approved member read members" on public.members
+for select to authenticated
+using (public.is_approved_member());
+
 drop policy if exists "auth manage raffle history" on public.raffle_history;
 create policy "auth manage raffle history" on public.raffle_history
 for all to authenticated
@@ -138,3 +143,4 @@ using (
   and public.is_approved_member()
   and auth.uid()::text = (storage.foldername(name))[1]
 );
+

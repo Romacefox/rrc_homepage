@@ -28,7 +28,7 @@
       <div class="container two-col">
         <article class="panel">
           <h2>회원가입 / 로그인</h2>
-          <p class="list-meta">회원가입 후 운영진 승인이 완료되면 사진 업로드가 가능합니다.</p>
+          <p class="list-meta">회원가입 후 운영진 승인이 완료되면 사진 업로드와 활동 보드 확인이 가능합니다.</p>
           <form class="form compact" id="auth-form">
             <input id="auth-email" type="email" placeholder="이메일" required />
             <input id="auth-password" type="password" placeholder="비밀번호" required />
@@ -60,6 +60,41 @@
           <div id="photo-grid" class="photo-grid"></div>
         </article>
       </div>
+
+      <div class="container" style="margin-top:1rem;">
+        <article class="panel member-board-panel">
+          <div class="section-head">
+            <h2>회원 활동 보드</h2>
+            <span id="runner-month-label" class="badge">이번달 기준</span>
+          </div>
+          <p id="activity-lock" class="list-meta">승인된 회원 로그인 후 월별 출석, 출석 스트릭, 이달의 러너를 볼 수 있습니다.</p>
+          <div id="activity-board" class="hidden">
+            <div class="inline-form" style="margin-top:0.8rem;">
+              <select id="activity-month"></select>
+              <button id="activity-refresh" class="btn ghost" type="button">새로고침</button>
+            </div>
+            <div class="stats-grid member-board-stats" style="margin-top:0.8rem;">
+              <div class="stat-card"><span>내 출석</span><strong id="my-month-runs">0회</strong></div>
+              <div class="stat-card"><span>누적 출석</span><strong id="my-total-runs">0회</strong></div>
+              <div class="stat-card"><span>출석 스트릭</span><strong id="my-streak">0개월</strong></div>
+            </div>
+            <div class="board-layout" style="margin-top:1rem;">
+              <div>
+                <h3>월별 출석 순위</h3>
+                <ul id="attendance-board" class="list small"></ul>
+              </div>
+              <div>
+                <h3>이달의 러너</h3>
+                <div id="runner-card" class="panel board-highlight">
+                  <p class="list-meta">데이터를 불러오는 중입니다.</p>
+                </div>
+                <h3 style="margin-top:1rem;">최근 추첨 기록</h3>
+                <ul id="board-raffle-history" class="list small"></ul>
+              </div>
+            </div>
+          </div>
+        </article>
+      </div>
     </section>
   </main>
 
@@ -74,6 +109,3 @@
   <script src="auth.js"></script>
 </body>
 </html>
-
-
-
