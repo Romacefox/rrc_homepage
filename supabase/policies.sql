@@ -144,3 +144,35 @@ using (
   and auth.uid()::text = (storage.foldername(name))[1]
 );
 
+
+
+alter table public.running_hub_posts enable row level security;
+
+drop policy if exists "public read approved running hub posts" on public.running_hub_posts;
+create policy "public read approved running hub posts" on public.running_hub_posts
+for select using (status = 'approved');
+
+drop policy if exists "approved member submit running hub posts" on public.running_hub_posts;
+create policy "approved member submit running hub posts" on public.running_hub_posts
+for insert to authenticated
+with check (
+  public.is_approved_member()
+  and auth.uid() = author_user_id
+  and status = 'pending'
+  and is_featured = false
+);
+
+drop policy if exists "approved member read own pending running hub posts" on public.running_hub_posts;
+create policy "approved member read own pending running hub posts" on public.running_hub_posts
+for select to authenticated
+using (
+  status = 'approved'
+  or (public.is_approved_member() and auth.uid() = author_user_id)
+  or public.is_admin()
+);
+
+drop policy if exists "admin manage running hub posts" on public.running_hub_posts;
+create policy "admin manage running hub posts" on public.running_hub_posts
+for all to authenticated
+using (public.is_admin())
+with check (public.is_admin());

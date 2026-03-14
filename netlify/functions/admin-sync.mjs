@@ -18,6 +18,7 @@
     await replaceTable("members", members);
     await replaceTable("notices", notices);
     await replaceTable("guests", guests);
+    await upsertSetting("last_sync_meta", { synced_at: new Date().toISOString(), counts: { members: members.length, notices: notices.length, guests: guests.length } });
 
     return json(200, {
       ok: true,
@@ -154,6 +155,23 @@ async function supabaseDeleteAll(table) {
       apikey: env("SUPABASE_SERVICE_ROLE_KEY"),
       Authorization: `Bearer ${env("SUPABASE_SERVICE_ROLE_KEY")}`
     }
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+}
+
+async function upsertSetting(key, value) {
+  const response = await fetch(`${env("SUPABASE_URL")}/rest/v1/settings`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Prefer: "resolution=merge-duplicates",
+      apikey: env("SUPABASE_SERVICE_ROLE_KEY"),
+      Authorization: `Bearer ${env("SUPABASE_SERVICE_ROLE_KEY")}`
+    },
+    body: JSON.stringify({ key, value, updated_at: new Date().toISOString() })
   });
 
   if (!response.ok) {

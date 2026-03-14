@@ -74,3 +74,18 @@ create table if not exists public.member_profiles (
 alter table public.member_profiles
 add column if not exists role text not null default 'member' check (role in ('member','admin'));
 
+
+
+create table if not exists public.running_hub_posts (
+  id uuid primary key default gen_random_uuid(),
+  author_user_id uuid,
+  author_name text not null,
+  category text not null default 'tip' check (category in ('route','tip','checklist','story')),
+  title text not null,
+  summary text,
+  content text not null,
+  status text not null default 'pending' check (status in ('pending','approved','rejected')),
+  is_featured boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);

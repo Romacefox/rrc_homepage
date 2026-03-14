@@ -98,6 +98,7 @@ const approvalRefreshButton = document.getElementById("approval-refresh");
 const approvalList = document.getElementById("approval-list");
 const syncSupabaseButton = document.getElementById("sync-supabase");
 const syncStatus = document.getElementById("sync-status");
+const syncMeta = document.getElementById("sync-meta");
 const roleRefreshButton = document.getElementById("role-refresh");
 const roleList = document.getElementById("role-list");
 const roleStatus = document.getElementById("role-status");
@@ -110,6 +111,12 @@ let currentAdminToken = "";
 let currentAdminUserId = "";
 
 let currentAdminCanManageRoles = false;
+let publicDataClient = null;
+let publicRaffleHistory = [];
+let publicNoticeItems = [];
+let autoSyncTimer = null;
+let autoSyncPending = false;
+
 init();
 
 function init() {
@@ -119,6 +126,7 @@ function init() {
   setDefaultBulkDate();
   renderAll();
   checkScheduledDraw(false);
+  loadPublicRaffleData();
 
   guestForm.addEventListener("submit", handleGuestSubmit);
   adminLoginButton.addEventListener("click", handleAdminLogin);
@@ -160,6 +168,10 @@ function init() {
     renderRaffle();
     checkScheduledDraw(false);
   }, 60 * 1000);
+
+  setInterval(() => {
+    loadPublicRaffleData();
+  }, 10 * 60 * 1000);
 }
 
 function migrateLegacyData() {
@@ -214,6 +226,108 @@ function getAdminAuthClient() {
   }
   return adminAuthClient;
 }
+
+function getPublicDataClient() {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    return null;
+  }
+  if (!window.supabase || !window.supabase.createClient) {
+    return null;
+  }
+  if (!publicDataClient) {
+    publicDataClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }
+  return publicDataClient;
+}
+
+async function loadPublicRaffleData() {
+  if (!publicWinnerHistory && !publicRaffleRule && !publicNextDraw) {
+    return;
+  }
+
+  const client = getPublicDataClient();
+  if (!client) {
+    return;
+  }
+
+  const historyResult = await client
+    .from("raffle_history")
+    .select("target_month_key,threshold,winner_count,winners,created_at")
+    .order("created_at", { ascending: false })
+    .limit(12);
+
+  if (historyResult.error) {
+    return;
+  }
+
+  publicRaffleHistory = (Array.isArray(historyResult.data) ? historyResult.data : []).map((record) => ({
+    targetMonthKey: record.target_month_key,
+    threshold: Number(record.threshold || 0),
+    winnerCount: Number(record.winner_count || 0),
+    winners: Array.isArray(record.winners) ? record.winners : [],
+    createdAt: record.created_at || new Date().toISOString()
+  }));
+
+  renderRaffle();
+}
+
+async function loadPublicNoticeData() {
+  if (!noticeList) {
+    return;
+  }
+
+  const client = getPublicDataClient();
+  if (!client) {
+    return;
+  }
+
+  const noticeResult = await client
+    .from("notices")
+    .select("id,title,content,created_at")
+    .order("created_at", { ascending: false })
+    .limit(30);
+
+  if (noticeResult.error) {
+    return;
+  }
+
+  publicNoticeItems = (Array.isArray(noticeResult.data) ? noticeResult.data : []).map((notice) => ({
+    id: notice.id || makeId(),
+    title: String(notice.title || "\uACF5\uC9C0"),
+    content: String(notice.content || ""),
+    createdAt: notice.created_at || new Date().toISOString()
+  }));
+
+  if (adminPanel?.classList.contains("hidden")) {
+    renderNotices();
+  }
+}
+
+async function loadSyncMetadata() {
+  if (!syncMeta || !currentAdminToken) {
+    return;
+  }
+
+  try {
+    const client = getAdminAuthClient();
+    const result = await client
+      .from("settings")
+      .select("value,updated_at")
+      .eq("key", "last_sync_meta")
+      .maybeSingle();
+
+    if (result.error || !result.data) {
+      syncMeta.textContent = "마지막 동기화: 아직 없음";
+      return;
+    }
+
+    const syncedAt = result.data?.value?.synced_at || result.data.updated_at;
+    syncMeta.textContent = syncedAt ? `마지막 동기화: ${formatDateTime(new Date(syncedAt))}` : "마지막 동기화: 아직 없음";
+  } catch (_error) {
+    syncMeta.textContent = "마지막 동기화: 아직 없음";
+  }
+}
+
 
 function setDefaultBulkDate() {
   if (!bulkAttendanceDateInput) {
@@ -616,17 +730,21 @@ function renderAll() {
 }
 function renderNotices() {
   noticeList.innerHTML = "";
-  if (!db.notices.length) {
-    noticeList.innerHTML = `<li class="list-item"><p class="list-meta">등록된 공지가 없습니다.</p></li>`;
+  const isAdminView = adminPanel && !adminPanel.classList.contains("hidden");
+  const source = isAdminView ? db.notices : (publicNoticeItems.length ? publicNoticeItems : db.notices);
+
+  if (!source.length) {
+    noticeList.innerHTML = `<li class="list-item"><p class="list-meta">\uB4F1\uB85D\uB41C \uACF5\uC9C0\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.</p></li>`;
     return;
   }
 
-  db.notices.forEach((notice) => {
+  source.forEach((notice) => {
     const item = document.createElement("li");
     item.className = "list-item";
-    item.innerHTML = `<div class="list-top"><span class="list-title">${escapeHtml(notice.title)}</span><span class="list-meta">${formatDate(notice.createdAt)}</span></div><p>${escapeHtml(notice.content)}</p>`;
+    item.innerHTML = `<div class="list-top"><span class="list-title">${escapeHtml(notice.title)}</span>
+<span class="list-meta">${formatDate(notice.createdAt)}</span></div><p>${escapeHtml(notice.content)}</p>`;
 
-    if (!adminPanel.classList.contains("hidden")) {
+    if (isAdminView) {
       const actions = document.createElement("div");
       actions.className = "item-actions";
       actions.appendChild(buildTinyButton("삭제", () => {
@@ -640,7 +758,6 @@ function renderNotices() {
     noticeList.appendChild(item);
   });
 }
-
 function renderGuests() {
   guestList.innerHTML = "";
   if (!db.guests.length) {
@@ -985,11 +1102,14 @@ function renderRaffle() {
   const now = new Date();
   const nextDrawAt = getNextDrawAt(now);
   const nextSchedule = getDrawSchedule(nextDrawAt);
-  const latestRecord = Array.isArray(db.raffle?.history) ? db.raffle.history[0] : null;
+  const localHistory = Array.isArray(db.raffle?.history) ? db.raffle.history : [];
+  const latestRecord = localHistory[0] || null;
+  const publicHistory = publicRaffleHistory.length ? publicRaffleHistory : localHistory;
   const nextThreshold = getThresholdForMonthKey(nextSchedule.targetMonthKey);
   const nextEligibleCount = getEligibleMembers(nextSchedule.targetMonthKey).length;
 
   const ruleText = `${monthKeyToLabel(nextSchedule.targetMonthKey)} 기준: ${nextThreshold}회 이상 참여 시 자동 추첨 대상 (${nextEligibleCount}명 예상)`;
+  const publicRuleText = `${monthKeyToLabel(nextSchedule.targetMonthKey)} 기준: ${nextThreshold}회 이상 참여 시 매월 5일 서버에서 자동 추첨됩니다.`;
   const nextText = `다음 자동 추첨: ${formatDateTime(nextDrawAt)} (매월 5일 12:00)`;
 
   if (raffleRule) {
@@ -999,32 +1119,33 @@ function renderRaffle() {
     nextDraw.textContent = nextText;
   }
   if (publicRaffleRule) {
-    publicRaffleRule.textContent = ruleText;
+    publicRaffleRule.textContent = publicRuleText;
   }
   if (publicNextDraw) {
     publicNextDraw.textContent = nextText;
   }
 
-  renderRaffleHistoryList(winnerHistory);
-  renderRaffleHistoryList(publicWinnerHistory);
+  renderRaffleHistoryList(winnerHistory, localHistory);
+  renderRaffleHistoryList(publicWinnerHistory, publicHistory);
 
   if (winnerResult && latestRecord) {
     winnerResult.textContent = `${monthKeyToLabel(latestRecord.targetMonthKey)} 최근 추첨 결과가 반영되어 있습니다.`;
   }
 }
 
-function renderRaffleHistoryList(target) {
+function renderRaffleHistoryList(target, history = []) {
   if (!target) {
     return;
   }
   target.innerHTML = "";
-  if (!db.raffle.history.length) {
+  if (!history.length) {
     target.innerHTML = `<li class="list-item"><p class="list-meta">추첨 기록이 없습니다.</p></li>`;
     return;
   }
 
-  db.raffle.history.forEach((record) => {
-    const names = record.winners.length ? record.winners.map((winner) => winner.name).join(", ") : "당첨자 없음";
+  history.forEach((record) => {
+    const winners = Array.isArray(record.winners) ? record.winners : [];
+    const names = winners.length ? winners.map((winner) => winner.name).join(", ") : "당첨자 없음";
     const item = document.createElement("li");
     item.className = "list-item";
     item.innerHTML = `<div class="list-top"><span class="list-title">${monthKeyToLabel(record.targetMonthKey)} 추첨</span><span class="list-meta">${formatDate(record.createdAt)}</span></div><p class="list-meta">기준 ${record.threshold}회 / ${record.winnerCount}명 추첨</p><p>${escapeHtml(names)}</p>`;
@@ -1179,6 +1300,31 @@ function loadDb() {
 
 function saveDb() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+  scheduleAutoSync();
+}
+
+function scheduleAutoSync() {
+  if (!currentAdminToken) {
+    return;
+  }
+  autoSyncPending = true;
+  if (syncStatus) {
+    syncStatus.textContent = "변경 저장됨 · 자동 동기화 대기";
+  }
+  if (autoSyncTimer) {
+    clearTimeout(autoSyncTimer);
+  }
+  autoSyncTimer = setTimeout(() => {
+    autoSyncTimer = null;
+    if (!autoSyncPending || !currentAdminToken) {
+      return;
+    }
+    autoSyncPending = false;
+    syncDataToSupabase();
+  }, 1200);
+}
+function saveDb() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
 }
 
 function formatDate(iso) {
@@ -1286,6 +1432,8 @@ async function syncDataToSupabase() {
     if (syncStatus) {
       syncStatus.textContent = `동기화 완료: members ${result.counts?.members || 0}, notices ${result.counts?.notices || 0}, guests ${result.counts?.guests || 0}`;
     }
+    loadPublicNoticeData();
+    loadPublicRaffleData();
   } catch (error) {
     if (syncStatus) {
       syncStatus.textContent = `동기화 실패: ${String(error.message || error)}`;
@@ -1502,5 +1650,7 @@ async function updateApprovalStatus(userId, status, role = null) {
   loadApprovalQueue();
   loadRoleList();
 }
+
+
 
 

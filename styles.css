@@ -259,3 +259,44 @@ input, textarea, select {
   margin-bottom: 0.5rem;
   color: #e9e9e9;
 }
+
+
+.running-intro {
+  margin-top: 0.6rem;
+}
+
+.running-shell {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1.5fr);
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.running-main-panel {
+  min-width: 0;
+}
+
+.running-card-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.running-post-list {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.running-post-item {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.running-post-body {
+  color: #efefef;
+  line-height: 1.6;
+}
+
+@media (max-width: 960px) {
+  .running-shell {
+    grid-template-columns: 1fr;
+  }
+}

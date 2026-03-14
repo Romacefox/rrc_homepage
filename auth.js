@@ -435,7 +435,7 @@ async function loadActivityBoard() {
 
   const membersResult = await supabaseClient
     .from("members")
-    .select("id,name,total_runs,monthly_runs")
+    .select("id,name,birth_year,total_runs,monthly_runs")
     .order("name", { ascending: true });
 
   if (membersResult.error) {
@@ -458,7 +458,18 @@ async function loadActivityBoard() {
     }))
     .sort((a, b) => (b.monthRuns - a.monthRuns) || (Number(b.total_runs || 0) - Number(a.total_runs || 0)) || String(a.name || "").localeCompare(String(b.name || ""), "ko"));
 
-  const me = rows.find((member) => normalizeName(member.name) === normalizeName(authProfile.name));
+  const profileBirthYear = Number(authProfile.birth_year || 0);
+  const me = rows.find((member) => {
+    const sameName = normalizeName(member.name) === normalizeName(authProfile.name);
+    if (!sameName) {
+      return false;
+    }
+    const memberBirthYear = Number(member.birth_year || 0);
+    if (profileBirthYear && memberBirthYear) {
+      return profileBirthYear === memberBirthYear;
+    }
+    return true;
+  });
   const runner = rows.find((member) => member.monthRuns > 0) || null;
 
   activityLock.textContent = `${monthKeyToLabel(selectedMonth)} 출석 기준입니다. 운영진이 동기화한 데이터로 표시됩니다.`;
