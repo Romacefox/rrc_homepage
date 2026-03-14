@@ -990,7 +990,7 @@ function renderRaffle() {
   const nextEligibleCount = getEligibleMembers(nextSchedule.targetMonthKey).length;
 
   const ruleText = `${monthKeyToLabel(nextSchedule.targetMonthKey)} 기준: ${nextThreshold}회 이상 참여 시 자동 추첨 대상 (${nextEligibleCount}명 예상)`;
-  const nextText = `다음 자동 추첨: ${formatDateTime(nextDrawAt)} (매월 1일 12:00)`;
+  const nextText = `다음 자동 추첨: ${formatDateTime(nextDrawAt)} (매월 5일 12:00)`;
 
   if (raffleRule) {
     raffleRule.textContent = ruleText;
@@ -1040,16 +1040,16 @@ function getDrawSchedule(now) {
   return {
     drawId: `${now.getFullYear()}-${pad(now.getMonth() + 1)}`,
     targetMonthKey: previousMonthKey(now),
-    scheduledAt: new Date(now.getFullYear(), now.getMonth(), 1, 12, 0, 0, 0)
+    scheduledAt: new Date(now.getFullYear(), now.getMonth(), 5, 12, 0, 0, 0)
   };
 }
 
 function getNextDrawAt(now) {
-  const thisMonthDrawAt = new Date(now.getFullYear(), now.getMonth(), 1, 12, 0, 0, 0);
+  const thisMonthDrawAt = new Date(now.getFullYear(), now.getMonth(), 5, 12, 0, 0, 0);
   if (now < thisMonthDrawAt) {
     return thisMonthDrawAt;
   }
-  return new Date(now.getFullYear(), now.getMonth() + 1, 1, 12, 0, 0, 0);
+  return new Date(now.getFullYear(), now.getMonth() + 1, 5, 12, 0, 0, 0);
 }
 
 function getThresholdForMonthKey(monthKey) {
@@ -1502,4 +1502,5 @@ async function updateApprovalStatus(userId, status, role = null) {
   loadApprovalQueue();
   loadRoleList();
 }
+
 

@@ -68,7 +68,7 @@
 
 ## C. 자동 추첨 검수
 1. Netlify Scheduled Function 동작 확인
-- 함수 로그에서 `monthly-draw` 성공 실행 확인
+- 함수 로그에서 `monthly-draw` 성공 실행 확인 (매월 5일 12:00 KST 기준)
 
 2. DB 반영 확인
 - `raffle_history` 레코드 생성
@@ -98,3 +98,4 @@
 1. Netlify 배포 URL
 2. 테스트 계정 이메일(운영진/일반 1개씩)
 3. 에러가 난 화면 캡처(있으면)
+

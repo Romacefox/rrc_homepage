@@ -1,0 +1,80 @@
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RRC | 러닝 허브</title>
+  <meta name="description" content="RRC 추천 루트, 러닝 팁, 시즌 체크리스트" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=SUIT:wght@300;400;500;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="container nav-wrap">
+      <a href="index.html" class="logo">RRC</a>
+      <nav class="nav-links">
+        <a href="index.html">메인</a>
+        <a href="signup.html">회원가입</a>
+        <a href="login.html">로그인</a>
+        <a href="gallery.html">사진첩</a>
+        <a href="running.html">러닝 허브</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="section alt">
+      <div class="container">
+        <div class="section-head">
+          <h2>러닝 허브</h2>
+          <span class="badge">루트 · 팁 · 준비물</span>
+        </div>
+        <div class="cards" style="margin-top:1rem;">
+          <article class="card">
+            <h3>잠실 한강공원 루트</h3>
+            <p class="list-meta">초보자부터 인터벌까지 무난한 기본 루트</p>
+            <p>잠실나들목 기준 왕복 5~8km. 평일 저녁엔 페이스 그룹으로 나누기 좋습니다.</p>
+          </article>
+          <article class="card">
+            <h3>올림픽공원 루트</h3>
+            <p class="list-meta">언덕 포함 템포런/롱런용</p>
+            <p>평지와 완만한 업다운이 섞여 있어 템포 조절 훈련에 적합합니다.</p>
+          </article>
+          <article class="card">
+            <h3>석촌호수 루트</h3>
+            <p class="list-meta">짧은 조깅, 회복런, 처음 온 분 안내용</p>
+            <p>호수 외곽을 기준으로 짧고 끊어서 뛰기 좋아 입문자 안내 코스로 좋습니다.</p>
+          </article>
+        </div>
+        <div class="rule-grid" style="margin-top:1rem;">
+          <article class="panel">
+            <h3>이번 달 러닝 팁</h3>
+            <p>월말 출석 몰아치기보다 주 2회 고정 루틴을 만드는 편이 부상도 적고 기록도 안정적입니다.</p>
+          </article>
+          <article class="panel">
+            <h3>정기런 준비 체크</h3>
+            <p>러닝화, 얇은 바람막이, 물, 간단한 보온 레이어, 종료 후 갈아입을 상의를 챙겨두세요.</p>
+          </article>
+          <article class="panel">
+            <h3>번개런 공지 팁</h3>
+            <p>집결 위치, 예상 거리, 평균 페이스, 종료 예정 시간을 같이 쓰면 참여율이 높아집니다.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-wrap">
+      <p>© <span id="year"></span> RRC</p>
+      <p><a href="index.html">메인으로 돌아가기</a></p>
+    </div>
+  </footer>
+
+  <script>
+    document.getElementById('year').textContent = new Date().getFullYear();
+  </script>
+</body>
+</html>

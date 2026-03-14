@@ -1,4 +1,4 @@
-[build]
+﻿[build]
   publish = "."
 
 [functions]
@@ -6,4 +6,5 @@
   node_bundler = "esbuild"
 
 [functions."monthly-draw"]
-  schedule = "0 3 1 * *"
+  schedule = "0 3 5 * *"
+

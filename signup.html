@@ -1,0 +1,79 @@
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RRC | 회원가입</title>
+  <meta name="description" content="RRC 회원가입 신청 페이지" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=SUIT:wght@300;400;500;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="container nav-wrap">
+      <a href="index.html" class="logo">RRC</a>
+      <nav class="nav-links">
+        <a href="index.html">메인</a>
+        <a href="signup.html">회원가입</a>
+        <a href="login.html">로그인</a>
+        <a href="gallery.html">사진첩</a>
+        <a href="running.html">러닝 허브</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="section alt">
+      <div class="container two-col auth-shell">
+        <article class="panel">
+          <h2>회원가입 신청</h2>
+          <p class="list-meta">가입 후 운영진 승인을 거치면 사진첩 업로드와 활동 보드 확인이 가능합니다.</p>
+          <form class="form compact" id="signup-form">
+            <input id="signup-email" type="email" placeholder="이메일" autocomplete="email" required />
+            <input id="signup-password" type="password" placeholder="비밀번호" autocomplete="new-password" required />
+            <input id="signup-name" type="text" placeholder="이름(실명)" required />
+            <input id="signup-birth-year" type="number" min="1989" max="2000" placeholder="출생연도(1989~2000)" required />
+            <textarea id="signup-intro" rows="4" placeholder="자기소개(러닝 경험/가입 동기)"></textarea>
+            <label style="display:flex;gap:0.4rem;align-items:flex-start;">
+              <input id="signup-agree" type="checkbox" style="width:auto;margin-top:0.1rem;" />
+              <span class="list-meta">개인정보(이메일/이름/출생연도/소개) 수집 및 운영진 검토에 동의합니다.</span>
+            </label>
+            <div class="inline-form">
+              <button id="signup-submit" class="btn primary" type="button">가입 신청</button>
+              <a class="btn ghost" href="login.html">이미 계정이 있나요?</a>
+            </div>
+          </form>
+          <p id="signup-status" class="list-meta">가입 전 안내를 확인해 주세요.</p>
+        </article>
+
+        <article class="panel highlight">
+          <h2>가입 절차</h2>
+          <ol class="bullet-list numbered-list">
+            <li>회원가입 신청</li>
+            <li>운영진 승인 대기</li>
+            <li>로그인 후 활동 보드 확인</li>
+            <li>승인 완료 후 사진첩 업로드</li>
+          </ol>
+          <p class="list-meta">운영진 승인 전에도 로그인은 가능할 수 있지만, 활동 보드와 업로드 기능은 승인 후 열립니다.</p>
+          <div class="auth-links-row" style="margin-top:1rem;">
+            <a class="btn ghost" href="login.html">로그인 페이지</a>
+            <a class="btn ghost" href="gallery.html">사진첩 둘러보기</a>
+          </div>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-wrap">
+      <p>© <span id="year"></span> RRC</p>
+      <p><a href="index.html">메인으로 돌아가기</a></p>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="auth.js"></script>
+</body>
+</html>
