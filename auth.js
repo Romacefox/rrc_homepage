@@ -191,6 +191,13 @@ function disablePhotoUpload(message = "로그인한 회원만 업로드 가능�
   photoCaptionInput.disabled = true;
   photoStatus.textContent = message;
 }
+
+function enablePhotoUpload() {
+  photoUploadButton.disabled = false;
+  photoFileInput.disabled = false;
+  photoCaptionInput.disabled = false;
+  photoStatus.textContent = "승인 완료. 사진을 업로드할 수 있습니다.";
+}
 async function handlePhotoUpload() {
   if (!authUser || !authProfile) {
     photoStatus.textContent = "로그인한 회원만 업로드할 수 있습니다.";
@@ -316,4 +323,3 @@ async function notifySignupRequest(payload) {
     // Notification failure should not block signup flow.
   }
 }
-

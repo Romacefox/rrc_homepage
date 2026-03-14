@@ -983,13 +983,14 @@ function renderTrend(target, series, suffix) {
 
 function renderRaffle() {
   const now = new Date();
-  const currentKey = currentMonthKey(now);
-  const currentThreshold = getThresholdForMonthKey(currentKey);
-  const currentEligibleCount = getEligibleMembers(currentKey).length;
-  const schedule = getDrawSchedule(now);
+  const nextDrawAt = getNextDrawAt(now);
+  const nextSchedule = getDrawSchedule(nextDrawAt);
+  const latestRecord = Array.isArray(db.raffle?.history) ? db.raffle.history[0] : null;
+  const nextThreshold = getThresholdForMonthKey(nextSchedule.targetMonthKey);
+  const nextEligibleCount = getEligibleMembers(nextSchedule.targetMonthKey).length;
 
-  const ruleText = `${monthKeyToLabel(currentKey)} 기준: ${currentThreshold}회 이상 참여 시 자동 추첨 대상 (${currentEligibleCount}명 대상)`;
-  const nextText = `다음 자동 추첨: ${formatDateTime(getNextDrawAt(now))} (매월 1일 12:00)`;
+  const ruleText = `${monthKeyToLabel(nextSchedule.targetMonthKey)} 기준: ${nextThreshold}회 이상 참여 시 자동 추첨 대상 (${nextEligibleCount}명 예상)`;
+  const nextText = `다음 자동 추첨: ${formatDateTime(nextDrawAt)} (매월 1일 12:00)`;
 
   if (raffleRule) {
     raffleRule.textContent = ruleText;
@@ -1007,8 +1008,8 @@ function renderRaffle() {
   renderRaffleHistoryList(winnerHistory);
   renderRaffleHistoryList(publicWinnerHistory);
 
-  if (winnerResult && db.raffle.lastDrawId === schedule.drawId) {
-    winnerResult.textContent = `${monthKeyToLabel(schedule.targetMonthKey)} 자동 추첨 완료 상태입니다.`;
+  if (winnerResult && latestRecord) {
+    winnerResult.textContent = `${monthKeyToLabel(latestRecord.targetMonthKey)} 최근 추첨 결과가 반영되어 있습니다.`;
   }
 }
 
@@ -1319,6 +1320,7 @@ async function loadApprovalQueue() {
       return;
     }
 
+    currentAdminCanManageRoles = Boolean(result.can_manage_roles);
     const list = Array.isArray(result.items) ? result.items : [];
     if (!list.length) {
       approvalList.innerHTML = '<li class="list-item"><p class="list-meta">가입자가 없습니다.</p></li>';
@@ -1340,9 +1342,16 @@ async function loadApprovalQueue() {
 
       const actions = document.createElement("div");
       actions.className = "item-actions";
-      actions.appendChild(buildTinyButton("승인", () => updateApprovalStatus(item.user_id, "approved")));
-      actions.appendChild(buildTinyButton("반려", () => updateApprovalStatus(item.user_id, "rejected")));
-      actions.appendChild(buildTinyButton("운영진", () => updateApprovalStatus(item.user_id, "approved", "admin")));
+      const approveButton = buildTinyButton("승인", () => updateApprovalStatus(item.user_id, "approved"));
+      const rejectButton = buildTinyButton("반려", () => updateApprovalStatus(item.user_id, "rejected"));
+      const adminButton = buildTinyButton("운영진", () => updateApprovalStatus(item.user_id, "approved", "admin"));
+      if (!currentAdminCanManageRoles) {
+        adminButton.disabled = true;
+        adminButton.title = "모임장만 운영진 권한을 부여할 수 있습니다.";
+      }
+      actions.appendChild(approveButton);
+      actions.appendChild(rejectButton);
+      actions.appendChild(adminButton);
       row.appendChild(actions);
 
       approvalList.appendChild(row);
@@ -1458,6 +1467,10 @@ async function updateApprovalStatus(userId, status, role = null) {
   if (!currentAdminToken) {
     return;
   }
+  if (role === "admin" && !currentAdminCanManageRoles) {
+    alert("운영진 권한 부여는 모임장만 가능합니다.");
+    return;
+  }
 
   if (role === "admin") {
     const confirmed = confirm("이 회원에게 운영진 권한을 부여할까요?");
@@ -1489,37 +1502,4 @@ async function updateApprovalStatus(userId, status, role = null) {
   loadApprovalQueue();
   loadRoleList();
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
