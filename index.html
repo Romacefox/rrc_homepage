@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>RRC | Rising Star Running Crew</title>
-  <meta name="description" content="Rising Star Running Crew 공식 홈페이지. 정기런 일정, 회칙, 게스트 신청, 공지, 운영 관리" />
+  <meta name="description" content="Rising Star Running Crew 공식 홈페이지. 크루 안내, 공지, 게스트 신청, 사진첩, 러닝 허브" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=SUIT:wght@300;400;500;700;800&display=swap" rel="stylesheet" />
@@ -14,17 +14,14 @@
   <header class="site-header">
     <div class="container nav-wrap">
       <a href="#home" class="logo">RRC</a>
-      <nav class="nav-links">
-        <a href="#about">소개</a>
-        <a href="#schedule">정기런</a>
-        <a href="#rules">회칙</a>
-        <a href="#notice">공지</a>
-        <a href="#guest">게스트</a>
+      <nav class="nav-links nav-links-main">
         <a href="signup.html">회원가입</a>
         <a href="login.html">로그인</a>
+        <a href="#about">크루 안내</a>
+        <a href="#notice">공지</a>
+        <a href="#guest">게스트</a>
         <a href="gallery.html">사진첩</a>
         <a href="running.html">러닝 허브</a>
-        <a href="#admin">운영진</a>
       </nav>
     </div>
   </header>
@@ -49,7 +46,13 @@
     <section id="about" class="section">
       <div class="container two-col">
         <div>
-          <h2>RRC 소개</h2>
+          <div class="section-head section-head-stack">
+            <h2>크루 안내</h2>
+            <div class="nav-chip-row">
+              <a class="badge badge-link" href="#schedule">정기런</a>
+              <a class="badge badge-link" href="#rules">회칙</a>
+            </div>
+          </div>
           <p>RRC는 잠실/송파 중심으로 활동하는 소수정예 러닝크루입니다. 유령회원 없이 끈끈하게 오래 가는 커뮤니티를 목표로 운영합니다.</p>
           <ul class="bullet">
             <li>활동 지역: 잠실한강공원, 올림픽공원, 석촌호수, 뚝섬 등</li>
@@ -101,29 +104,45 @@
       </div>
     </section>
 
-    <section id="raffle-public" class="section alt">
+    <section id="raffle-public" class="section alt raffle-public-section">
       <div class="container">
-        <h2>참가상 룰렛</h2>
-        <p id="public-raffle-rule" class="list-meta"></p>
-        <p id="public-next-draw" class="list-meta"></p>
-        <ul id="public-winner-history" class="list small"></ul>
+        <div class="section-head">
+          <h2>참가상 룰렛</h2>
+          <span class="badge">매월 5일 자동 추첨</span>
+        </div>
+        <div class="raffle-public-layout">
+          <article class="panel highlight raffle-public-summary">
+            <h3>이번 달 안내</h3>
+            <p id="public-raffle-rule" class="list-meta">추첨 기준을 불러오는 중입니다.</p>
+            <p id="public-next-draw" class="list-meta">다음 추첨 일정을 불러오는 중입니다.</p>
+            <p class="muted raffle-help">운영진이 동기화한 출석 데이터를 기준으로 서버에서 자동 추첨됩니다.</p>
+          </article>
+          <article class="panel raffle-public-history-panel">
+            <div class="section-head">
+              <h3>최근 추첨 기록</h3>
+              <span class="badge">공개</span>
+            </div>
+            <ul id="public-winner-history" class="list small raffle-public-history"></ul>
+          </article>
+        </div>
       </div>
     </section>
+
     <section id="guest" class="section">
       <div class="container two-col">
         <div>
           <h2>게스트 신청</h2>
-          <p>러닝 참여 희망자는 아래 폼을 남겨주세요. 운영진이 확인 후 연락합니다.</p>
-          <form id="guest-form" class="form">
+          <p>러닝 참여 희망자는 아래 폼을 가볍게 남겨주세요. 운영진이 확인 후 연락드립니다.</p>
+          <form id="guest-form" class="form guest-form-card">
             <label for="guest-name">이름</label><input id="guest-name" name="name" type="text" required />
             <label for="guest-year">출생연도</label><input id="guest-year" name="birthYear" type="number" min="1989" max="2000" required />
-            <label for="guest-phone">연락처</label><input id="guest-phone" name="phone" type="text" placeholder="010-0000-0000" required />
-            <label for="guest-message">메시지</label><textarea id="guest-message" name="message" rows="4" placeholder="러닝 경험, 참여 희망 일정"></textarea>
+            <label for="guest-phone">연락처(카카오톡 ID)</label><input id="guest-phone" name="phone" type="text" placeholder="카카오톡 ID 또는 편한 연락 수단" required />
+            <label for="guest-message">메시지</label><textarea id="guest-message" name="message" rows="4" placeholder="예: 5km 40분 정도로 달려요 / 화·목 정기런 참여 희망"></textarea>
             <button class="btn primary" type="submit">신청 저장</button>
           </form>
-          <p class="muted">입력 데이터는 현재 브라우저(또는 추후 DB)에 저장됩니다.</p>
+          <p class="muted">전화번호 대신 카카오톡 ID처럼 편한 연락 수단으로 남겨주셔도 됩니다.</p>
         </div>
-        <aside class="panel">
+        <aside class="panel highlight guest-side-panel">
           <h3>가입 전 체크</h3>
           <ul class="bullet">
             <li>월 2회 이상 정기런 참여 가능 여부</li>
@@ -140,7 +159,6 @@
         <div id="admin-lock" class="panel">
           <p>운영진 계정(이메일/비밀번호)으로 로그인하면 관리 기능이 열립니다.</p>
           <div class="inline-form"><input id="admin-email" type="email" placeholder="운영진 이메일" /><input id="admin-password" type="password" placeholder="운영진 비밀번호" /><button id="admin-login" class="btn primary" type="button">로그인</button></div>
-          
         </div>
 
         <div id="admin-panel" class="hidden">
@@ -200,7 +218,9 @@
               <p class="list-meta" style="margin:0.3rem 0 0.4rem;">2개월 이상 연속 미납 경고</p>
               <ul id="fee-warning-list" class="list small"></ul>
               <ul id="fee-list" class="list small" style="margin-top:0.6rem;"></ul>
-            </article>            <article class="panel">
+            </article>
+
+            <article class="panel">
               <h3>회원 가입 승인</h3>
               <p class="list-meta">회원가입은 누구나 가능하며, 운영진/승인 관리는 모임장이 관리합니다.</p>
               <button id="approval-refresh" class="btn ghost" type="button">가입자 목록 새로고침</button>
@@ -274,9 +294,6 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="script.js"></script>
+  <script src="script.js?v=20260314b"></script>
 </body>
 </html>
-
-
-

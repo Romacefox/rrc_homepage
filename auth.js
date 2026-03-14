@@ -34,6 +34,8 @@ const authShell = document.querySelector(".auth-shell");
 
 const galleryAuthStatus = document.getElementById("gallery-auth-status");
 const galleryApprovalStatus = document.getElementById("gallery-approval-status");
+const galleryGuestActions = document.getElementById("gallery-guest-actions");
+const galleryMemberActions = document.getElementById("gallery-member-actions");
 const photoFileInput = document.getElementById("photo-file");
 const photoCaptionInput = document.getElementById("photo-caption");
 const photoUploadButton = document.getElementById("photo-upload");
@@ -274,6 +276,8 @@ function renderAuthState() {
     setStatus(loginApprovalStatus, loginApprovalStatus ? "승인 상태: 로그인 필요" : null);
     setStatus(galleryAuthStatus, galleryAuthStatus ? "로그인 필요" : null);
     setStatus(galleryApprovalStatus, galleryApprovalStatus ? "승인 상태 확인 후 업로드가 열립니다." : null);
+    if (galleryGuestActions) galleryGuestActions.classList.remove("hidden");
+    if (galleryMemberActions) galleryMemberActions.classList.add("hidden");
     disablePhotoUpload();
     return;
   }
@@ -282,6 +286,8 @@ function renderAuthState() {
   const roleSuffix = authProfile?.role === "admin" ? " / 모임장·운영진 권한 포함" : "";
   setStatus(loginStatus, loginStatus ? `로그인됨: ${authUser.email}` : null);
   setStatus(galleryAuthStatus, galleryAuthStatus ? `로그인됨: ${authUser.email}` : null);
+  if (galleryGuestActions) galleryGuestActions.classList.add("hidden");
+  if (galleryMemberActions) galleryMemberActions.classList.remove("hidden");
 
   if (!authProfile) {
     setStatus(loginApprovalStatus, loginApprovalStatus ? "승인 상태: 프로필 미등록(운영진 문의)" : null);

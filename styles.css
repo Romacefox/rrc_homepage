@@ -318,3 +318,69 @@ input, textarea, select {
     grid-template-columns: 1fr;
   }
 }
+.nav-links-main {
+  justify-content: flex-end;
+}
+
+.nav-chip-row {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.badge-link {
+  text-decoration: none;
+}
+
+.badge-link:hover {
+  background: rgba(255, 107, 0, 0.12);
+}
+
+.section-head-stack {
+  align-items: flex-start;
+  flex-direction: column;
+}
+
+.raffle-public-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.85fr) minmax(0, 1.15fr);
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.raffle-public-summary,
+.raffle-public-history-panel,
+.gallery-upload-panel,
+.gallery-list-panel,
+.guest-side-panel {
+  min-width: 0;
+}
+
+.raffle-help {
+  margin-top: 1rem;
+  color: #d8c2b0;
+}
+
+.raffle-public-history {
+  max-height: 360px;
+}
+
+.gallery-status-box {
+  border: 1px solid var(--line);
+  background: #101010;
+  border-radius: 12px;
+  padding: 0.8rem;
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.8rem 0;
+}
+
+.guest-form-card textarea {
+  min-height: 120px;
+}
+
+@media (max-width: 960px) {
+  .raffle-public-layout {
+    grid-template-columns: 1fr;
+  }
+}
