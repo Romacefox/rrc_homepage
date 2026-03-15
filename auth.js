@@ -1,4 +1,4 @@
-const SUPABASE_URL = "https://aqpszgycsfpxtlsuaqrt.supabase.co";
+﻿const SUPABASE_URL = "https://aqpszgycsfpxtlsuaqrt.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_C20xXZZRWdjmkzGneCcpjw_mrRnXucq";
 const PHOTO_BUCKET = "rrc-photos";
 const PENDING_SIGNUP_PREFIX = "rrc-pending-signup:";
@@ -16,6 +16,7 @@ const signupNameInput = document.getElementById("signup-name");
 const signupBirthYearInput = document.getElementById("signup-birth-year");
 const signupIntroInput = document.getElementById("signup-intro");
 const signupAgreeInput = document.getElementById("signup-agree");
+const signupForm = document.getElementById("signup-form");
 const signupSubmitButton = document.getElementById("signup-submit");
 const signupStatus = document.getElementById("signup-status");
 
@@ -85,8 +86,8 @@ function init() {
     }
   });
 
-  signupSubmitButton?.addEventListener("click", handleSignup);
-  loginSubmitButton?.addEventListener("click", handleLogin);
+  signupForm?.addEventListener("submit", handleSignup);
+  loginForm?.addEventListener("submit", handleLogin);
   loginLogoutButton?.addEventListener("click", handleLogout);
   photoUploadButton?.addEventListener("click", handlePhotoUpload);
   photoMonthFilter?.addEventListener("change", renderFilteredPhotos);
@@ -131,7 +132,9 @@ async function refreshAuthSession() {
   await loadActivityBoard();
 }
 
-async function handleSignup() {
+async function handleSignup(event) {
+  event?.preventDefault();
+
   const payload = {
     email: String(signupEmailInput?.value || "").trim(),
     password: String(signupPasswordInput?.value || "").trim(),
@@ -191,7 +194,9 @@ async function handleSignup() {
   setStatus(signupStatus, "가입 신청 완료. 이메일 인증 후 로그인하면 운영진 승인 상태를 확인할 수 있습니다.");
 }
 
-async function handleLogin() {
+async function handleLogin(event) {
+  event?.preventDefault();
+
   const email = String(loginEmailInput?.value || "").trim();
   const password = String(loginPasswordInput?.value || "").trim();
 
@@ -206,7 +211,7 @@ async function handleLogin() {
     return;
   }
 
-  setStatus(loginStatus, "로그인 성공");
+  setStatus(loginStatus, "로그인 성공. 활동 보드를 확인해 주세요.");
 }
 
 async function handleLogout() {
