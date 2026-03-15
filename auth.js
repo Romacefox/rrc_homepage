@@ -124,7 +124,14 @@ function init() {
   });
 }
 
-async function refreshAuthSession() {
+async function refreshAuthSession(fallbackUser = null) {
+  if (!supabaseClient) {
+    return;
+  }
+
+  const sessionResult = await supabaseClient.auth.getSession();
+  authUser = sessionResult.data?.session?.user || fallbackUser || null;
+
   await ensurePendingProfile();
   await loadMyProfile();
   renderAuthState();
@@ -211,8 +218,8 @@ async function handleLogin(event) {
     return;
   }
 
-  authUser = loginResult.data?.user || authUser;
-  await refreshAuthSession();
+  const signedInUser = loginResult.data?.session?.user || loginResult.data?.user || null;
+  await refreshAuthSession(signedInUser);
   setStatus(loginStatus, "로그인 성공. 활동 보드를 확인해 주세요.");
 }
 
