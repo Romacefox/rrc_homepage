@@ -105,64 +105,35 @@ function init() {
   }
 
   supabaseClient.auth.onAuthStateChange((_event, session) => {
-    authUser = session?.user || null;
-    void queueAuthRefresh(authUser);
+    void hydrateAuthState(session?.user || null);
   });
 
-  void queueAuthRefresh();
+  void hydrateAuthState();
 
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState !== "visible" || !supabaseClient) {
       return;
     }
-    void queueAuthRefresh();
+    void hydrateAuthState();
   });
 }
 
-let authRefreshPromise = Promise.resolve();
-
-function delay(ms) {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
-}
-
-async function waitForStableSession(timeoutMs = 1800) {
-  if (!supabaseClient) {
-    return null;
-  }
-
-  const startedAt = Date.now();
-  while (Date.now() - startedAt < timeoutMs) {
-    const sessionResult = await supabaseClient.auth.getSession();
-    const sessionUser = sessionResult.data?.session?.user || null;
-    if (sessionUser) {
-      return sessionUser;
-    }
-    await delay(120);
-  }
-
-  return null;
-}
-
-function queueAuthRefresh(fallbackUser = null) {
-  authRefreshPromise = authRefreshPromise
-    .then(() => refreshAuthSession(fallbackUser))
-    .catch(() => refreshAuthSession(fallbackUser));
-  return authRefreshPromise;
-}
-
-async function refreshAuthSession(fallbackUser = null) {
+async function hydrateAuthState(forcedUser = undefined) {
   if (!supabaseClient) {
     return;
   }
 
-  const sessionUser = await waitForStableSession(fallbackUser ? 1800 : 200);
-  authUser = sessionUser || fallbackUser || null;
+  if (forcedUser === undefined) {
+    const sessionResult = await supabaseClient.auth.getSession();
+    authUser = sessionResult.data?.session?.user || null;
+  } else {
+    authUser = forcedUser;
+  }
 
   await ensurePendingProfile();
   await loadMyProfile();
   renderAuthState();
-  await loadPhotos();
-  await loadActivityBoard();
+  await Promise.allSettled([loadPhotos(), loadActivityBoard()]);
 }
 
 async function handleSignup(event) {
@@ -190,6 +161,16 @@ async function handleSignup(event) {
     return;
   }
 
+  localStorage.setItem(`${PENDING_SIGNUP_PREFIX}${payload.email.toLowerCase()}`, JSON.stringify({
+    user_id: null,
+    email: payload.email,
+    name: payload.name,
+    birth_year: payload.birthYear,
+    intro: payload.intro,
+    role: "member",
+    approval_status: "pending"
+  }));
+
   const signUpResult = await supabaseClient.auth.signUp({
     email: payload.email,
     password: payload.password,
@@ -198,33 +179,12 @@ async function handleSignup(event) {
     }
   });
   if (signUpResult.error) {
+    localStorage.removeItem(`${PENDING_SIGNUP_PREFIX}${payload.email.toLowerCase()}`);
     setStatus(signupStatus, `가입 실패: ${signUpResult.error.message}`);
     return;
   }
 
-  const userId = signUpResult.data?.user?.id;
-  const profilePayload = {
-    user_id: userId,
-    email: payload.email,
-    name: payload.name,
-    birth_year: payload.birthYear,
-    intro: payload.intro,
-    role: "member",
-    approval_status: "pending"
-  };
-
-  if (userId) {
-    const profileInsert = await supabaseClient.from("member_profiles").insert(profilePayload);
-    if (profileInsert.error && profileInsert.error.code !== "23505") {
-      localStorage.setItem(`${PENDING_SIGNUP_PREFIX}${payload.email.toLowerCase()}`, JSON.stringify(profilePayload));
-      setStatus(signupStatus, "가입 계정은 생성되었습니다. 이메일 인증 후 로그인하면 프로필이 자동 저장되고 운영진 승인을 기다리게 됩니다.");
-      return;
-    }
-    localStorage.removeItem(`${PENDING_SIGNUP_PREFIX}${payload.email.toLowerCase()}`);
-    await notifySignupRequest(payload);
-  }
-
-  setStatus(signupStatus, "가입 신청 완료. 이메일 인증 후 로그인하면 운영진 승인 상태를 확인할 수 있습니다.");
+  setStatus(signupStatus, "가입 신청 완료. 이메일 인증 후 로그인하면 프로필이 자동 저장되고 운영진 승인을 기다리게 됩니다.");
 }
 
 async function handleLogin(event) {
@@ -250,36 +210,14 @@ async function handleLogin(event) {
       return;
     }
 
-    const signedInSession = loginResult.data?.session || null;
-    const signedInUser = signedInSession?.user || loginResult.data?.user || null;
-
-    if (signedInSession?.access_token && signedInSession?.refresh_token) {
-      const persisted = await supabaseClient.auth.setSession({
-        access_token: signedInSession.access_token,
-        refresh_token: signedInSession.refresh_token
-      });
-      if (persisted.error) {
-        setStatus(loginStatus, `로그인 세션 저장 실패: ${persisted.error.message}`);
-        return;
-      }
-      authUser = persisted.data?.session?.user || signedInUser;
-    } else {
-      authUser = signedInUser;
-    }
-
-    const stableUser = await waitForStableSession(2200);
-    authUser = stableUser || authUser;
+    const signedInUser = loginResult.data?.session?.user || loginResult.data?.user || null;
+    await hydrateAuthState(signedInUser);
 
     if (!authUser) {
-      setStatus(loginStatus, "로그인은 되었지만 세션 확인이 지연되고 있습니다. 다시 한 번 눌러주세요.");
+      setStatus(loginStatus, "로그인은 되었지만 세션을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.");
       return;
     }
 
-    await ensurePendingProfile();
-    await loadMyProfile();
-    renderAuthState();
-    await loadPhotos();
-    await loadActivityBoard();
     setStatus(loginStatus, `로그인됨: ${authUser.email}`);
   } finally {
     if (loginSubmitButton) {
