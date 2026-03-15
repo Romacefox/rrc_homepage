@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   --bg: #090909;
   --surface: #151515;
   --surface-2: #1e1e1e;
@@ -111,7 +111,8 @@ input, textarea, select {
 
 .inline-form { display: flex; gap: 0.5rem; }
 .inline-form input, .inline-form select { flex: 1; }
-.hidden { display: none; }
+.hidden { display: none !important; }
+[hidden] { display: none !important; }
 
 .winner { margin-top: 0.8rem; font-weight: 700; color: #ffb988; min-height: 1.2rem; }
 
