@@ -1,4 +1,4 @@
-﻿const SUPABASE_URL = "https://aqpszgycsfpxtlsuaqrt.supabase.co";
+const SUPABASE_URL = "https://aqpszgycsfpxtlsuaqrt.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_C20xXZZRWdjmkzGneCcpjw_mrRnXucq";
 const PHOTO_BUCKET = "rrc-photos";
 const PENDING_SIGNUP_PREFIX = "rrc-pending-signup:";
@@ -104,24 +104,50 @@ function init() {
     populateRecentMonthOptions(activityMonthSelect);
   }
 
-  supabaseClient.auth.onAuthStateChange(async (_event, session) => {
+  supabaseClient.auth.onAuthStateChange((_event, session) => {
     authUser = session?.user || null;
-    await refreshAuthSession();
+    void queueAuthRefresh(authUser);
   });
 
-  supabaseClient.auth.getSession().then(async ({ data }) => {
-    authUser = data?.session?.user || null;
-    await refreshAuthSession();
-  });
+  void queueAuthRefresh();
 
-  document.addEventListener("visibilitychange", async () => {
+  document.addEventListener("visibilitychange", () => {
     if (document.visibilityState !== "visible" || !supabaseClient) {
       return;
     }
-    const { data } = await supabaseClient.auth.getSession();
-    authUser = data?.session?.user || null;
-    await refreshAuthSession();
+    void queueAuthRefresh();
   });
+}
+
+let authRefreshPromise = Promise.resolve();
+
+function delay(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function waitForStableSession(timeoutMs = 1800) {
+  if (!supabaseClient) {
+    return null;
+  }
+
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    const sessionResult = await supabaseClient.auth.getSession();
+    const sessionUser = sessionResult.data?.session?.user || null;
+    if (sessionUser) {
+      return sessionUser;
+    }
+    await delay(120);
+  }
+
+  return null;
+}
+
+function queueAuthRefresh(fallbackUser = null) {
+  authRefreshPromise = authRefreshPromise
+    .then(() => refreshAuthSession(fallbackUser))
+    .catch(() => refreshAuthSession(fallbackUser));
+  return authRefreshPromise;
 }
 
 async function refreshAuthSession(fallbackUser = null) {
@@ -129,8 +155,8 @@ async function refreshAuthSession(fallbackUser = null) {
     return;
   }
 
-  const sessionResult = await supabaseClient.auth.getSession();
-  authUser = sessionResult.data?.session?.user || fallbackUser || null;
+  const sessionUser = await waitForStableSession(fallbackUser ? 1800 : 200);
+  authUser = sessionUser || fallbackUser || null;
 
   await ensurePendingProfile();
   await loadMyProfile();
@@ -212,15 +238,54 @@ async function handleLogin(event) {
     return;
   }
 
-  const loginResult = await supabaseClient.auth.signInWithPassword({ email, password });
-  if (loginResult.error) {
-    setStatus(loginStatus, `로그인 실패: ${loginResult.error.message}`);
-    return;
+  if (loginSubmitButton) {
+    loginSubmitButton.disabled = true;
   }
+  setStatus(loginStatus, "로그인 중...");
 
-  const signedInUser = loginResult.data?.session?.user || loginResult.data?.user || null;
-  await refreshAuthSession(signedInUser);
-  setStatus(loginStatus, "로그인 성공. 활동 보드를 확인해 주세요.");
+  try {
+    const loginResult = await supabaseClient.auth.signInWithPassword({ email, password });
+    if (loginResult.error) {
+      setStatus(loginStatus, `로그인 실패: ${loginResult.error.message}`);
+      return;
+    }
+
+    const signedInSession = loginResult.data?.session || null;
+    const signedInUser = signedInSession?.user || loginResult.data?.user || null;
+
+    if (signedInSession?.access_token && signedInSession?.refresh_token) {
+      const persisted = await supabaseClient.auth.setSession({
+        access_token: signedInSession.access_token,
+        refresh_token: signedInSession.refresh_token
+      });
+      if (persisted.error) {
+        setStatus(loginStatus, `로그인 세션 저장 실패: ${persisted.error.message}`);
+        return;
+      }
+      authUser = persisted.data?.session?.user || signedInUser;
+    } else {
+      authUser = signedInUser;
+    }
+
+    const stableUser = await waitForStableSession(2200);
+    authUser = stableUser || authUser;
+
+    if (!authUser) {
+      setStatus(loginStatus, "로그인은 되었지만 세션 확인이 지연되고 있습니다. 다시 한 번 눌러주세요.");
+      return;
+    }
+
+    await ensurePendingProfile();
+    await loadMyProfile();
+    renderAuthState();
+    await loadPhotos();
+    await loadActivityBoard();
+    setStatus(loginStatus, `로그인됨: ${authUser.email}`);
+  } finally {
+    if (loginSubmitButton) {
+      loginSubmitButton.disabled = false;
+    }
+  }
 }
 
 async function handleLogout() {
@@ -235,7 +300,7 @@ async function handleLogout() {
   }
   renderAuthState();
   renderBoardLocked("승인된 회원 로그인 후 월별 출석, 출석 스트릭, 이달의 러너를 볼 수 있습니다.");
-  setStatus(loginStatus, "로그아웃 완료");
+  setStatus(loginStatus, loginStatus ? "로그아웃 완료" : null);
 }
 
 async function ensurePendingProfile() {
