@@ -211,6 +211,8 @@ async function handleLogin(event) {
     return;
   }
 
+  authUser = loginResult.data?.user || authUser;
+  await refreshAuthSession();
   setStatus(loginStatus, "로그인 성공. 활동 보드를 확인해 주세요.");
 }
 
@@ -219,14 +221,14 @@ async function handleLogout() {
     return;
   }
   await supabaseClient.auth.signOut();
+  authUser = null;
+  authProfile = null;
   if (loginPasswordInput) {
     loginPasswordInput.value = "";
   }
-  setStatus(loginStatus, "로그아웃 완료");
-  setStatus(galleryAuthStatus, "로그인 필요");
-  setStatus(galleryApprovalStatus, "승인 상태 확인 후 업로드가 열립니다.");
-  disablePhotoUpload();
+  renderAuthState();
   renderBoardLocked("승인된 회원 로그인 후 월별 출석, 출석 스트릭, 이달의 러너를 볼 수 있습니다.");
+  setStatus(loginStatus, "로그아웃 완료");
 }
 
 async function ensurePendingProfile() {
@@ -277,22 +279,22 @@ async function loadMyProfile() {
 function renderAuthState() {
   if (!authUser) {
     updateLoginLayout(false);
+    setVisibility(galleryGuestActions, true);
+    setVisibility(galleryMemberActions, false);
     setStatus(loginStatus, loginStatus ? "로그인 필요" : null);
     setStatus(loginApprovalStatus, loginApprovalStatus ? "승인 상태: 로그인 필요" : null);
     setStatus(galleryAuthStatus, galleryAuthStatus ? "로그인 필요" : null);
     setStatus(galleryApprovalStatus, galleryApprovalStatus ? "승인 상태 확인 후 업로드가 열립니다." : null);
-    if (galleryGuestActions) galleryGuestActions.classList.remove("hidden");
-    if (galleryMemberActions) galleryMemberActions.classList.add("hidden");
     disablePhotoUpload();
     return;
   }
 
   updateLoginLayout(true);
+  setVisibility(galleryGuestActions, false);
+  setVisibility(galleryMemberActions, true);
   const roleSuffix = authProfile?.role === "admin" ? " / 모임장·운영진 권한 포함" : "";
   setStatus(loginStatus, loginStatus ? `로그인됨: ${authUser.email}` : null);
   setStatus(galleryAuthStatus, galleryAuthStatus ? `로그인됨: ${authUser.email}` : null);
-  if (galleryGuestActions) galleryGuestActions.classList.add("hidden");
-  if (galleryMemberActions) galleryMemberActions.classList.remove("hidden");
 
   if (!authProfile) {
     setStatus(loginApprovalStatus, loginApprovalStatus ? "승인 상태: 프로필 미등록(운영진 문의)" : null);
@@ -313,16 +315,18 @@ function renderAuthState() {
   disablePhotoUpload("운영진 승인 후 사진 업로드가 가능합니다.");
 }
 
+function setVisibility(node, visible) {
+  if (!node) {
+    return;
+  }
+  node.classList.toggle("hidden", !visible);
+  node.hidden = !visible;
+}
+
 function updateLoginLayout(isLoggedIn) {
-  if (loginForm) {
-    loginForm.classList.toggle("hidden", isLoggedIn);
-  }
-  if (loginGuestActions) {
-    loginGuestActions.classList.toggle("hidden", isLoggedIn);
-  }
-  if (loginMemberActions) {
-    loginMemberActions.classList.toggle("hidden", !isLoggedIn);
-  }
+  setVisibility(loginForm, !isLoggedIn);
+  setVisibility(loginGuestActions, !isLoggedIn);
+  setVisibility(loginMemberActions, isLoggedIn);
   if (loginPanelTitle) {
     loginPanelTitle.textContent = isLoggedIn ? "내 활동" : "로그인";
   }
