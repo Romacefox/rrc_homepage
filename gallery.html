@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
@@ -16,8 +16,12 @@
       <a href="index.html" class="logo">RRC</a>
       <nav class="nav-links">
         <a href="login.html">회원가입/로그인</a>
+        <a href="index.html#about">크루 안내</a>
+        <a href="index.html#notice">공지</a>
         <a href="gallery.html">사진첩</a>
         <a href="running.html">러닝 허브</a>
+        <a href="login.html" data-member-nav class="hidden" hidden>내 활동</a>
+        <a href="index.html#admin" data-admin-nav class="hidden" hidden>운영진 관리</a>
         <a href="index.html">메인</a>
       </nav>
     </div>
@@ -62,6 +66,30 @@
             <button id="photo-filter-reset" class="btn ghost" type="button">전체 보기</button>
           </div>
           <div id="photo-grid" class="photo-grid" style="margin-top:1rem;"></div>
+          <div id="photo-modal" class="photo-modal hidden" hidden>
+            <div class="photo-modal-backdrop" data-photo-modal-close></div>
+            <article class="photo-modal-card">
+              <button id="photo-modal-close" class="btn ghost photo-modal-close" type="button">닫기</button>
+              <img id="photo-modal-image" class="photo-modal-image" alt="RRC photo detail" />
+              <div class="photo-modal-meta">
+                <h3 id="photo-modal-caption">사진 설명</h3>
+                <p id="photo-modal-date" class="list-meta"></p>
+              </div>
+              <div class="photo-comments">
+                <div class="section-head">
+                  <h3>댓글</h3>
+                  <span class="badge">승인 회원 작성</span>
+                </div>
+                <p id="photo-comment-lock" class="list-meta">로그인 후 댓글 상태를 확인할 수 있습니다.</p>
+                <form id="photo-comment-form" class="form compact hidden">
+                  <textarea id="photo-comment-input" rows="3" placeholder="함께 뛴 느낌이나 한 줄 코멘트를 남겨보세요."></textarea>
+                  <button id="photo-comment-submit" class="btn primary" type="submit">댓글 등록</button>
+                </form>
+                <p id="photo-comment-status" class="list-meta"></p>
+                <ul id="photo-comment-list" class="list small"></ul>
+              </div>
+            </article>
+          </div>
         </article>
       </div>
     </section>

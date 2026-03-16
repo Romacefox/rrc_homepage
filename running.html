@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
@@ -20,6 +20,8 @@
         <a href="index.html#notice">공지</a>
         <a href="gallery.html">사진첩</a>
         <a href="running.html">러닝 허브</a>
+        <a href="login.html" data-member-nav class="hidden" hidden>내 활동</a>
+        <a href="index.html#admin" data-admin-nav class="hidden" hidden>운영진 관리</a>
         <a href="index.html">메인</a>
       </nav>
     </div>
@@ -75,7 +77,15 @@
             <article class="panel" style="margin-top:1rem;">
               <div class="section-head">
                 <h3>전체 허브 글</h3>
-                <span class="badge">공개 승인 글</span>
+                <div class="inline-form running-filter-row">
+                  <select id="running-filter">
+                    <option value="all">전체 글</option>
+                    <option value="route">추천 루트</option>
+                    <option value="tip">러닝 팁</option>
+                    <option value="checklist">체크리스트</option>
+                    <option value="story">러닝 후기</option>
+                  </select>
+                </div>
               </div>
               <div id="running-public-list" class="running-post-list" style="margin-top:1rem;"></div>
             </article>

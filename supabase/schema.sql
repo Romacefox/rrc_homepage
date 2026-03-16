@@ -1,4 +1,4 @@
-ï»¿-- RRC Supabase schema
+-- RRC Supabase schema
 
 create extension if not exists pgcrypto;
 
@@ -13,6 +13,13 @@ create table if not exists public.members (
   updated_at timestamptz not null default now()
 );
 
+
+alter table public.members
+add column if not exists fee_status jsonb not null default '{}'::jsonb;
+
+alter table public.members
+add column if not exists aliases jsonb not null default '[]'::jsonb;
+
 create table if not exists public.notices (
   id uuid primary key default gen_random_uuid(),
   title text not null,
@@ -26,7 +33,7 @@ create table if not exists public.guests (
   birth_year int not null check (birth_year between 1989 and 2000),
   phone text not null,
   message text,
-  status text not null default 'ëŒ€ê¸°',
+  status text not null default '?€ê¸?,
   created_at timestamptz not null default now()
 );
 
@@ -37,6 +44,19 @@ create table if not exists public.raffle_history (
   threshold int not null,
   winner_count int not null,
   winners jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+
+create table if not exists public.attendance_logs (
+  id uuid primary key default gen_random_uuid(),
+  source text not null,
+  event_type text not null,
+  attendance_date date not null,
+  raw_count int not null default 0,
+  matched jsonb not null default '[]'::jsonb,
+  unmatched jsonb not null default '[]'::jsonb,
+  ambiguous jsonb not null default '[]'::jsonb,
   created_at timestamptz not null default now()
 );
 
@@ -88,4 +108,13 @@ create table if not exists public.running_hub_posts (
   is_featured boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
+);
+
+create table if not exists public.photo_comments (
+  id uuid primary key default gen_random_uuid(),
+  photo_id uuid not null references public.photos(id) on delete cascade,
+  user_id uuid not null,
+  author_name text not null,
+  content text not null,
+  created_at timestamptz not null default now()
 );

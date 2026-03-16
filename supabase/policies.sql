@@ -1,4 +1,4 @@
-ï»¿alter table public.members enable row level security;
+alter table public.members enable row level security;
 alter table public.notices enable row level security;
 alter table public.guests enable row level security;
 alter table public.raffle_history enable row level security;
@@ -47,6 +47,18 @@ drop policy if exists "public read photos" on public.photos;
 create policy "public read photos" on public.photos
 for select using (true);
 
+
+-- Public guest application
+
+drop policy if exists "public insert guests" on public.guests;
+create policy "public insert guests" on public.guests
+for insert to public
+with check (
+  birth_year between 1989 and 2000
+  and char_length(name) between 1 and 80
+  and char_length(phone) between 1 and 40
+  and status = '´ë±â'
+);
 -- Admin-only manage policies
 
 drop policy if exists "auth manage notices" on public.notices;
@@ -78,7 +90,12 @@ for all to authenticated
 using (public.is_admin())
 with check (public.is_admin());
 
-drop policy if exists "auth manage settings" on public.settings;
+
+drop policy if exists "auth manage attendance logs" on public.attendance_logs;
+create policy "auth manage attendance logs" on public.attendance_logs
+for all to authenticated
+using (public.is_admin())
+with check (public.is_admin());`r`ndrop policy if exists "auth manage settings" on public.settings;
 create policy "auth manage settings" on public.settings
 for all to authenticated
 using (public.is_admin())
@@ -96,6 +113,16 @@ create policy "auth insert own profile" on public.member_profiles
 for insert to authenticated
 with check (auth.uid() = user_id and role = 'member' and approval_status = 'pending');
 
+
+drop policy if exists "auth update own pending profile" on public.member_profiles;
+create policy "auth update own pending profile" on public.member_profiles
+for update to authenticated
+using (auth.uid() = user_id)
+with check (
+  auth.uid() = user_id
+  and role = 'member'
+  and approval_status = 'pending'
+);
 -- Do not allow users to update their own role/approval_status directly.
 -- Admin updates are handled by Netlify function with service role key.
 
@@ -173,6 +200,34 @@ using (
 
 drop policy if exists "admin manage running hub posts" on public.running_hub_posts;
 create policy "admin manage running hub posts" on public.running_hub_posts
+for all to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
+alter table public.photo_comments enable row level security;
+
+drop policy if exists "public read photo comments" on public.photo_comments;
+create policy "public read photo comments" on public.photo_comments
+for select using (true);
+
+drop policy if exists "approved member insert own comments" on public.photo_comments;
+create policy "approved member insert own comments" on public.photo_comments
+for insert to authenticated
+with check (
+  public.is_approved_member()
+  and auth.uid() = user_id
+);
+
+drop policy if exists "approved member delete own comments" on public.photo_comments;
+create policy "approved member delete own comments" on public.photo_comments
+for delete to authenticated
+using (
+  public.is_approved_member()
+  and auth.uid() = user_id
+);
+
+drop policy if exists "admin manage photo comments" on public.photo_comments;
+create policy "admin manage photo comments" on public.photo_comments
 for all to authenticated
 using (public.is_admin())
 with check (public.is_admin());

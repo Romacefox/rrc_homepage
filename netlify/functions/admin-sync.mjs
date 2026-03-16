@@ -1,4 +1,4 @@
-ï»¿export default async (request) => {
+export default async (request) => {
   try {
     const auth = await requireAdmin(request);
     if (!auth.ok) {
@@ -13,19 +13,30 @@
     const members = normalizeMembers(body?.members);
     const notices = normalizeNotices(body?.notices);
     const guests = normalizeGuests(body?.guests);
+    const attendanceLogs = normalizeAttendanceLogs(body?.attendance_logs);
 
-    // Local admin í™”ë©´ ë°ì´í„°ë¥¼ Supabase ê¸°ì¤€ ë°ì´í„°ë¡œ ì¼ê´„ êµì²´
+    // Local admin È­¸é µ¥ÀÌÅÍ¸¦ Supabase ±âÁØ µ¥ÀÌÅÍ·Î ÀÏ°ý ±³Ã¼
     await replaceTable("members", members);
     await replaceTable("notices", notices);
     await replaceTable("guests", guests);
-    await upsertSetting("last_sync_meta", { synced_at: new Date().toISOString(), counts: { members: members.length, notices: notices.length, guests: guests.length } });
+    await replaceTable("attendance_logs", attendanceLogs);
+    await upsertSetting("last_sync_meta", {
+      synced_at: new Date().toISOString(),
+      counts: {
+        members: members.length,
+        notices: notices.length,
+        guests: guests.length,
+        attendance_logs: attendanceLogs.length
+      }
+    });
 
     return json(200, {
       ok: true,
       counts: {
         members: members.length,
         notices: notices.length,
-        guests: guests.length
+        guests: guests.length,
+        attendance_logs: attendanceLogs.length
       }
     });
   } catch (error) {
@@ -84,10 +95,12 @@ function normalizeMembers(input) {
     return [];
   }
   return input.slice(0, 300).map((item) => ({
-    name: String(item?.name || "ì´ë¦„ì—†ìŒ").slice(0, 80),
+    name: String(item?.name || "ÀÌ¸§¾øÀ½").slice(0, 80),
     birth_year: clampNumber(item?.birth_year, 1989, 2000, 1994),
     total_runs: Math.max(0, Number(item?.total_runs || 0)),
     monthly_runs: item?.monthly_runs && typeof item.monthly_runs === "object" ? item.monthly_runs : {},
+    fee_status: item?.fee_status && typeof item.fee_status === "object" ? item.fee_status : {},
+    aliases: Array.isArray(item?.aliases) ? item.aliases : [],
     is_active: item?.is_active !== false
   }));
 }
@@ -97,7 +110,7 @@ function normalizeNotices(input) {
     return [];
   }
   return input.slice(0, 300).map((item) => ({
-    title: String(item?.title || "ê³µì§€").slice(0, 120),
+    title: String(item?.title || "°øÁö").slice(0, 120),
     content: String(item?.content || "").slice(0, 4000),
     created_at: item?.created_at || new Date().toISOString()
   }));
@@ -108,15 +121,31 @@ function normalizeGuests(input) {
     return [];
   }
   return input.slice(0, 500).map((item) => ({
-    name: String(item?.name || "ê²ŒìŠ¤íŠ¸").slice(0, 80),
+    name: String(item?.name || "°Ô½ºÆ®").slice(0, 80),
     birth_year: clampNumber(item?.birth_year, 1989, 2000, 1994),
     phone: String(item?.phone || "").slice(0, 40),
     message: String(item?.message || "").slice(0, 4000),
-    status: String(item?.status || "ëŒ€ê¸°").slice(0, 20),
+    status: String(item?.status || "´ë±â").slice(0, 20),
     created_at: item?.created_at || new Date().toISOString()
   }));
 }
 
+
+function normalizeAttendanceLogs(input) {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+  return input.slice(0, 500).map((item) => ({
+    source: String(item?.source || "bulk").slice(0, 20),
+    event_type: String(item?.event_type || "Á¤±â·±").slice(0, 20),
+    attendance_date: item?.attendance_date || new Date().toISOString().slice(0, 10),
+    raw_count: Math.max(0, Number(item?.raw_count || 0)),
+    matched: Array.isArray(item?.matched) ? item.matched : [],
+    unmatched: Array.isArray(item?.unmatched) ? item.unmatched : [],
+    ambiguous: Array.isArray(item?.ambiguous) ? item.ambiguous : [],
+    created_at: item?.created_at || new Date().toISOString()
+  }));
+}
 function clampNumber(value, min, max, fallback) {
   const num = Number(value);
   if (!Number.isFinite(num)) {
@@ -201,3 +230,5 @@ function json(status, body) {
     headers: { "content-type": "application/json; charset=utf-8" }
   });
 }
+
+
