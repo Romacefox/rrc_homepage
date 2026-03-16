@@ -1,4 +1,4 @@
-const SUPABASE_URL = "https://aqpszgycsfpxtlsuaqrt.supabase.co";
+﻿const SUPABASE_URL = "https://aqpszgycsfpxtlsuaqrt.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_C20xXZZRWdjmkzGneCcpjw_mrRnXucq";
 const PHOTO_BUCKET = "rrc-photos";
 const PENDING_SIGNUP_PREFIX = "rrc-pending-signup:";
@@ -78,15 +78,15 @@ init();
 
 function init() {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    setStatus(loginStatus, "?�정 ?�요: auth.js ?�단 SUPABASE 값을 ?�력?�세??");
-    setStatus(signupStatus, "?�정 ?�요: auth.js ?�단 SUPABASE 값을 ?�력?�세??");
+    setStatus(loginStatus, "설정 필요: auth.js 상단의 SUPABASE 값을 입력해 주세요.");
+    setStatus(signupStatus, "설정 필요: auth.js 상단의 SUPABASE 값을 입력해 주세요.");
     disablePhotoUpload();
     return;
   }
 
   if (!window.supabase || !window.supabase.createClient) {
-    setStatus(loginStatus, "Supabase ?�이브러리�? 불러?��? 못했?�니??");
-    setStatus(signupStatus, "Supabase ?�이브러리�? 불러?��? 못했?�니??");
+    setStatus(loginStatus, "Supabase 라이브러리를 불러오지 못했습니다.");
+    setStatus(signupStatus, "Supabase 라이브러리를 불러오지 못했습니다.");
     disablePhotoUpload();
     return;
   }
@@ -166,15 +166,15 @@ async function handleSignup(event) {
   };
 
   if (!payload.email || !payload.password || !payload.name || !payload.birthYear) {
-    setStatus(signupStatus, "?�메??비�?번호/?�름/출생?�도???�수?�니??");
+    setStatus(signupStatus, "이메일, 비밀번호, 이름, 출생연도는 필수입니다.");
     return;
   }
   if (payload.birthYear < 1989 || payload.birthYear > 2000) {
-    setStatus(signupStatus, "출생?�도??1989~2000�?가?�합?�다.");
+    setStatus(signupStatus, "출생연도는 1989~2000만 가능합니다.");
     return;
   }
   if (!payload.agreed) {
-    setStatus(signupStatus, "개인?�보 ?�집 ?�의가 ?�요?�니??");
+    setStatus(signupStatus, "개인정보 수집 동의가 필요합니다.");
     return;
   }
 
@@ -204,11 +204,11 @@ async function handleSignup(event) {
   });
   if (signUpResult.error) {
     localStorage.removeItem(`${PENDING_SIGNUP_PREFIX}${payload.email.toLowerCase()}`);
-    setStatus(signupStatus, `가???�패: ${signUpResult.error.message}`);
+    setStatus(signupStatus, `가입 실패: ${signUpResult.error.message}`);
     return;
   }
 
-  setStatus(signupStatus, "가???�청 ?�료. ?�메???�증 ??로그?�하�??�로?�이 ?�동 ?�?�되�??�영�??�인??기다리게 ?�니??");
+  setStatus(signupStatus, "가입 신청이 완료되었습니다. 이메일 인증 후 로그인하면 운영진 승인 대기 상태로 연결됩니다.");
 }
 
 async function handleLogin(event) {
@@ -218,19 +218,19 @@ async function handleLogin(event) {
   const password = String(loginPasswordInput?.value || "").trim();
 
   if (!email || !password) {
-    setStatus(loginStatus, "?�메??비�?번호�??�력?�세??");
+    setStatus(loginStatus, "이메일과 비밀번호를 입력해 주세요.");
     return;
   }
 
   if (loginSubmitButton) {
     loginSubmitButton.disabled = true;
   }
-  setStatus(loginStatus, "로그??�?..");
+  setStatus(loginStatus, "로그인 중...");
 
   try {
     const loginResult = await supabaseClient.auth.signInWithPassword({ email, password });
     if (loginResult.error) {
-      setStatus(loginStatus, `로그???�패: ${loginResult.error.message}`);
+      setStatus(loginStatus, `로그인 실패: ${loginResult.error.message}`);
       return;
     }
 
@@ -238,11 +238,11 @@ async function handleLogin(event) {
     await hydrateAuthState(signedInUser);
 
     if (!authUser) {
-      setStatus(loginStatus, "로그?��? ?�었지�??�션???�인?��? 못했?�니?? ?�시 ???�시 ?�도??주세??");
+      setStatus(loginStatus, "로그인은 되었지만 세션 확인에 실패했습니다. 다시 시도해 주세요.");
       return;
     }
 
-    setStatus(loginStatus, `로그?�됨: ${authUser.email}`);
+    setStatus(loginStatus, `로그인됨: ${authUser.email}`);
   } finally {
     if (loginSubmitButton) {
       loginSubmitButton.disabled = false;
@@ -261,8 +261,8 @@ async function handleLogout() {
     loginPasswordInput.value = "";
   }
   renderAuthState();
-  renderBoardLocked("?�인???�원 로그?????�별 출석, 출석 ?�트�? ?�달???�너�?�????�습?�다.");
-  setStatus(loginStatus, loginStatus ? "로그?�웃 ?�료" : null);
+  renderBoardLocked("승인 회원 로그인 후 월별 출석, 출석 스트릭, 이달의 러너를 볼 수 있습니다.");
+  setStatus(loginStatus, loginStatus ? "로그아웃 완료" : null);
 }
 
 async function ensurePendingProfile() {
@@ -349,10 +349,10 @@ function renderAuthState() {
     updateSharedNavigation(false, false);
     setVisibility(galleryGuestActions, true);
     setVisibility(galleryMemberActions, false);
-    setStatus(loginStatus, loginStatus ? "로그???�요" : null);
-    setStatus(loginApprovalStatus, loginApprovalStatus ? "?�인 ?�태: 로그???�요" : null);
-    setStatus(galleryAuthStatus, galleryAuthStatus ? "로그???�요" : null);
-    setStatus(galleryApprovalStatus, galleryApprovalStatus ? "?�인 ?�태 ?�인 ???�로?��? ?�립?�다." : null);
+    setStatus(loginStatus, loginStatus ? "로그인이 필요합니다." : null);
+    setStatus(loginApprovalStatus, loginApprovalStatus ? "승인 상태: 로그인 필요" : null);
+    setStatus(galleryAuthStatus, galleryAuthStatus ? "로그인이 필요합니다." : null);
+    setStatus(galleryApprovalStatus, galleryApprovalStatus ? "승인 상태 확인 후 이용할 수 있습니다." : null);
     disablePhotoUpload();
     updatePhotoCommentComposer(false);
     return;
@@ -362,30 +362,24 @@ function renderAuthState() {
   updateSharedNavigation(true, isAdmin);
   setVisibility(galleryGuestActions, false);
   setVisibility(galleryMemberActions, true);
-  const roleSuffix = isAdmin ? " / ?�영�?권한 ?�함" : "";
-  setStatus(loginStatus, loginStatus ? `로그?�됨: ${authUser.email}` : null);
-  setStatus(galleryAuthStatus, galleryAuthStatus ? `로그?�됨: ${authUser.email}` : null);
+  const roleSuffix = isAdmin ? " / 운영진 권한 있음" : "";
+  setStatus(loginStatus, loginStatus ? `로그인됨: ${authUser.email}` : null);
+  setStatus(galleryAuthStatus, galleryAuthStatus ? `로그인됨: ${authUser.email}` : null);
 
   if (!authProfile) {
-    setStatus(loginApprovalStatus, loginApprovalStatus ? "?�인 ?�태: ?�로??미등�??�영�?문의)" : null);
-    setStatus(galleryApprovalStatus, galleryApprovalStatus ? "?�인 ?�태: ?�로??미등�??�영�?문의)" : null);
+    setStatus(loginApprovalStatus, loginApprovalStatus ? "승인 상태: 프로필 미등록(운영진 문의)" : null);
+    setStatus(galleryApprovalStatus, galleryApprovalStatus ? "승인 상태: 프로필 미등록(운영진 문의)" : null);
     disablePhotoUpload();
     updatePhotoCommentComposer(false);
     return;
   }
 
-  const label = `?�인 ?�태: ${statusLabel(authProfile.approval_status)}${roleSuffix}`;
+  const label = `승인 상태: ${statusLabel(authProfile.approval_status)}${roleSuffix}`;
   setStatus(loginApprovalStatus, loginApprovalStatus ? label : null);
   setStatus(galleryApprovalStatus, galleryApprovalStatus ? label : null);
 
-  if (isApproved) {
-    enablePhotoUpload();
-    updatePhotoCommentComposer(true);
-    return;
-  }
-
-  disablePhotoUpload("?�영�??�인 ???�진 ?�로?��? 가?�합?�다.");
-  updatePhotoCommentComposer(false);
+  enablePhotoUpload(isApproved);
+  updatePhotoCommentComposer(isApproved);
 }
 
 function setVisibility(node, visible) {
@@ -406,7 +400,7 @@ function updateLoginLayout(isLoggedIn) {
   setVisibility(loginGuestActions, !isLoggedIn);
   setVisibility(loginMemberActions, isLoggedIn);
   if (loginPanelTitle) {
-    loginPanelTitle.textContent = isLoggedIn ? "�� Ȱ��" : "�α���";
+    loginPanelTitle.textContent = isLoggedIn ? "내 활동" : "로그인";
   }
   if (loginPanel) {
     loginPanel.classList.toggle("login-panel-success", isLoggedIn);
@@ -420,12 +414,12 @@ function updatePhotoCommentComposer(canComment) {
   setVisibility(photoCommentForm, canComment);
   if (photoCommentLock) {
     photoCommentLock.textContent = canComment
-      ? "?�인 ?�원?� ?�진???��????�길 ???�습?�다."
-      : "?�인 ?�원 로그?????��? ?�성???�립?�다.";
+      ? "승인 회원은 사진에 댓글을 남길 수 있습니다."
+      : "승인 회원 로그인 후 댓글 작성이 열립니다.";
   }
 }
 
-function disablePhotoUpload(message = "로그?�한 ?�원�??�로??가?�합?�다.") {
+function disablePhotoUpload(message = "로그인한 회원만 업로드할 수 있습니다.") {
   if (photoUploadButton) {
     photoUploadButton.disabled = true;
   }
@@ -438,7 +432,7 @@ function disablePhotoUpload(message = "로그?�한 ?�원�??�로??가?�합?�다.
   setStatus(photoStatus, photoStatus ? message : null);
 }
 
-function enablePhotoUpload() {
+function enablePhotoUpload(isApproved = false) {
   if (photoUploadButton) {
     photoUploadButton.disabled = false;
   }
@@ -448,35 +442,33 @@ function enablePhotoUpload() {
   if (photoCaptionInput) {
     photoCaptionInput.disabled = false;
   }
-  setStatus(photoStatus, photoStatus ? "?�인 ?�료. ?�진???�로?�할 ???�습?�다." : null);
+  const message = isApproved
+    ? "사진 업로드가 가능합니다."
+    : "로그인 회원은 업로드할 수 있지만, 일부 상호작용은 승인 후 열립니다.";
+  setStatus(photoStatus, photoStatus ? message : null);
 }
 
 async function handlePhotoUpload() {
   if (!authUser || !authProfile) {
-    setStatus(photoStatus, photoStatus ? "로그?�한 ?�원�??�로?�할 ???�습?�다." : null);
+    setStatus(photoStatus, photoStatus ? "로그인한 회원만 업로드할 수 있습니다." : null);
     return;
   }
-  if (authProfile.approval_status !== "approved") {
-    setStatus(photoStatus, photoStatus ? "?�영�??�인 ???�진 ?�로?��? 가?�합?�다." : null);
-    return;
-  }
-
   const file = photoFileInput?.files?.[0];
   if (!file) {
-    setStatus(photoStatus, photoStatus ? "?�로?�할 ?�진 ?�일???�택?�세??" : null);
+    setStatus(photoStatus, photoStatus ? "업로드할 사진 파일을 선택해 주세요." : null);
     return;
   }
 
   const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
   const path = `${authUser.id}/${Date.now()}-${Math.random().toString(16).slice(2)}.${ext}`;
-  setStatus(photoStatus, photoStatus ? "?�로??�?.." : null);
+  setStatus(photoStatus, photoStatus ? "업로드 중..." : null);
 
   const uploadResult = await supabaseClient.storage.from(PHOTO_BUCKET).upload(path, file, {
     upsert: false,
     contentType: file.type
   });
   if (uploadResult.error) {
-    setStatus(photoStatus, photoStatus ? `?�로???�패: ${uploadResult.error.message}` : null);
+    setStatus(photoStatus, photoStatus ? `업로드 실패: ${uploadResult.error.message}` : null);
     return;
   }
 
@@ -488,7 +480,8 @@ async function handlePhotoUpload() {
   });
 
   if (insertResult.error) {
-    setStatus(photoStatus, photoStatus ? `메�? ?�???�패: ${insertResult.error.message}` : null);
+    await supabaseClient.storage.from(PHOTO_BUCKET).remove([path]);
+    setStatus(photoStatus, photoStatus ? `메타데이터 저장 실패: ${insertResult.error.message}` : null);
     return;
   }
 
@@ -498,7 +491,7 @@ async function handlePhotoUpload() {
   if (photoCaptionInput) {
     photoCaptionInput.value = "";
   }
-  setStatus(photoStatus, photoStatus ? "?�로???�료" : null);
+  setStatus(photoStatus, photoStatus ? "업로드 완료" : null);
   await loadPhotos();
 }
 
@@ -514,7 +507,7 @@ async function loadPhotos() {
     .limit(200);
 
   if (photosResult.error) {
-    setStatus(photoStatus, photoStatus ? `?�진 목록 로드 ?�패: ${photosResult.error.message}` : null);
+    setStatus(photoStatus, photoStatus ? `사진 목록 로드 실패: ${photosResult.error.message}` : null);
     return;
   }
 
@@ -528,7 +521,7 @@ function populatePhotoMonthOptions() {
     return;
   }
   const seen = new Set();
-  const options = ['<option value="all">?�체 ??/option>'];
+  const options = ['<option value="all">전체 월</option>'];
   photoRecords.forEach((photo) => {
     const key = toMonthKey(photo.created_at);
     if (!seen.has(key)) {
@@ -550,7 +543,7 @@ function renderFilteredPhotos() {
 
   photoGrid.innerHTML = "";
   if (!filtered.length) {
-    photoGrid.innerHTML = '<p class="list-meta">?�택???�의 ?�진???�습?�다.</p>';
+    photoGrid.innerHTML = '<p class="list-meta">선택한 월의 사진이 없습니다.</p>';
     return;
   }
 
@@ -563,7 +556,7 @@ function renderFilteredPhotos() {
     card.innerHTML = `
       <img src="${publicUrl}" alt="RRC photo" loading="lazy" />
       <div class="photo-meta">
-        <div>${escapeHtml(photo.caption || "������")}</div>
+        <div>${escapeHtml(photo.caption || "설명 없음")}</div>
         <div>${formatDate(photo.created_at)}</div>
       </div>
     `;
@@ -587,7 +580,7 @@ function openPhotoModal(photo, publicUrl) {
     photoModalImage.src = publicUrl;
   }
   if (photoModalCaption) {
-    photoModalCaption.textContent = photo.caption || "?�진 ?�명";
+    photoModalCaption.textContent = photo.caption || "사진 설명";
   }
   if (photoModalDate) {
     photoModalDate.textContent = formatDate(photo.created_at);
@@ -611,7 +604,7 @@ async function loadPhotoComments(photoId) {
     return;
   }
 
-  photoCommentList.innerHTML = '<li class="list-item"><p class="list-meta">?��???불러?�는 중입?�다.</p></li>';
+  photoCommentList.innerHTML = '<li class="list-item"><p class="list-meta">댓글을 불러오는 중입니다.</p></li>';
   const result = await supabaseClient
     .from("photo_comments")
     .select("id,author_name,content,created_at")
@@ -619,13 +612,13 @@ async function loadPhotoComments(photoId) {
     .order("created_at", { ascending: true });
 
   if (result.error) {
-    photoCommentList.innerHTML = `<li class="list-item"><p class="list-meta">?��? 로드 ?�패: ${escapeHtml(result.error.message)}</p></li>`;
+    photoCommentList.innerHTML = `<li class="list-item"><p class="list-meta">댓글 로드 실패: ${escapeHtml(result.error.message)}</p></li>`;
     return;
   }
 
   const rows = Array.isArray(result.data) ? result.data : [];
   if (!rows.length) {
-    photoCommentList.innerHTML = '<li class="list-item"><p class="list-meta">?�직 ?��????�습?�다.</p></li>';
+    photoCommentList.innerHTML = '<li class="list-item"><p class="list-meta">아직 댓글이 없습니다.</p></li>';
     return;
   }
 
@@ -633,7 +626,7 @@ async function loadPhotoComments(photoId) {
   rows.forEach((row) => {
     const item = document.createElement("li");
     item.className = "list-item";
-    item.innerHTML = `<div class="list-top"><span class="list-title">${escapeHtml(row.author_name || "?�원")}</span><span class="list-meta">${formatDate(row.created_at)}</span></div><p>${escapeHtml(row.content || "")}</p>`;
+    item.innerHTML = `<div class="list-top"><span class="list-title">${escapeHtml(row.author_name || "회원")}</span><span class="list-meta">${formatDate(row.created_at)}</span></div><p>${escapeHtml(row.content || "")}</p>`;
     photoCommentList.appendChild(item);
   });
 }
@@ -644,17 +637,17 @@ async function handlePhotoCommentSubmit(event) {
     return;
   }
   if (!authUser || !authProfile || authProfile.approval_status !== "approved") {
-    setStatus(photoCommentStatus, photoCommentStatus ? "?�인 ?�원 로그?????��????�성?????�습?�다." : null);
+    setStatus(photoCommentStatus, photoCommentStatus ? "승인 회원 로그인 후 댓글을 작성할 수 있습니다." : null);
     return;
   }
 
   const content = String(photoCommentInput?.value || "").trim();
   if (!content) {
-    setStatus(photoCommentStatus, photoCommentStatus ? "?��? ?�용???�력??주세??" : null);
+    setStatus(photoCommentStatus, photoCommentStatus ? "댓글 내용을 입력해 주세요." : null);
     return;
   }
 
-  setStatus(photoCommentStatus, photoCommentStatus ? "?��? ?�??�?.." : null);
+  setStatus(photoCommentStatus, photoCommentStatus ? "댓글 등록 중..." : null);
   const result = await supabaseClient.from("photo_comments").insert({
     photo_id: currentPhotoRecord.id,
     user_id: authUser.id,
@@ -663,14 +656,14 @@ async function handlePhotoCommentSubmit(event) {
   });
 
   if (result.error) {
-    setStatus(photoCommentStatus, photoCommentStatus ? `?��? ?�???�패: ${result.error.message}` : null);
+    setStatus(photoCommentStatus, photoCommentStatus ? `댓글 등록 실패: ${result.error.message}` : null);
     return;
   }
 
   if (photoCommentInput) {
     photoCommentInput.value = "";
   }
-  setStatus(photoCommentStatus, photoCommentStatus ? "?��????�록?�었?�니??" : null);
+  setStatus(photoCommentStatus, photoCommentStatus ? "댓글이 등록되었습니다." : null);
   await loadPhotoComments(currentPhotoRecord.id);
 }
 
@@ -680,11 +673,11 @@ async function loadActivityBoard() {
   }
   const selectedMonth = activityMonthSelect?.value || currentMonthKey();
   if (runnerMonthLabel) {
-    runnerMonthLabel.textContent = `${monthKeyToLabel(selectedMonth)} 기�?`;
+    runnerMonthLabel.textContent = `${monthKeyToLabel(selectedMonth)} 기준`;
   }
 
   if (!authUser || !authProfile || authProfile.approval_status !== "approved") {
-    renderBoardLocked("?�인???�원 로그?????�별 출석, 출석 ?�트�? ?�달???�너�?�????�습?�다.");
+    renderBoardLocked("승인 회원 로그인 후 월별 출석, 출석 스트릭, 이달의 러너를 볼 수 있습니다.");
     return;
   }
 
@@ -694,7 +687,7 @@ async function loadActivityBoard() {
     .order("name", { ascending: true });
 
   if (membersResult.error) {
-    renderBoardLocked(`?�동 보드 로드 ?�패: ${membersResult.error.message}`);
+    renderBoardLocked(`활동 보드 로드 실패: ${membersResult.error.message}`);
     return;
   }
 
@@ -727,17 +720,17 @@ async function loadActivityBoard() {
   });
   const runner = rows.find((member) => member.monthRuns > 0) || null;
 
-  activityLock.textContent = `${monthKeyToLabel(selectedMonth)} 출석 기�??�니?? ?�영진이 ?�기?�한 ?�이?�로 ?�시?�니??`;
+  activityLock.textContent = `${monthKeyToLabel(selectedMonth)} 출석 기준입니다. 운영진이 기록한 데이터를 바탕으로 표시됩니다.`;
   activityBoard.classList.remove("hidden");
 
   if (myMonthRuns) {
-    myMonthRuns.textContent = `${me?.monthRuns || 0}ȸ`;
+    myMonthRuns.textContent = `${me?.monthRuns || 0}회`;
   }
   if (myTotalRuns) {
-    myTotalRuns.textContent = `${Number(me?.total_runs || 0)}ȸ`;
+    myTotalRuns.textContent = `${Number(me?.total_runs || 0)}회`;
   }
   if (myStreak) {
-    myStreak.textContent = `${me?.streak || 0}����`;
+    myStreak.textContent = `${me?.streak || 0}개월`;
   }
 
   renderAttendanceBoard(rows, selectedMonth);
@@ -760,7 +753,7 @@ function renderAttendanceBoard(rows, monthKey) {
   }
   attendanceBoard.innerHTML = "";
   if (!rows.length) {
-    attendanceBoard.innerHTML = '<li class="list-item"><p class="list-meta">?�기?�된 ?�원 ?�이?��? ?�습?�다.</p></li>';
+    attendanceBoard.innerHTML = '<li class="list-item"><p class="list-meta">기록된 회원 데이터가 없습니다.</p></li>';
     return;
   }
 
@@ -768,16 +761,16 @@ function renderAttendanceBoard(rows, monthKey) {
     const item = document.createElement("li");
     item.className = "list-item";
     const badge = index === 0 && member.monthRuns > 0
-      ? '<span class="status-chip">?�두</span>'
+      ? '<span class="status-chip">선두</span>'
       : member.monthRuns >= 5
-        ? '<span class="status-chip">추첨?�??/span>'
+        ? '<span class="status-chip">추첨 대상</span>'
         : "";
     item.innerHTML = `
       <div class="list-top">
-        <span class="list-title">${index + 1}. ${escapeHtml(member.name || "?�름?�음")}${badge}</span>
-        <span class="list-meta">${monthKeyToLabel(monthKey)} ${member.monthRuns}??/span>
+        <span class="list-title">${index + 1}. ${escapeHtml(member.name || "이름없음")}${badge}</span>
+        <span class="list-meta">${monthKeyToLabel(monthKey)} ${member.monthRuns}회</span>
       </div>
-      <p class="list-meta">?�적 ${Number(member.total_runs || 0)}??/ 출석 ?�트�?${member.streak}개월</p>
+      <p class="list-meta">누적 ${Number(member.total_runs || 0)}회 / 출석 스트릭 ${member.streak}개월</p>
     `;
     attendanceBoard.appendChild(item);
   });
@@ -788,15 +781,15 @@ function renderRunnerCard(runner, monthKey) {
     return;
   }
   if (!runner || runner.monthRuns === 0) {
-    runnerCard.innerHTML = `<p class="list-meta">${monthKeyToLabel(monthKey)}?�는 ?�직 출석 기록???�습?�다.</p>`;
+    runnerCard.innerHTML = `<p class="list-meta">${monthKeyToLabel(monthKey)}에는 아직 출석 기록이 없습니다.</p>`;
     return;
   }
 
   runnerCard.innerHTML = `
     <p class="list-meta">${monthKeyToLabel(monthKey)} 최다 출석</p>
-    <h3 style="margin:0.2rem 0 0.4rem;">${escapeHtml(runner.name || "?�름?�음")}</h3>
-    <p>${runner.monthRuns}??출석 / ?�적 ${Number(runner.total_runs || 0)}??/p>
-    <p class="list-meta">출석 ?�트�?${runner.streak}개월</p>
+    <h3 style="margin:0.2rem 0 0.4rem;">${escapeHtml(runner.name || "이름없음")}</h3>
+    <p>${runner.monthRuns}회 출석 / 누적 ${Number(runner.total_runs || 0)}회</p>
+    <p class="list-meta">출석 스트릭 ${runner.streak}개월</p>
   `;
 }
 
@@ -806,7 +799,7 @@ function renderBoardRaffleHistory(records) {
   }
   boardRaffleHistory.innerHTML = "";
   if (!records.length) {
-    boardRaffleHistory.innerHTML = '<li class="list-item"><p class="list-meta">추첨 기록???�습?�다.</p></li>';
+    boardRaffleHistory.innerHTML = '<li class="list-item"><p class="list-meta">추첨 기록이 없습니다.</p></li>';
     return;
   }
 
@@ -819,8 +812,8 @@ function renderBoardRaffleHistory(records) {
         <span class="list-title">${monthKeyToLabel(record.target_month_key)} 추첨</span>
         <span class="list-meta">${formatDate(record.created_at)}</span>
       </div>
-      <p class="list-meta">기�? ${record.threshold}??/ ${record.winner_count}�?추첨</p>
-      <p>${escapeHtml(winners || "?�첨???�음")}</p>
+      <p class="list-meta">기준 ${record.threshold}회 / ${record.winner_count}명 추첨</p>
+      <p>${escapeHtml(winners || "당첨자 없음")}</p>
     `;
     boardRaffleHistory.appendChild(item);
   });
@@ -874,7 +867,7 @@ function currentMonthKey(date = new Date()) {
 
 function monthKeyToLabel(key) {
   const [year, month] = key.split("-");
-  return `${year}�� ${month}��`;
+  return `${year}년 ${month}월`;
 }
 
 function normalizeName(name) {
@@ -887,12 +880,12 @@ function pad(value) {
 
 function statusLabel(status) {
   if (status === "approved") {
-    return "����";
+    return "승인";
   }
   if (status === "rejected") {
-    return "�ݷ�";
+    return "반려";
   }
-  return "���";
+  return "대기";
 }
 
 function formatDate(iso) {
@@ -931,6 +924,8 @@ async function notifySignupRequest(payload) {
     // Notification failure should not block signup flow.
   }
 }
+
+
 
 
 

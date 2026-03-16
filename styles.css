@@ -457,3 +457,17 @@ input, textarea, select {
 body.modal-open {
   overflow: hidden;
 }
+.admin-filter-row {
+  align-items: stretch;
+}
+
+.admin-filter-row select {
+  max-width: 180px;
+}
+
+.audit-detail {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+}

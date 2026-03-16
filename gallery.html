@@ -1,27 +1,27 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>RRC | 사진첩</title>
-  <meta name="description" content="RRC 월별 사진첩과 승인 회원 업로드 페이지" />
+  <meta name="description" content="RRC 월별 사진첩과 회원 업로드 페이지" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=SUIT:wght@300;400;500;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20260315a" />
+  <link rel="stylesheet" href="styles.css?v=20260316a" />
 </head>
 <body>
   <header class="site-header">
     <div class="container nav-wrap">
       <a href="index.html" class="logo">RRC</a>
       <nav class="nav-links">
-        <a href="login.html">회원가입/로그인</a>
-        <a href="index.html#about">크루 안내</a>
+        <a href="login.html">회원가입 / 로그인</a>
+        <a href="index.html#about">크루 소개</a>
         <a href="index.html#notice">공지</a>
         <a href="gallery.html">사진첩</a>
         <a href="running.html">러닝 허브</a>
         <a href="login.html" data-member-nav class="hidden" hidden>내 활동</a>
-        <a href="index.html#admin" data-admin-nav class="hidden" hidden>운영진 관리</a>
+        <a href="index.html#admin" data-admin-nav class="hidden" hidden>운영 관리</a>
         <a href="index.html">메인</a>
       </nav>
     </div>
@@ -33,16 +33,16 @@
         <article class="panel gallery-upload-panel">
           <div class="section-head">
             <h2>사진첩 업로드</h2>
-            <span class="badge">승인 회원 업로드</span>
+            <span class="badge">로그인 회원 업로드</span>
           </div>
-          <p class="list-meta">보기는 누구나 가능하고, 업로드는 승인된 회원만 가능합니다.</p>
+          <p class="list-meta">보기는 누구나 가능하고 업로드는 로그인 회원만 가능합니다.</p>
           <div class="gallery-status-box">
-            <p id="gallery-auth-status" class="list-meta">로그인 필요</p>
-            <p id="gallery-approval-status" class="list-meta">승인 상태 확인 후 업로드가 열립니다.</p>
+            <p id="gallery-auth-status" class="list-meta">로그인 상태를 확인하는 중입니다.</p>
+            <p id="gallery-approval-status" class="list-meta">승인 상태에 따라 일부 기능이 제한될 수 있습니다.</p>
           </div>
           <div id="gallery-guest-actions" class="auth-links-row" style="margin-bottom:0.8rem;">
             <a class="btn ghost" href="login.html">로그인 페이지</a>
-            <a class="btn ghost" href="login.html">회원가입/로그인</a>
+            <a class="btn ghost" href="login.html">회원가입 / 로그인</a>
           </div>
           <div id="gallery-member-actions" class="auth-links-row hidden" style="margin-bottom:0.8rem;">
             <a class="btn ghost" href="login.html">내 활동 보드</a>
@@ -50,7 +50,7 @@
           </div>
           <form class="form compact" id="photo-upload-form">
             <input id="photo-file" type="file" accept="image/*" />
-            <input id="photo-caption" type="text" placeholder="한 줄 설명 (예: 화요일 잠실 정기런)" />
+            <input id="photo-caption" type="text" placeholder="사진 설명 (선택 사항, 짧게 적어도 됩니다)" />
             <button id="photo-upload" class="btn primary" type="button">사진 업로드</button>
           </form>
           <p id="photo-status" class="list-meta">로그인 후 업로드 가능합니다.</p>
@@ -59,7 +59,7 @@
         <article class="panel gallery-list-panel">
           <div class="section-head">
             <h2>월별 사진첩</h2>
-            <span class="badge">연/월 필터</span>
+            <span class="badge">월별 필터</span>
           </div>
           <div class="inline-form" style="margin-top:0.8rem;">
             <select id="photo-month-filter"></select>
@@ -80,9 +80,9 @@
                   <h3>댓글</h3>
                   <span class="badge">승인 회원 작성</span>
                 </div>
-                <p id="photo-comment-lock" class="list-meta">로그인 후 댓글 상태를 확인할 수 있습니다.</p>
+                <p id="photo-comment-lock" class="list-meta">로그인 및 댓글 권한 상태를 확인 중입니다.</p>
                 <form id="photo-comment-form" class="form compact hidden">
-                  <textarea id="photo-comment-input" rows="3" placeholder="함께 뛴 느낌이나 한 줄 코멘트를 남겨보세요."></textarea>
+                  <textarea id="photo-comment-input" rows="3" placeholder="함께 뛰었던 기억이나 짧은 코멘트를 남겨 보세요"></textarea>
                   <button id="photo-comment-submit" class="btn primary" type="submit">댓글 등록</button>
                 </form>
                 <p id="photo-comment-status" class="list-meta"></p>
@@ -97,12 +97,12 @@
 
   <footer class="site-footer">
     <div class="container footer-wrap">
-      <p>© <span id="year"></span> RRC</p>
+      <p>&copy; <span id="year"></span> RRC</p>
       <p><a href="index.html">메인으로 돌아가기</a></p>
     </div>
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="auth.js?v=20260315c"></script>
+  <script src="auth.js?v=20260316a"></script>
 </body>
 </html>

@@ -1,27 +1,27 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>RRC | 러닝 허브</title>
-  <meta name="description" content="RRC 추천 루트, 러닝 팁, 회원 제안 러닝 허브" />
+  <meta name="description" content="RRC 추천 루트, 러닝 팁, 회원 제안이 모인 러닝 허브" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=SUIT:wght@300;400;500;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20260315a" />
+  <link rel="stylesheet" href="styles.css?v=20260316a" />
 </head>
 <body>
   <header class="site-header">
     <div class="container nav-wrap">
       <a href="index.html" class="logo">RRC</a>
       <nav class="nav-links">
-        <a href="login.html">회원가입/로그인</a>
-        <a href="index.html#about">크루 안내</a>
+        <a href="login.html">회원가입 / 로그인</a>
+        <a href="index.html#about">크루 소개</a>
         <a href="index.html#notice">공지</a>
         <a href="gallery.html">사진첩</a>
         <a href="running.html">러닝 허브</a>
         <a href="login.html" data-member-nav class="hidden" hidden>내 활동</a>
-        <a href="index.html#admin" data-admin-nav class="hidden" hidden>운영진 관리</a>
+        <a href="index.html#admin" data-admin-nav class="hidden" hidden>운영 관리</a>
         <a href="index.html">메인</a>
       </nav>
     </div>
@@ -34,16 +34,16 @@
           <h2>러닝 허브</h2>
           <span class="badge">루트 · 팁 · 회원 제안</span>
         </div>
-        <p class="list-meta running-intro">운영진 추천 글과 승인된 회원 제안을 함께 보는 러닝 아카이브입니다.</p>
+        <p class="list-meta running-intro">운영진 추천 글과 승인 회원 제안을 함께 보는 러닝 아카이브입니다.</p>
 
         <div class="running-shell">
           <article class="panel running-side-panel">
             <h3>허브 이용 상태</h3>
             <p id="running-auth-status" class="list-meta">로그인 상태 확인 중...</p>
-            <p id="running-role-status" class="list-meta">승인 회원은 러닝 팁과 루트 제안을 남길 수 있습니다.</p>
+            <p id="running-role-status" class="list-meta">승인 회원은 러닝 팁과 루트 제안을 작성할 수 있습니다.</p>
             <div class="auth-links-row">
               <a class="btn ghost" href="login.html">로그인 페이지</a>
-              <a class="btn ghost" href="login.html">회원가입/로그인</a>
+              <a class="btn ghost" href="login.html">회원가입 / 로그인</a>
             </div>
 
             <div class="running-compose" style="margin-top:1rem;">
@@ -58,10 +58,10 @@
                 </select>
                 <input id="running-post-title" type="text" placeholder="제목" />
                 <input id="running-post-summary" type="text" placeholder="짧은 요약" />
-                <textarea id="running-post-content" rows="6" placeholder="코스 설명, 팁, 준비물, 느낀 점을 적어 주세요."></textarea>
+                <textarea id="running-post-content" rows="6" placeholder="코스 설명, 준비물, 느낀 점 등을 적어 주세요"></textarea>
                 <button id="running-post-submit" class="btn primary" type="button">제안 등록</button>
               </form>
-              <p id="running-post-status" class="list-meta">운영진 승인 후 공개됩니다.</p>
+              <p id="running-post-status" class="list-meta">운영진 확인 후 공개됩니다.</p>
             </div>
           </article>
 
@@ -95,7 +95,7 @@
                 <h3>운영진 허브 관리</h3>
                 <button id="running-admin-refresh" class="btn ghost" type="button">목록 새로고침</button>
               </div>
-              <p class="list-meta">회원 제안을 승인/반려하거나 추천글로 올릴 수 있습니다.</p>
+              <p class="list-meta">회원 제안을 승인, 반려하거나 추천 글로 올릴 수 있습니다.</p>
               <ul id="running-admin-list" class="list small" style="margin-top:0.8rem;"></ul>
             </article>
           </div>
@@ -106,7 +106,7 @@
 
   <footer class="site-footer">
     <div class="container footer-wrap">
-      <p>© <span id="year"></span> RRC</p>
+      <p>&copy; <span id="year"></span> RRC</p>
       <p><a href="index.html">메인으로 돌아가기</a></p>
     </div>
   </footer>

@@ -1,4 +1,5 @@
 ﻿const TABLE = "member_profiles";
+const LOG_TABLE = "operation_logs";
 
 export default async (request) => {
   try {
@@ -52,7 +53,9 @@ export default async (request) => {
         return json(400, { ok: false, error: "cannot demote self" });
       }
 
+      const targetProfile = await getTargetProfile(userId);
       await supabasePatch(`${TABLE}?user_id=eq.${encodeURIComponent(userId)}`, patch);
+      await insertOperationLog(auth, targetProfile, patch);
       return json(200, { ok: true });
     }
 
@@ -81,6 +84,33 @@ async function requireAdmin(request) {
   const isOwner = Boolean(ownerEmail) && userEmail === ownerEmail;
 
   return { ok: Boolean(isAdmin), user, isOwner };
+}
+
+async function getTargetProfile(userId) {
+  const rows = await supabaseSelect(`${TABLE}?user_id=eq.${encodeURIComponent(userId)}&select=user_id,email,name,approval_status,role&limit=1`);
+  return Array.isArray(rows) ? rows[0] || null : null;
+}
+
+async function insertOperationLog(auth, targetProfile, patch) {
+  const displayName = String(targetProfile?.name || targetProfile?.email || "회원");
+  const details = [];
+  let action = "회원 정보 변경";
+
+  if (patch.approval_status) {
+    action = "회원 승인 상태 변경";
+    details.push(`${displayName}: ${patch.approval_status}`);
+  }
+  if (patch.role) {
+    action = patch.approval_status ? "회원 승인 및 권한 변경" : "회원 권한 변경";
+    details.push(`${displayName}: ${patch.role}`);
+  }
+
+  await supabaseInsert(LOG_TABLE, {
+    actor_user_id: auth.user?.id || null,
+    actor_name: String(auth.user?.email || "admin").slice(0, 120),
+    action,
+    detail: details.join(" / ") || displayName
+  });
 }
 
 function extractBearerToken(header) {
@@ -139,6 +169,22 @@ async function supabaseSelect(path) {
 async function supabasePatch(path, payload) {
   const response = await fetch(`${env("SUPABASE_URL")}/rest/v1/${path}`, {
     method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: env("SUPABASE_SERVICE_ROLE_KEY"),
+      Authorization: `Bearer ${env("SUPABASE_SERVICE_ROLE_KEY")}`
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+}
+
+async function supabaseInsert(table, payload) {
+  const response = await fetch(`${env("SUPABASE_URL")}/rest/v1/${table}`, {
+    method: "POST",
     headers: {
       "Content-Type": "application/json",
       apikey: env("SUPABASE_SERVICE_ROLE_KEY"),

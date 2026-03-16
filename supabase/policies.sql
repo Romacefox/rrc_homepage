@@ -2,9 +2,13 @@ alter table public.members enable row level security;
 alter table public.notices enable row level security;
 alter table public.guests enable row level security;
 alter table public.raffle_history enable row level security;
+alter table public.attendance_logs enable row level security;
+alter table public.operation_logs enable row level security;
 alter table public.settings enable row level security;
 alter table public.photos enable row level security;
 alter table public.member_profiles enable row level security;
+alter table public.running_hub_posts enable row level security;
+alter table public.photo_comments enable row level security;
 
 create or replace function public.is_admin()
 returns boolean
@@ -47,6 +51,9 @@ drop policy if exists "public read photos" on public.photos;
 create policy "public read photos" on public.photos
 for select using (true);
 
+drop policy if exists "public read photo comments" on public.photo_comments;
+create policy "public read photo comments" on public.photo_comments
+for select using (true);
 
 -- Public guest application
 
@@ -59,6 +66,7 @@ with check (
   and char_length(phone) between 1 and 40
   and status = '´ë±â'
 );
+
 -- Admin-only manage policies
 
 drop policy if exists "auth manage notices" on public.notices;
@@ -90,12 +98,19 @@ for all to authenticated
 using (public.is_admin())
 with check (public.is_admin());
 
-
 drop policy if exists "auth manage attendance logs" on public.attendance_logs;
 create policy "auth manage attendance logs" on public.attendance_logs
 for all to authenticated
 using (public.is_admin())
-with check (public.is_admin());`r`ndrop policy if exists "auth manage settings" on public.settings;
+with check (public.is_admin());
+
+drop policy if exists "auth manage operation logs" on public.operation_logs;
+create policy "auth manage operation logs" on public.operation_logs
+for all to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
+drop policy if exists "auth manage settings" on public.settings;
 create policy "auth manage settings" on public.settings
 for all to authenticated
 using (public.is_admin())
@@ -113,7 +128,6 @@ create policy "auth insert own profile" on public.member_profiles
 for insert to authenticated
 with check (auth.uid() = user_id and role = 'member' and approval_status = 'pending');
 
-
 drop policy if exists "auth update own pending profile" on public.member_profiles;
 create policy "auth update own pending profile" on public.member_profiles
 for update to authenticated
@@ -123,26 +137,18 @@ with check (
   and role = 'member'
   and approval_status = 'pending'
 );
--- Do not allow users to update their own role/approval_status directly.
--- Admin updates are handled by Netlify function with service role key.
 
--- Approved-member photo policies
+-- Photo metadata policies
 
-drop policy if exists "approved member upload photo rows" on public.photos;
-create policy "approved member upload photo rows" on public.photos
+drop policy if exists "member upload photo rows" on public.photos;
+create policy "member upload photo rows" on public.photos
 for insert to authenticated
-with check (
-  public.is_approved_member()
-  and auth.uid() = user_id
-);
+with check (auth.uid() = user_id);
 
-drop policy if exists "approved member delete own photo rows" on public.photos;
-create policy "approved member delete own photo rows" on public.photos
+drop policy if exists "member delete own photo rows" on public.photos;
+create policy "member delete own photo rows" on public.photos
 for delete to authenticated
-using (
-  public.is_approved_member()
-  and auth.uid() = user_id
-);
+using (auth.uid() = user_id or public.is_admin());
 
 -- Storage bucket + object policies
 insert into storage.buckets (id, name, public)
@@ -153,27 +159,26 @@ drop policy if exists "public read rrc photos" on storage.objects;
 create policy "public read rrc photos" on storage.objects
 for select using (bucket_id = 'rrc-photos');
 
-drop policy if exists "approved member upload own folder" on storage.objects;
-create policy "approved member upload own folder" on storage.objects
+drop policy if exists "member upload own folder" on storage.objects;
+create policy "member upload own folder" on storage.objects
 for insert to authenticated
 with check (
   bucket_id = 'rrc-photos'
-  and public.is_approved_member()
   and auth.uid()::text = (storage.foldername(name))[1]
 );
 
-drop policy if exists "approved member delete own folder" on storage.objects;
-create policy "approved member delete own folder" on storage.objects
+drop policy if exists "member delete own folder" on storage.objects;
+create policy "member delete own folder" on storage.objects
 for delete to authenticated
 using (
   bucket_id = 'rrc-photos'
-  and public.is_approved_member()
-  and auth.uid()::text = (storage.foldername(name))[1]
+  and (
+    auth.uid()::text = (storage.foldername(name))[1]
+    or public.is_admin()
+  )
 );
 
-
-
-alter table public.running_hub_posts enable row level security;
+-- Running hub
 
 drop policy if exists "public read approved running hub posts" on public.running_hub_posts;
 create policy "public read approved running hub posts" on public.running_hub_posts
@@ -204,11 +209,7 @@ for all to authenticated
 using (public.is_admin())
 with check (public.is_admin());
 
-alter table public.photo_comments enable row level security;
-
-drop policy if exists "public read photo comments" on public.photo_comments;
-create policy "public read photo comments" on public.photo_comments
-for select using (true);
+-- Photo comments
 
 drop policy if exists "approved member insert own comments" on public.photo_comments;
 create policy "approved member insert own comments" on public.photo_comments

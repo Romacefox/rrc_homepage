@@ -33,7 +33,7 @@ create table if not exists public.guests (
   birth_year int not null check (birth_year between 1989 and 2000),
   phone text not null,
   message text,
-  status text not null default '?€ê¸?,
+  status text not null default '´ë±â',
   created_at timestamptz not null default now()
 );
 
@@ -60,6 +60,15 @@ create table if not exists public.attendance_logs (
   created_at timestamptz not null default now()
 );
 
+
+create table if not exists public.operation_logs (
+  id uuid primary key default gen_random_uuid(),
+  actor_user_id uuid,
+  actor_name text not null,
+  action text not null,
+  detail text,
+  created_at timestamptz not null default now()
+);
 create table if not exists public.settings (
   key text primary key,
   value jsonb not null,
@@ -118,3 +127,4 @@ create table if not exists public.photo_comments (
   content text not null,
   created_at timestamptz not null default now()
 );
+
