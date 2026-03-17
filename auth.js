@@ -64,6 +64,8 @@ const photoModal = document.getElementById("photo-modal");
 const photoModalImage = document.getElementById("photo-modal-image");
 const photoModalCaption = document.getElementById("photo-modal-caption");
 const photoModalDate = document.getElementById("photo-modal-date");
+const photoLikeButton = document.getElementById("photo-like-button");
+const photoLikeCount = document.getElementById("photo-like-count");
 const photoModalClose = document.getElementById("photo-modal-close");
 const photoModalBackdrop = document.querySelector("[data-photo-modal-close]");
 const photoCommentLock = document.getElementById("photo-comment-lock");
@@ -115,6 +117,7 @@ function init() {
   photoModalClose?.addEventListener("click", closePhotoModal);
   photoModalBackdrop?.addEventListener("click", closePhotoModal);
   photoCommentForm?.addEventListener("submit", handlePhotoCommentSubmit);
+  photoLikeButton?.addEventListener("click", handlePhotoLikeToggle);
   activityRefreshButton?.addEventListener("click", loadActivityBoard);
   activityMonthSelect?.addEventListener("change", loadActivityBoard);
 
@@ -600,6 +603,75 @@ function closePhotoModal() {
   document.body.classList.remove("modal-open");
 }
 
+function hydratePhotoLikes(rows) {
+  photoLikeCounts = new Map();
+  photoLikedByMe = new Set();
+
+  rows.forEach((row) => {
+    const photoId = String(row.photo_id || "");
+    if (!photoId) {
+      return;
+    }
+    photoLikeCounts.set(photoId, Number(photoLikeCounts.get(photoId) || 0) + 1);
+    if (authUser?.id && row.user_id === authUser.id) {
+      photoLikedByMe.add(photoId);
+    }
+  });
+}
+
+function renderPhotoLikeState(photoId) {
+  if (!photoLikeButton || !photoLikeCount) {
+    return;
+  }
+
+  const likeCount = Number(photoLikeCounts.get(photoId) || 0);
+  const liked = photoLikedByMe.has(photoId);
+  photoLikeButton.textContent = liked ? "좋아요 취소" : "좋아요";
+  photoLikeButton.disabled = !authUser;
+  photoLikeCount.textContent = 좋아요 ;
+}
+
+async function handlePhotoLikeToggle() {
+  if (!currentPhotoRecord) {
+    return;
+  }
+  if (!authUser) {
+    setStatus(photoCommentStatus, photoCommentStatus ? "로그인 후 좋아요를 누를 수 있습니다." : null);
+    return;
+  }
+
+  const photoId = currentPhotoRecord.id;
+  const liked = photoLikedByMe.has(photoId);
+  let result;
+  if (liked) {
+    result = await supabaseClient
+      .from("photo_likes")
+      .delete()
+      .eq("photo_id", photoId)
+      .eq("user_id", authUser.id);
+  } else {
+    result = await supabaseClient
+      .from("photo_likes")
+      .insert([{ photo_id: photoId, user_id: authUser.id }]);
+  }
+
+  if (result.error) {
+    setStatus(photoCommentStatus, photoCommentStatus ? `좋아요 처리 실패: ${result.error.message}` : null);
+    return;
+  }
+
+  const currentCount = Number(photoLikeCounts.get(photoId) || 0);
+  if (liked) {
+    photoLikedByMe.delete(photoId);
+    photoLikeCounts.set(photoId, Math.max(0, currentCount - 1));
+  } else {
+    photoLikedByMe.add(photoId);
+    photoLikeCounts.set(photoId, currentCount + 1);
+  }
+
+  renderFilteredPhotos();
+  renderPhotoLikeState(photoId);
+}
 async function loadPhotoComments(photoId) {
   if (!supabaseClient || !photoCommentList) {
     return;
@@ -1005,6 +1077,9 @@ async function notifySignupRequest(payload) {
     // Notification failure should not block signup flow.
   }
 }
+
+
+
 
 
 

@@ -1,4 +1,4 @@
-alter table public.members enable row level security;
+ï»¿alter table public.members enable row level security;
 alter table public.notices enable row level security;
 alter table public.guests enable row level security;
 alter table public.raffle_history enable row level security;
@@ -9,6 +9,8 @@ alter table public.photos enable row level security;
 alter table public.member_profiles enable row level security;
 alter table public.running_hub_posts enable row level security;
 alter table public.photo_comments enable row level security;
+alter table public.photo_likes enable row level security;
+alter table public.running_hub_likes enable row level security;
 
 create or replace function public.is_admin()
 returns boolean
@@ -64,7 +66,7 @@ with check (
   birth_year between 1989 and 2000
   and char_length(name) between 1 and 80
   and char_length(phone) between 1 and 40
-  and status = '´ë±â'
+  and status = 'ëŒ€ê¸°'
 );
 
 -- Admin-only manage policies
@@ -232,3 +234,36 @@ create policy "admin manage photo comments" on public.photo_comments
 for all to authenticated
 using (public.is_admin())
 with check (public.is_admin());
+
+-- Photo likes
+
+drop policy if exists "public read photo likes" on public.photo_likes;
+create policy "public read photo likes" on public.photo_likes
+for select using (true);
+
+drop policy if exists "member insert own photo likes" on public.photo_likes;
+create policy "member insert own photo likes" on public.photo_likes
+for insert to authenticated
+with check (auth.uid() = user_id);
+
+drop policy if exists "member delete own photo likes" on public.photo_likes;
+create policy "member delete own photo likes" on public.photo_likes
+for delete to authenticated
+using (auth.uid() = user_id or public.is_admin());
+
+-- Running hub likes
+
+drop policy if exists "public read running hub likes" on public.running_hub_likes;
+create policy "public read running hub likes" on public.running_hub_likes
+for select using (true);
+
+drop policy if exists "member insert own running hub likes" on public.running_hub_likes;
+create policy "member insert own running hub likes" on public.running_hub_likes
+for insert to authenticated
+with check (auth.uid() = user_id);
+
+drop policy if exists "member delete own running hub likes" on public.running_hub_likes;
+create policy "member delete own running hub likes" on public.running_hub_likes
+for delete to authenticated
+using (auth.uid() = user_id or public.is_admin());
+

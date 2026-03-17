@@ -132,6 +132,7 @@ function init() {
   renderAll();
   checkScheduledDraw(false);
   loadPublicRaffleData();
+  void restoreAdminSession();
 
   guestForm.addEventListener("submit", handleGuestSubmit);
   adminLoginButton.addEventListener("click", handleAdminLogin);
@@ -247,6 +248,43 @@ function getPublicDataClient() {
   return publicDataClient;
 }
 
+async function loadMembersSnapshot(client) {
+  const withFeeStatus = await client
+    .from("members")
+    .select("id,name,birth_year,total_runs,monthly_runs,fee_status,aliases,created_at")
+    .order("created_at", { ascending: false });
+
+  if (!withFeeStatus.error) {
+    return withFeeStatus;
+  }
+
+  if (!isMissingColumnError(withFeeStatus.error, "fee_status")) {
+    return withFeeStatus;
+  }
+
+  const legacyResult = await client
+    .from("members")
+    .select("id,name,birth_year,total_runs,monthly_runs,aliases,created_at")
+    .order("created_at", { ascending: false });
+
+  if (legacyResult.error) {
+    return legacyResult;
+  }
+
+  return {
+    data: (Array.isArray(legacyResult.data) ? legacyResult.data : []).map((member) => ({
+      ...member,
+      fee_status: {}
+    })),
+    error: null
+  };
+}
+
+function isMissingColumnError(error, columnName) {
+  const message = String(error?.message || "").toLowerCase();
+  return message.includes(String(columnName || "").toLowerCase()) && message.includes("does not exist");
+}
+
 async function loadPublicRaffleData() {
   if (!publicWinnerHistory && !publicRaffleRule && !publicNextDraw) {
     return;
@@ -343,7 +381,7 @@ async function loadAdminSnapshot() {
 
   const client = getAdminAuthClient();
   const [membersResult, guestsResult, noticesResult, attendanceResult, raffleResult, auditResult] = await Promise.all([
-    client.from("members").select("id,name,birth_year,total_runs,monthly_runs,fee_status,aliases,created_at").order("created_at", { ascending: false }),
+    loadMembersSnapshot(client),
     client.from("guests").select("id,name,birth_year,phone,message,status,created_at").order("created_at", { ascending: false }),
     client.from("notices").select("id,title,content,created_at").order("created_at", { ascending: false }),
     client.from("attendance_logs").select("id,source,event_type,attendance_date,raw_count,matched,unmatched,ambiguous,created_at").order("created_at", { ascending: false }).limit(50),
@@ -544,6 +582,52 @@ async function handleAdminLogin() {
     renderAll();
   } catch (error) {
     alert(`운영진 로그인 실패: ${String(error?.message || error)}`);
+  }
+}
+
+async function restoreAdminSession() {
+  try {
+    const client = getAdminAuthClient();
+    const sessionResult = await client.auth.getSession();
+    const session = sessionResult.data?.session;
+    const user = session?.user || null;
+    const accessToken = session?.access_token || "";
+    if (!user || !accessToken) {
+      return;
+    }
+
+    const profileResult = await client
+      .from("member_profiles")
+      .select("role,approval_status")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (profileResult.error) {
+      return;
+    }
+
+    const profile = profileResult.data;
+    if (!(profile?.role === "admin" && profile?.approval_status === "approved")) {
+      return;
+    }
+
+    currentAdminToken = accessToken;
+    currentAdminCanManageRoles = false;
+    currentAdminUserId = user.id;
+    adminLock.classList.add("hidden");
+    adminPanel.classList.remove("hidden");
+    if (syncStatus) {
+      syncStatus.textContent = "동기화 준비 완료";
+    }
+    if (roleStatus) {
+      roleStatus.textContent = `내 권한: ${profile.role || "unknown"} / 승인: ${profile.approval_status || "unknown"}`;
+    }
+    await loadAdminSnapshot();
+    loadApprovalQueue();
+    loadRoleList();
+    renderAll();
+  } catch (_error) {
+    // Ignore restore failures and keep the admin panel locked.
   }
 }
 
@@ -1885,6 +1969,10 @@ async function updateApprovalStatus(userId, status, role = null) {
   loadRoleList();
   renderAll();
 }
+
+
+
+
 
 
 

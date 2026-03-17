@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   --bg: #090909;
   --surface: #151515;
   --surface-2: #1e1e1e;
@@ -209,6 +209,21 @@ input, textarea, select {
   padding: 0.45rem 0.55rem 0.6rem;
   font-size: 0.78rem;
   color: var(--muted);
+}
+
+.photo-meta-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.2rem;
+}
+
+.like-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 0.4rem;
 }
 
 
@@ -471,3 +486,4 @@ body.modal-open {
   color: var(--muted);
   font-size: 0.82rem;
 }
+

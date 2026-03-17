@@ -1,4 +1,4 @@
--- RRC Supabase schema
+ï»¿-- RRC Supabase schema
 
 create extension if not exists pgcrypto;
 
@@ -33,7 +33,7 @@ create table if not exists public.guests (
   birth_year int not null check (birth_year between 1989 and 2000),
   phone text not null,
   message text,
-  status text not null default '´ë±â',
+  status text not null default 'ëŒ€ê¸°',
   created_at timestamptz not null default now()
 );
 
@@ -128,3 +128,18 @@ create table if not exists public.photo_comments (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.photo_likes (
+  id uuid primary key default gen_random_uuid(),
+  photo_id uuid not null references public.photos(id) on delete cascade,
+  user_id uuid not null,
+  created_at timestamptz not null default now(),
+  unique (photo_id, user_id)
+);
+
+create table if not exists public.running_hub_likes (
+  id uuid primary key default gen_random_uuid(),
+  post_id uuid not null references public.running_hub_posts(id) on delete cascade,
+  user_id uuid not null,
+  created_at timestamptz not null default now(),
+  unique (post_id, user_id)
+);

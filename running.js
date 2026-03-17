@@ -5,6 +5,8 @@ let runningClient = null;
 let runningUser = null;
 let runningProfile = null;
 let runningPosts = [];
+let runningLikeCounts = new Map();
+let runningLikedByMe = new Set();
 
 const yearNode = document.getElementById("year");
 const runningAuthStatus = document.getElementById("running-auth-status");
@@ -74,9 +76,18 @@ function initRunningHub() {
 }
 
 async function refreshRunningSession() {
-  await loadRunningProfile();
-  renderRunningAuthState();
-  await loadRunningHub();
+  try {
+    await loadRunningProfile();
+    renderRunningAuthState();
+    await loadRunningHub();
+  } catch (error) {
+    setRunningText(runningAuthStatus, "러닝 허브 상태를 새로 불러오지 못했습니다.");
+    setRunningText(runningRoleStatus, String(error?.message || error || "잠시 후 다시 시도해 주세요."));
+    renderRunningFeatured([]);
+    if (runningPublicList) {
+      runningPublicList.innerHTML = '<div class="panel"><p class="list-meta">러닝 허브를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</p></div>';
+    }
+  }
 }
 
 async function loadRunningProfile() {
@@ -103,7 +114,7 @@ function renderRunningAuthState() {
     setVisibility(runningMemberActions, false);
     setRunningText(runningAuthStatus, "로그인이 필요합니다.");
     setRunningText(runningRoleStatus, "승인 회원 로그인 후 러닝 허브 글을 읽고 제안할 수 있습니다.");
-    setRunningText(runningComposeLock, "승인 회원 로그인 후 글 등록이 열립니다.");
+    setRunningText(runningComposeLock, "가입 승인된 회원만 글 등록이 열립니다.");
     runningPostForm?.classList.add("hidden");
     runningAdminPanel?.classList.add("hidden");
     return;
@@ -122,7 +133,7 @@ function renderRunningAuthState() {
     setRunningText(runningComposeLock, "승인 회원은 러닝 허브 글을 제안할 수 있습니다. 등록된 글은 운영진 검토 후 공개됩니다.");
     runningPostForm?.classList.remove("hidden");
   } else {
-    setRunningText(runningComposeLock, "승인된 회원만 러닝 허브 글을 제안할 수 있습니다.");
+    setRunningText(runningComposeLock, "로그인만으로는 작성되지 않고, 운영진 승인 후 글 제안이 열립니다.");
     runningPostForm?.classList.add("hidden");
   }
 
@@ -152,25 +163,57 @@ async function loadRunningPublicPosts() {
     return;
   }
 
-  const result = await runningClient
+  if (runningPublicList) {
+    runningPublicList.innerHTML = '<div class="panel"><p class="list-meta">러닝 허브 글을 불러오는 중입니다.</p></div>';
+  }
+
+  const postsResult = await runningClient
     .from("running_hub_posts")
     .select("id,author_name,category,title,summary,content,status,is_featured,created_at")
     .or(runningProfile?.role === "admin" && runningProfile?.approval_status === "approved" ? "status.eq.approved,status.eq.pending,status.eq.rejected" : "status.eq.approved")
     .order("is_featured", { ascending: false })
     .order("created_at", { ascending: false });
 
-  if (result.error) {
+  if (postsResult.error) {
     runningPosts = [];
     renderRunningFeatured([]);
     if (runningPublicList) {
-      runningPublicList.innerHTML = `<div class="panel"><p class="list-meta">러닝 허브 로드 실패: ${escapeHtml(result.error.message)}</p></div>`;
+      runningPublicList.innerHTML = `<div class="panel"><p class="list-meta">러닝 허브 로드 실패: ${escapeHtml(postsResult.error.message)}</p></div>`;
     }
     return;
   }
 
-  runningPosts = Array.isArray(result.data) ? result.data : [];
+  runningPosts = Array.isArray(postsResult.data) ? postsResult.data : [];
+  await loadRunningLikes();
   renderRunningFeatured(runningPosts.filter((row) => row.is_featured && row.status === "approved").slice(0, 4));
   renderRunningPublic();
+}
+
+async function loadRunningLikes() {
+  if (!runningClient) {
+    return;
+  }
+  const likeResult = await runningClient
+    .from("running_hub_likes")
+    .select("post_id,user_id")
+    .limit(5000);
+
+  runningLikeCounts = new Map();
+  runningLikedByMe = new Set();
+  if (likeResult.error) {
+    return;
+  }
+
+  (Array.isArray(likeResult.data) ? likeResult.data : []).forEach((row) => {
+    const postId = String(row.post_id || "");
+    if (!postId) {
+      return;
+    }
+    runningLikeCounts.set(postId, Number(runningLikeCounts.get(postId) || 0) + 1);
+    if (runningUser?.id && row.user_id === runningUser.id) {
+      runningLikedByMe.add(postId);
+    }
+  });
 }
 
 async function loadRunningAdminList() {
@@ -274,6 +317,44 @@ async function deleteRunningPost(id) {
   await loadRunningHub();
 }
 
+async function toggleRunningLike(postId) {
+  if (!runningUser) {
+    setRunningText(runningPostStatus, "로그인 후 좋아요를 누를 수 있습니다.");
+    return;
+  }
+
+  const liked = runningLikedByMe.has(postId);
+  let result;
+  if (liked) {
+    result = await runningClient
+      .from("running_hub_likes")
+      .delete()
+      .eq("post_id", postId)
+      .eq("user_id", runningUser.id);
+  } else {
+    result = await runningClient
+      .from("running_hub_likes")
+      .insert([{ post_id: postId, user_id: runningUser.id }]);
+  }
+
+  if (result.error) {
+    setRunningText(runningPostStatus, `좋아요 처리 실패: ${result.error.message}`);
+    return;
+  }
+
+  const currentCount = Number(runningLikeCounts.get(postId) || 0);
+  if (liked) {
+    runningLikedByMe.delete(postId);
+    runningLikeCounts.set(postId, Math.max(0, currentCount - 1));
+  } else {
+    runningLikedByMe.add(postId);
+    runningLikeCounts.set(postId, currentCount + 1);
+  }
+
+  renderRunningFeatured(runningPosts.filter((row) => row.is_featured && row.status === "approved").slice(0, 4));
+  renderRunningPublic();
+}
+
 function renderRunningFeatured(rows) {
   if (!runningFeaturedList) {
     return;
@@ -287,7 +368,11 @@ function renderRunningFeatured(rows) {
   rows.forEach((row) => {
     const card = document.createElement("article");
     card.className = "card";
-    card.innerHTML = `<h3>${escapeHtml(row.title)}</h3><p class="list-meta">${categoryLabel(row.category)} · ${escapeHtml(row.author_name || "회원")}</p><p>${escapeHtml(row.summary || row.content || "")}</p>`;
+    const likeCount = Number(runningLikeCounts.get(row.id) || 0);
+    const liked = runningLikedByMe.has(row.id);
+    card.innerHTML = `<h3>${escapeHtml(row.title)}</h3><p class="list-meta">${categoryLabel(row.category)} · ${escapeHtml(row.author_name || "회원")}</p><p>${escapeHtml(row.summary || row.content || "")}</p><div class="like-row"><button class="btn ghost tiny" type="button">${liked ? "좋아요 취소" : "좋아요"}</button><span class="list-meta">좋아요 ${likeCount}</span></div>`;
+    const button = card.querySelector("button");
+    button?.addEventListener("click", () => toggleRunningLike(row.id));
     runningFeaturedList.appendChild(card);
   });
 }
@@ -320,7 +405,11 @@ function renderRunningPublic() {
     const adminState = row.status !== "approved"
       ? `<p class="list-meta">상태: ${statusLabel(row.status)}</p>`
       : "";
-    article.innerHTML = `<div class="list-top"><span class="list-title">${escapeHtml(row.title)}</span><span class="list-meta">${formatDate(row.created_at)}</span></div><p class="list-meta">${categoryLabel(row.category)} · ${escapeHtml(row.author_name || "회원")}${row.is_featured ? " · 추천 글" : ""}</p><p>${escapeHtml(row.summary || "")}</p>${adminState}<div class="running-post-body">${escapeHtml(row.content).replaceAll("\n", "<br />")}</div>`;
+    const likeCount = Number(runningLikeCounts.get(row.id) || 0);
+    const liked = runningLikedByMe.has(row.id);
+    article.innerHTML = `<div class="list-top"><span class="list-title">${escapeHtml(row.title)}</span><span class="list-meta">${formatDate(row.created_at)}</span></div><p class="list-meta">${categoryLabel(row.category)} · ${escapeHtml(row.author_name || "회원")}${row.is_featured ? " · 추천 글" : ""}</p><p>${escapeHtml(row.summary || "")}</p>${adminState}<div class="running-post-body">${escapeHtml(row.content).replaceAll("\n", "<br />")}</div><div class="like-row"><button class="btn ghost tiny" type="button">${liked ? "좋아요 취소" : "좋아요"}</button><span class="list-meta">좋아요 ${likeCount}</span></div>`;
+    const button = article.querySelector("button");
+    button?.addEventListener("click", () => toggleRunningLike(row.id));
     runningPublicList.appendChild(article);
   });
 }

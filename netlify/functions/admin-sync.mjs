@@ -1,4 +1,4 @@
-export default async (request) => {
+ï»¿export default async (request) => {
   try {
     const auth = await requireAdmin(request);
     if (!auth.ok) {
@@ -15,8 +15,8 @@ export default async (request) => {
     const guests = normalizeGuests(body?.guests);
     const attendanceLogs = normalizeAttendanceLogs(body?.attendance_logs);
 
-    // Local admin È­¸é µ¥ÀÌÅÍ¸¦ Supabase ±âÁØ µ¥ÀÌÅÍ·Î ÀÏ°ý ±³Ã¼
-    await replaceTable("members", members);
+    // Local admin í™”ë©´ ë°ì´í„°ë¥¼ Supabase ê¸°ì¤€ ë°ì´í„°ë¡œ ì¼ê´„ êµì²´
+    await replaceMembersTable(members);
     await replaceTable("notices", notices);
     await replaceTable("guests", guests);
     await replaceTable("attendance_logs", attendanceLogs);
@@ -90,12 +90,30 @@ async function replaceTable(table, rows) {
   }
 }
 
+async function replaceMembersTable(rows) {
+  await supabaseDeleteAll("members");
+  if (rows.length === 0) {
+    return;
+  }
+
+  try {
+    await supabaseInsert("members", rows);
+  } catch (error) {
+    if (!isMissingColumnError(error, "fee_status")) {
+      throw error;
+    }
+
+    const legacyRows = rows.map(({ fee_status, ...rest }) => rest);
+    await supabaseInsert("members", legacyRows);
+  }
+}
+
 function normalizeMembers(input) {
   if (!Array.isArray(input)) {
     return [];
   }
   return input.slice(0, 300).map((item) => ({
-    name: String(item?.name || "ÀÌ¸§¾øÀ½").slice(0, 80),
+    name: String(item?.name || "ì´ë¦„ì—†ìŒ").slice(0, 80),
     birth_year: clampNumber(item?.birth_year, 1989, 2000, 1994),
     total_runs: Math.max(0, Number(item?.total_runs || 0)),
     monthly_runs: item?.monthly_runs && typeof item.monthly_runs === "object" ? item.monthly_runs : {},
@@ -110,7 +128,7 @@ function normalizeNotices(input) {
     return [];
   }
   return input.slice(0, 300).map((item) => ({
-    title: String(item?.title || "°øÁö").slice(0, 120),
+    title: String(item?.title || "ê³µì§€").slice(0, 120),
     content: String(item?.content || "").slice(0, 4000),
     created_at: item?.created_at || new Date().toISOString()
   }));
@@ -121,11 +139,11 @@ function normalizeGuests(input) {
     return [];
   }
   return input.slice(0, 500).map((item) => ({
-    name: String(item?.name || "°Ô½ºÆ®").slice(0, 80),
+    name: String(item?.name || "ê²ŒìŠ¤íŠ¸").slice(0, 80),
     birth_year: clampNumber(item?.birth_year, 1989, 2000, 1994),
     phone: String(item?.phone || "").slice(0, 40),
     message: String(item?.message || "").slice(0, 4000),
-    status: String(item?.status || "´ë±â").slice(0, 20),
+    status: String(item?.status || "ëŒ€ê¸°").slice(0, 20),
     created_at: item?.created_at || new Date().toISOString()
   }));
 }
@@ -137,7 +155,7 @@ function normalizeAttendanceLogs(input) {
   }
   return input.slice(0, 500).map((item) => ({
     source: String(item?.source || "bulk").slice(0, 20),
-    event_type: String(item?.event_type || "Á¤±â·±").slice(0, 20),
+    event_type: String(item?.event_type || "ì •ê¸°ëŸ°").slice(0, 20),
     attendance_date: item?.attendance_date || new Date().toISOString().slice(0, 10),
     raw_count: Math.max(0, Number(item?.raw_count || 0)),
     matched: Array.isArray(item?.matched) ? item.matched : [],
@@ -152,6 +170,11 @@ function clampNumber(value, min, max, fallback) {
     return fallback;
   }
   return Math.max(min, Math.min(max, Math.trunc(num)));
+}
+
+function isMissingColumnError(error, columnName) {
+  const message = String(error?.message || error || "").toLowerCase();
+  return message.includes(String(columnName || "").toLowerCase()) && message.includes("does not exist");
 }
 
 function env(name) {
@@ -230,5 +253,6 @@ function json(status, body) {
     headers: { "content-type": "application/json; charset=utf-8" }
   });
 }
+
 
 
