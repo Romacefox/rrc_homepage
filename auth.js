@@ -8,6 +8,8 @@ let supabaseClient = null;
 let authUser = null;
 let authProfile = null;
 let photoRecords = [];
+let photoLikeCounts = new Map();
+let photoLikedByMe = new Set();
 let currentPhotoRecord = null;
 
 const yearNode = document.getElementById("year");
@@ -60,6 +62,7 @@ const attendanceBoard = document.getElementById("attendance-board");
 const boardRaffleHistory = document.getElementById("board-raffle-history");
 const memberNavLinks = document.querySelectorAll("[data-member-nav]");
 const adminNavLinks = document.querySelectorAll("[data-admin-nav]");
+const authEntryLinks = document.querySelectorAll("[data-auth-entry]");
 const photoModal = document.getElementById("photo-modal");
 const photoModalImage = document.getElementById("photo-modal-image");
 const photoModalCaption = document.getElementById("photo-modal-caption");
@@ -504,11 +507,16 @@ async function loadPhotos() {
     return;
   }
 
-  const photosResult = await supabaseClient
-    .from("photos")
-    .select("id,file_path,caption,created_at")
-    .order("created_at", { ascending: false })
-    .limit(200);
+  const [photosResult, likesResult] = await Promise.all([
+    supabaseClient
+      .from("photos")
+      .select("id,file_path,caption,created_at")
+      .order("created_at", { ascending: false })
+      .limit(200),
+    supabaseClient
+      .from("photo_likes")
+      .select("photo_id,user_id")
+  ]);
 
   if (photosResult.error) {
     setStatus(photoStatus, photoStatus ? `사진 목록 로드 실패: ${photosResult.error.message}` : null);
@@ -516,6 +524,12 @@ async function loadPhotos() {
   }
 
   photoRecords = Array.isArray(photosResult.data) ? photosResult.data : [];
+  hydratePhotoLikes(Array.isArray(likesResult.data) ? likesResult.data : []);
+
+  if (likesResult.error) {
+    setStatus(photoStatus, photoStatus ? `좋아요 정보 일부 로드 실패: ${likesResult.error.message}` : null);
+  }
+
   populatePhotoMonthOptions();
   renderFilteredPhotos();
 }
@@ -553,6 +567,7 @@ function renderFilteredPhotos() {
 
   filtered.forEach((photo) => {
     const publicUrl = supabaseClient.storage.from(PHOTO_BUCKET).getPublicUrl(photo.file_path).data.publicUrl;
+    const likeCount = Number(photoLikeCounts.get(photo.id) || 0);
     const card = document.createElement("article");
     card.className = "photo-item";
     card.tabIndex = 0;
@@ -561,7 +576,10 @@ function renderFilteredPhotos() {
       <img src="${publicUrl}" alt="RRC photo" loading="lazy" />
       <div class="photo-meta">
         <div>${escapeHtml(photo.caption || "설명 없음")}</div>
-        <div>${formatDate(photo.created_at)}</div>
+        <div class="photo-meta-row">
+          <span>${formatDate(photo.created_at)}</span>
+          <span class="list-meta">좋아요 ${likeCount}</span>
+        </div>
       </div>
     `;
     card.addEventListener("click", () => openPhotoModal(photo, publicUrl));
@@ -589,6 +607,7 @@ function openPhotoModal(photo, publicUrl) {
   if (photoModalDate) {
     photoModalDate.textContent = formatDate(photo.created_at);
   }
+  renderPhotoLikeState(photo.id);
   setVisibility(photoModal, true);
   document.body.classList.add("modal-open");
   void loadPhotoComments(photo.id);
@@ -598,6 +617,9 @@ function closePhotoModal() {
   currentPhotoRecord = null;
   if (photoModalImage) {
     photoModalImage.src = "";
+  }
+  if (photoLikeCount) {
+    photoLikeCount.textContent = "좋아요 0";
   }
   setVisibility(photoModal, false);
   document.body.classList.remove("modal-open");
@@ -628,7 +650,7 @@ function renderPhotoLikeState(photoId) {
   const liked = photoLikedByMe.has(photoId);
   photoLikeButton.textContent = liked ? "좋아요 취소" : "좋아요";
   photoLikeButton.disabled = !authUser;
-  photoLikeCount.textContent = 좋아요 ;
+  photoLikeCount.textContent = `좋아요 ${likeCount}`;
 }
 
 async function handlePhotoLikeToggle() {
@@ -1077,6 +1099,12 @@ async function notifySignupRequest(payload) {
     // Notification failure should not block signup flow.
   }
 }
+
+
+
+
+
+
 
 
 

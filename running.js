@@ -27,6 +27,7 @@ const runningAdminList = document.getElementById("running-admin-list");
 const runningFilter = document.getElementById("running-filter");
 const memberNavLinks = document.querySelectorAll("[data-member-nav]");
 const adminNavLinks = document.querySelectorAll("[data-admin-nav]");
+const authEntryLinks = document.querySelectorAll("[data-auth-entry]");
 const runningGuestActions = document.getElementById("running-guest-actions");
 const runningMemberActions = document.getElementById("running-member-actions");
 
@@ -145,6 +146,18 @@ function updateSharedNavigation(memberVisible, adminVisible) {
   adminNavLinks.forEach((node) => setVisibility(node, adminVisible));
 }
 
+function readStoredRunningUser() {
+  try {
+    const raw = localStorage.getItem("rrc-auth");
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw);
+    return parsed?.user ?? parsed?.currentSession?.user ?? null;
+  } catch (_error) {
+    return null;
+  }
+}
 function setVisibility(node, visible) {
   if (!node) {
     return;
@@ -460,3 +473,5 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 }
+
+

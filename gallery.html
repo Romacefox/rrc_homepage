@@ -8,14 +8,14 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=SUIT:wght@300;400;500;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20260317b" />
+  <link rel="stylesheet" href="styles.css?v=20260317c" />
 </head>
 <body>
   <header class="site-header">
     <div class="container nav-wrap">
       <a href="index.html" class="logo">RRC</a>
       <nav class="nav-links">
-        <a href="login.html">회원가입 / 로그인</a>
+        <a href="login.html" data-auth-entry>회원가입 / 로그인</a>
         <a href="index.html#about">크루 소개</a>
         <a href="index.html#notice">공지</a>
         <a href="gallery.html">사진첩</a>
@@ -75,6 +75,10 @@
               <div class="photo-modal-meta">
                 <h3 id="photo-modal-caption">사진 설명</h3>
                 <p id="photo-modal-date" class="list-meta"></p>
+                <div class="like-row">
+                  <button id="photo-like-button" class="btn ghost" type="button">좋아요</button>
+                  <span id="photo-like-count" class="list-meta">좋아요 0</span>
+                </div>
               </div>
               <div class="photo-comments">
                 <div class="section-head">
@@ -104,9 +108,12 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="auth.js?v=20260317b"></script>
+  <script src="auth.js?v=20260317d"></script>
 </body>
 </html>
+
+
+
 
 
 
