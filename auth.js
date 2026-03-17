@@ -2,6 +2,7 @@
 const SUPABASE_ANON_KEY = "sb_publishable_C20xXZZRWdjmkzGneCcpjw_mrRnXucq";
 const PHOTO_BUCKET = "rrc-photos";
 const PENDING_SIGNUP_PREFIX = "rrc-pending-signup:";
+const ADMIN_SNAPSHOT_META_KEY = "rrc-admin-snapshot-meta-v1";
 
 let supabaseClient = null;
 let authUser = null;
@@ -636,6 +637,16 @@ async function handlePhotoCommentSubmit(event) {
   if (!currentPhotoRecord) {
     return;
   }
+
+  if (supabaseClient) {
+    const sessionResult = await supabaseClient.auth.getSession();
+    authUser = sessionResult.data?.session?.user || authUser;
+  }
+  if (authUser) {
+    await loadMyProfile();
+    renderAuthState();
+  }
+
   if (!authUser || !authProfile || authProfile.approval_status !== "approved") {
     setStatus(photoCommentStatus, photoCommentStatus ? "승인 회원 로그인 후 댓글을 작성할 수 있습니다." : null);
     return;
@@ -648,15 +659,23 @@ async function handlePhotoCommentSubmit(event) {
   }
 
   setStatus(photoCommentStatus, photoCommentStatus ? "댓글 등록 중..." : null);
-  const result = await supabaseClient.from("photo_comments").insert({
-    photo_id: currentPhotoRecord.id,
-    user_id: authUser.id,
-    author_name: authProfile.name || authUser.email,
-    content
-  });
+  const result = await supabaseClient
+    .from("photo_comments")
+    .insert([{
+      photo_id: currentPhotoRecord.id,
+      user_id: authUser.id,
+      author_name: authProfile.name || authUser.email,
+      content
+    }])
+    .select("id")
+    .single();
 
   if (result.error) {
-    setStatus(photoCommentStatus, photoCommentStatus ? `댓글 등록 실패: ${result.error.message}` : null);
+    const message = String(result.error.message || "알 수 없는 오류");
+    const hint = message.toLowerCase().includes("row-level security")
+      ? "승인 상태 또는 댓글 권한을 다시 확인해 주세요."
+      : "잠시 후 다시 시도해 주세요.";
+    setStatus(photoCommentStatus, photoCommentStatus ? `댓글 등록 실패: ${message} (${hint})` : null);
     return;
   }
 
@@ -681,14 +700,30 @@ async function loadActivityBoard() {
     return;
   }
 
-  const membersResult = await supabaseClient
-    .from("members")
-    .select("id,name,birth_year,total_runs,monthly_runs")
-    .order("name", { ascending: true });
+  const isAdmin = authProfile.role === "admin" && authProfile.approval_status === "approved";
+  let members = [];
+  let boardSourceLabel = "운영진이 동기화한 Supabase 데이터";
 
-  if (membersResult.error) {
-    renderBoardLocked(`활동 보드 로드 실패: ${membersResult.error.message}`);
-    return;
+  if (isAdmin) {
+    const localMembers = loadLocalAdminMembers(authUser.id);
+    if (localMembers.length) {
+      members = localMembers;
+      boardSourceLabel = "이 브라우저의 최근 운영진 관리 데이터";
+    }
+  }
+
+  if (!members.length) {
+    const membersResult = await supabaseClient
+      .from("members")
+      .select("id,name,birth_year,total_runs,monthly_runs")
+      .order("name", { ascending: true });
+
+    if (membersResult.error) {
+      renderBoardLocked(`활동 보드 로드 실패: ${membersResult.error.message}`);
+      return;
+    }
+
+    members = Array.isArray(membersResult.data) ? membersResult.data : [];
   }
 
   const raffleResult = await supabaseClient
@@ -697,7 +732,6 @@ async function loadActivityBoard() {
     .order("created_at", { ascending: false })
     .limit(4);
 
-  const members = Array.isArray(membersResult.data) ? membersResult.data : [];
   const rows = members
     .map((member) => ({
       ...member,
@@ -720,7 +754,7 @@ async function loadActivityBoard() {
   });
   const runner = rows.find((member) => member.monthRuns > 0) || null;
 
-  activityLock.textContent = `${monthKeyToLabel(selectedMonth)} 출석 기준입니다. 운영진이 기록한 데이터를 바탕으로 표시됩니다.`;
+  activityLock.textContent = `${monthKeyToLabel(selectedMonth)} 출석 기준입니다. ${boardSourceLabel}를 바탕으로 표시됩니다.`;
   activityBoard.classList.remove("hidden");
 
   if (myMonthRuns) {
@@ -846,8 +880,55 @@ function getAttendanceStreak(member) {
 function getMonthlyRuns(member, monthKey) {
   const monthlyRuns = member?.monthly_runs && typeof member.monthly_runs === "object"
     ? member.monthly_runs
-    : {};
+    : member?.monthlyRuns && typeof member.monthlyRuns === "object"
+      ? member.monthlyRuns
+      : {};
   return Number(monthlyRuns[monthKey] || 0);
+}
+
+function loadLocalAdminMembers(expectedUserId) {
+  try {
+    const rawMeta = localStorage.getItem(ADMIN_SNAPSHOT_META_KEY);
+    if (!rawMeta) {
+      return [];
+    }
+
+    const meta = JSON.parse(rawMeta);
+    const updatedAt = new Date(meta?.updatedAt || 0);
+    const isRecent = Date.now() - updatedAt.getTime() <= 30 * 60 * 1000;
+    if (!meta?.active || !isRecent || (expectedUserId && meta.userId && meta.userId !== expectedUserId)) {
+      return [];
+    }
+
+    const raw = localStorage.getItem("rrc-site-db-v3");
+    if (!raw) {
+      return [];
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed?.members) || !parsed.members.length) {
+      return [];
+    }
+
+    const looksLikeSeedOnly = parsed.members.length === 1 && String(parsed.members[0]?.name || "") === "샘플회원";
+    if (looksLikeSeedOnly) {
+      return [];
+    }
+
+    return parsed.members.map((member) => ({
+      id: member.id,
+      name: String(member.name || "이름없음"),
+      birth_year: Number(member.birthYear || member.birth_year || 0),
+      total_runs: Number(member.totalRuns || member.total_runs || 0),
+      monthly_runs: member.monthlyRuns && typeof member.monthlyRuns === "object"
+        ? member.monthlyRuns
+        : member.monthly_runs && typeof member.monthly_runs === "object"
+          ? member.monthly_runs
+          : {}
+    }));
+  } catch (_error) {
+    return [];
+  }
 }
 
 function toMonthKey(iso) {
@@ -924,6 +1005,10 @@ async function notifySignupRequest(payload) {
     // Notification failure should not block signup flow.
   }
 }
+
+
+
+
 
 
 

@@ -1,9 +1,10 @@
-const SUPABASE_URL = "https://aqpszgycsfpxtlsuaqrt.supabase.co";
+﻿const SUPABASE_URL = "https://aqpszgycsfpxtlsuaqrt.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_C20xXZZRWdjmkzGneCcpjw_mrRnXucq";
 
 let runningClient = null;
 let runningUser = null;
 let runningProfile = null;
+let runningPosts = [];
 
 const yearNode = document.getElementById("year");
 const runningAuthStatus = document.getElementById("running-auth-status");
@@ -21,10 +22,16 @@ const runningPublicList = document.getElementById("running-public-list");
 const runningAdminPanel = document.getElementById("running-admin-panel");
 const runningAdminRefresh = document.getElementById("running-admin-refresh");
 const runningAdminList = document.getElementById("running-admin-list");
+const runningFilter = document.getElementById("running-filter");
+const memberNavLinks = document.querySelectorAll("[data-member-nav]");
+const adminNavLinks = document.querySelectorAll("[data-admin-nav]");
+const runningGuestActions = document.getElementById("running-guest-actions");
+const runningMemberActions = document.getElementById("running-member-actions");
 
 if (yearNode) {
   yearNode.textContent = new Date().getFullYear();
 }
+
 initRunningHub();
 
 function initRunningHub() {
@@ -41,8 +48,10 @@ function initRunningHub() {
       storageKey: "rrc-auth"
     }
   });
+
   runningPostSubmit?.addEventListener("click", submitRunningPost);
   runningAdminRefresh?.addEventListener("click", loadRunningAdminList);
+  runningFilter?.addEventListener("change", renderRunningPublic);
 
   runningClient.auth.onAuthStateChange(async (_event, session) => {
     runningUser = session?.user || null;
@@ -89,8 +98,11 @@ async function loadRunningProfile() {
 
 function renderRunningAuthState() {
   if (!runningUser) {
-    setRunningText(runningAuthStatus, "로그인하지 않은 상태입니다.");
-    setRunningText(runningRoleStatus, "승인 회원 로그인 후 러닝 허브 제안을 남길 수 있습니다.");
+    updateSharedNavigation(false, false);
+    setVisibility(runningGuestActions, true);
+    setVisibility(runningMemberActions, false);
+    setRunningText(runningAuthStatus, "로그인이 필요합니다.");
+    setRunningText(runningRoleStatus, "승인 회원 로그인 후 러닝 허브 글을 읽고 제안할 수 있습니다.");
     setRunningText(runningComposeLock, "승인 회원 로그인 후 글 등록이 열립니다.");
     runningPostForm?.classList.add("hidden");
     runningAdminPanel?.classList.add("hidden");
@@ -99,22 +111,35 @@ function renderRunningAuthState() {
 
   const isApproved = runningProfile?.approval_status === "approved";
   const isAdmin = isApproved && runningProfile?.role === "admin";
+
+  updateSharedNavigation(true, isAdmin);
+  setVisibility(runningGuestActions, false);
+  setVisibility(runningMemberActions, true);
   setRunningText(runningAuthStatus, `로그인됨: ${runningUser.email}`);
-  setRunningText(runningRoleStatus, `상태: ${statusLabel(runningProfile?.approval_status)} / 권한: ${runningProfile?.role || "member"}`);
+  setRunningText(runningRoleStatus, `승인 상태: ${statusLabel(runningProfile?.approval_status)} / 권한: ${runningProfile?.role || "member"}`);
 
   if (isApproved) {
-    setRunningText(runningComposeLock, "승인 회원 제안글은 운영진 승인 후 공개됩니다.");
+    setRunningText(runningComposeLock, "승인 회원은 러닝 허브 글을 제안할 수 있습니다. 등록된 글은 운영진 검토 후 공개됩니다.");
     runningPostForm?.classList.remove("hidden");
   } else {
-    setRunningText(runningComposeLock, "승인된 회원만 러닝 허브 글을 등록할 수 있습니다.");
+    setRunningText(runningComposeLock, "승인된 회원만 러닝 허브 글을 제안할 수 있습니다.");
     runningPostForm?.classList.add("hidden");
   }
 
-  if (isAdmin) {
-    runningAdminPanel?.classList.remove("hidden");
-  } else {
-    runningAdminPanel?.classList.add("hidden");
+  runningAdminPanel?.classList.toggle("hidden", !isAdmin);
+}
+
+function updateSharedNavigation(memberVisible, adminVisible) {
+  memberNavLinks.forEach((node) => setVisibility(node, memberVisible));
+  adminNavLinks.forEach((node) => setVisibility(node, adminVisible));
+}
+
+function setVisibility(node, visible) {
+  if (!node) {
+    return;
   }
+  node.classList.toggle("hidden", !visible);
+  node.hidden = !visible;
 }
 
 async function loadRunningHub() {
@@ -129,14 +154,23 @@ async function loadRunningPublicPosts() {
 
   const result = await runningClient
     .from("running_hub_posts")
-    .select("id,author_name,category,title,summary,content,is_featured,created_at")
-    .eq("status", "approved")
+    .select("id,author_name,category,title,summary,content,status,is_featured,created_at")
+    .or(runningProfile?.role === "admin" && runningProfile?.approval_status === "approved" ? "status.eq.approved,status.eq.pending,status.eq.rejected" : "status.eq.approved")
     .order("is_featured", { ascending: false })
     .order("created_at", { ascending: false });
 
-  const rows = Array.isArray(result.data) ? result.data : [];
-  renderRunningFeatured(rows.filter((row) => row.is_featured).slice(0, 4));
-  renderRunningPublic(rows);
+  if (result.error) {
+    runningPosts = [];
+    renderRunningFeatured([]);
+    if (runningPublicList) {
+      runningPublicList.innerHTML = `<div class="panel"><p class="list-meta">러닝 허브 로드 실패: ${escapeHtml(result.error.message)}</p></div>`;
+    }
+    return;
+  }
+
+  runningPosts = Array.isArray(result.data) ? result.data : [];
+  renderRunningFeatured(runningPosts.filter((row) => row.is_featured && row.status === "approved").slice(0, 4));
+  renderRunningPublic();
 }
 
 async function loadRunningAdminList() {
@@ -169,13 +203,13 @@ async function loadRunningAdminList() {
   rows.forEach((row) => {
     const item = document.createElement("li");
     item.className = "list-item";
-    item.innerHTML = `<div class="list-top"><span class="list-title">${escapeHtml(row.title)}</span><span class="list-meta">${formatDate(row.created_at)}</span></div><p class="list-meta">${categoryLabel(row.category)} / ${escapeHtml(row.author_name || "회원")} / ${escapeHtml(row.status || "pending")}${row.is_featured ? " / 추천글" : ""}</p><p>${escapeHtml(row.summary || row.content || "")}</p>`;
+    item.innerHTML = `<div class="list-top"><span class="list-title">${escapeHtml(row.title)}</span><span class="list-meta">${formatDate(row.created_at)}</span></div><p class="list-meta">${categoryLabel(row.category)} / ${escapeHtml(row.author_name || "회원")} / ${statusLabel(row.status)}${row.is_featured ? " / 추천 글" : ""}</p><p>${escapeHtml(row.summary || row.content || "")}</p>`;
 
     const actions = document.createElement("div");
     actions.className = "item-actions";
     actions.appendChild(buildTinyButton("승인", () => updateRunningPost(row.id, { status: "approved" })));
     actions.appendChild(buildTinyButton("반려", () => updateRunningPost(row.id, { status: "rejected", is_featured: false })));
-    actions.appendChild(buildTinyButton(row.is_featured ? "추천 해제" : "추천글", () => updateRunningPost(row.id, { status: "approved", is_featured: !row.is_featured })));
+    actions.appendChild(buildTinyButton(row.is_featured ? "추천 해제" : "추천 글", () => updateRunningPost(row.id, { status: "approved", is_featured: !row.is_featured })));
     actions.appendChild(buildTinyButton("삭제", () => deleteRunningPost(row.id)));
     item.appendChild(actions);
     runningAdminList.appendChild(item);
@@ -195,7 +229,7 @@ async function submitRunningPost() {
     title: String(runningPostTitle?.value || "").trim(),
     summary: String(runningPostSummary?.value || "").trim(),
     content: String(runningPostContent?.value || "").trim(),
-    status: runningProfile.role === "admin" ? "approved" : "pending",
+    status: "pending",
     is_featured: false
   };
 
@@ -204,7 +238,8 @@ async function submitRunningPost() {
     return;
   }
 
-  const result = await runningClient.from("running_hub_posts").insert(payload);
+  setRunningText(runningPostStatus, "등록 중...");
+  const result = await runningClient.from("running_hub_posts").insert(payload).select("id").single();
   if (result.error) {
     setRunningText(runningPostStatus, `등록 실패: ${result.error.message}`);
     return;
@@ -213,7 +248,7 @@ async function submitRunningPost() {
   if (runningPostTitle) runningPostTitle.value = "";
   if (runningPostSummary) runningPostSummary.value = "";
   if (runningPostContent) runningPostContent.value = "";
-  setRunningText(runningPostStatus, runningProfile.role === "admin" ? "글이 바로 공개되었습니다." : "제안이 등록되었습니다. 운영진 승인 후 공개됩니다.");
+  setRunningText(runningPostStatus, "제안이 등록되었습니다. 운영진 확인 후 공개됩니다.");
   await loadRunningHub();
 }
 
@@ -245,7 +280,7 @@ function renderRunningFeatured(rows) {
   }
   runningFeaturedList.innerHTML = "";
   if (!rows.length) {
-    runningFeaturedList.innerHTML = '<article class="card"><h3>추천글 준비 중</h3><p class="list-meta">운영진이 추천 루트와 팁을 정리하고 있습니다.</p></article>';
+    runningFeaturedList.innerHTML = '<article class="card"><h3>추천 글 준비 중</h3><p class="list-meta">운영진이 추천 루트와 팁을 정리하고 있습니다.</p></article>';
     return;
   }
 
@@ -257,20 +292,35 @@ function renderRunningFeatured(rows) {
   });
 }
 
-function renderRunningPublic(rows) {
+function renderRunningPublic() {
   if (!runningPublicList) {
     return;
   }
+
+  const selectedCategory = String(runningFilter?.value || "all");
+  const visibleRows = runningPosts.filter((row) => {
+    if (selectedCategory !== "all" && row.category !== selectedCategory) {
+      return false;
+    }
+    if (row.status === "approved") {
+      return true;
+    }
+    return runningProfile?.role === "admin" && runningProfile?.approval_status === "approved";
+  });
+
   runningPublicList.innerHTML = "";
-  if (!rows.length) {
-    runningPublicList.innerHTML = '<div class="panel"><p class="list-meta">공개된 러닝 허브 글이 아직 없습니다.</p></div>';
+  if (!visibleRows.length) {
+    runningPublicList.innerHTML = '<div class="panel"><p class="list-meta">조건에 맞는 러닝 허브 글이 없습니다.</p></div>';
     return;
   }
 
-  rows.forEach((row) => {
+  visibleRows.forEach((row) => {
     const article = document.createElement("article");
     article.className = "panel running-post-item";
-    article.innerHTML = `<div class="list-top"><span class="list-title">${escapeHtml(row.title)}</span><span class="list-meta">${formatDate(row.created_at)}</span></div><p class="list-meta">${categoryLabel(row.category)} · ${escapeHtml(row.author_name || "회원")}${row.is_featured ? " · 추천글" : ""}</p><p>${escapeHtml(row.summary || "")}</p><div class="running-post-body">${escapeHtml(row.content).replaceAll("\n", "<br />")}</div>`;
+    const adminState = row.status !== "approved"
+      ? `<p class="list-meta">상태: ${statusLabel(row.status)}</p>`
+      : "";
+    article.innerHTML = `<div class="list-top"><span class="list-title">${escapeHtml(row.title)}</span><span class="list-meta">${formatDate(row.created_at)}</span></div><p class="list-meta">${categoryLabel(row.category)} · ${escapeHtml(row.author_name || "회원")}${row.is_featured ? " · 추천 글" : ""}</p><p>${escapeHtml(row.summary || "")}</p>${adminState}<div class="running-post-body">${escapeHtml(row.content).replaceAll("\n", "<br />")}</div>`;
     runningPublicList.appendChild(article);
   });
 }
@@ -291,7 +341,7 @@ function statusLabel(status) {
 function categoryLabel(category) {
   if (category === "route") return "추천 루트";
   if (category === "tip") return "러닝 팁";
-  if (category === "checklist") return "체크리스트";
+  if (category === "checklist") return "준비 체크리스트";
   if (category === "story") return "러닝 후기";
   return "허브 글";
 }
@@ -318,6 +368,6 @@ function escapeHtml(value) {
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
-    .replaceAll('"', '&quot;')
+    .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 }

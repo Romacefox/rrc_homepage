@@ -1,5 +1,6 @@
 ﻿
 const STORAGE_KEY = "rrc-site-db-v3";
+const ADMIN_SNAPSHOT_META_KEY = "rrc-admin-snapshot-meta-v1";
 
 const WINTER_MONTHS = [12, 1, 2];
 const DRAW_WINNER_COUNT = 4;
@@ -518,6 +519,15 @@ async function handleAdminLogin() {
     }
 
     currentAdminToken = accessToken;
+    try {
+      localStorage.setItem(ADMIN_SNAPSHOT_META_KEY, JSON.stringify({
+        active: true,
+        userId: user.id,
+        updatedAt: new Date().toISOString()
+      }));
+    } catch (_error) {
+      // Ignore local snapshot marker failures.
+    }
     currentAdminCanManageRoles = false;
     currentAdminUserId = user.id;
     if (syncStatus) {
@@ -1875,6 +1885,10 @@ async function updateApprovalStatus(userId, status, role = null) {
   loadRoleList();
   renderAll();
 }
+
+
+
+
 
 
 

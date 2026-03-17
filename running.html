@@ -41,9 +41,13 @@
             <h3>허브 이용 상태</h3>
             <p id="running-auth-status" class="list-meta">로그인 상태 확인 중...</p>
             <p id="running-role-status" class="list-meta">승인 회원은 러닝 팁과 루트 제안을 작성할 수 있습니다.</p>
-            <div class="auth-links-row">
+            <div id="running-guest-actions" class="auth-links-row">
               <a class="btn ghost" href="login.html">로그인 페이지</a>
               <a class="btn ghost" href="login.html">회원가입 / 로그인</a>
+            </div>
+            <div id="running-member-actions" class="auth-links-row hidden" style="margin-top:0.8rem;">
+              <a class="btn ghost" href="login.html">내 활동</a>
+              <a class="btn ghost hidden" href="index.html#admin" data-admin-nav hidden>운영 관리</a>
             </div>
 
             <div class="running-compose" style="margin-top:1rem;">
@@ -112,6 +116,7 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="running.js?v=20260314b"></script>
+  <script src="running.js?v=20260316a"></script>
 </body>
 </html>
+
