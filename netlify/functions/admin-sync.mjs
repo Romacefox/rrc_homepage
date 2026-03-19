@@ -14,19 +14,22 @@
     const notices = normalizeNotices(body?.notices);
     const guests = normalizeGuests(body?.guests);
     const attendanceLogs = normalizeAttendanceLogs(body?.attendance_logs);
+    const raffleHistory = normalizeRaffleHistory(body?.raffle_history);
 
     // Local admin 화면 데이터를 Supabase 기준 데이터로 일괄 교체
     await replaceMembersTable(members);
     await replaceTable("notices", notices);
     await replaceTable("guests", guests);
     await replaceTable("attendance_logs", attendanceLogs);
+    await replaceTable("raffle_history", raffleHistory);
     await upsertSetting("last_sync_meta", {
       synced_at: new Date().toISOString(),
       counts: {
         members: members.length,
         notices: notices.length,
         guests: guests.length,
-        attendance_logs: attendanceLogs.length
+        attendance_logs: attendanceLogs.length,
+        raffle_history: raffleHistory.length
       }
     });
 
@@ -36,7 +39,8 @@
         members: members.length,
         notices: notices.length,
         guests: guests.length,
-        attendance_logs: attendanceLogs.length
+        attendance_logs: attendanceLogs.length,
+        raffle_history: raffleHistory.length
       }
     });
   } catch (error) {
@@ -164,6 +168,19 @@ function normalizeAttendanceLogs(input) {
     created_at: item?.created_at || new Date().toISOString()
   }));
 }
+function normalizeRaffleHistory(input) {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+  return input.slice(0, 100).map((item) => ({
+    draw_id: String(item?.draw_id || "").slice(0, 120) || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    target_month_key: String(item?.target_month_key || "").slice(0, 7),
+    threshold: Math.max(0, Number(item?.threshold || 0)),
+    winner_count: Math.max(0, Number(item?.winner_count || 0)),
+    winners: Array.isArray(item?.winners) ? item.winners : [],
+    created_at: item?.created_at || new Date().toISOString()
+  }));
+}
 function clampNumber(value, min, max, fallback) {
   const num = Number(value);
   if (!Number.isFinite(num)) {
@@ -253,6 +270,7 @@ function json(status, body) {
     headers: { "content-type": "application/json; charset=utf-8" }
   });
 }
+
 
 
 

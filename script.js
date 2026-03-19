@@ -1605,7 +1605,24 @@ function loadDb() {
 
 function saveDb() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+  touchAdminSnapshotMeta();
   scheduleAutoSync();
+}
+
+function touchAdminSnapshotMeta() {
+  if (!currentAdminUserId) {
+    return;
+  }
+
+  try {
+    localStorage.setItem(ADMIN_SNAPSHOT_META_KEY, JSON.stringify({
+      active: true,
+      userId: currentAdminUserId,
+      updatedAt: new Date().toISOString()
+    }));
+  } catch (_error) {
+    // Ignore local snapshot cache write failures.
+  }
 }
 
 function scheduleAutoSync() {
@@ -1713,7 +1730,16 @@ function buildSupabaseSyncPayload() {
     created_at: log.createdAt || new Date().toISOString()
   }));
 
-  return { members, notices, guests, attendance_logs };
+  const raffle_history = (Array.isArray(db.raffle?.history) ? db.raffle.history : []).map((record) => ({
+    draw_id: String(record.drawId || makeId()),
+    target_month_key: String(record.targetMonthKey || currentMonthKey()),
+    threshold: Math.max(0, Number(record.threshold || 0)),
+    winner_count: Math.max(0, Number(record.winnerCount || 0)),
+    winners: Array.isArray(record.winners) ? record.winners : [],
+    created_at: record.createdAt || new Date().toISOString()
+  }));
+
+  return { members, notices, guests, attendance_logs, raffle_history };
 }
 
 async function syncDataToSupabase() {
@@ -1745,7 +1771,7 @@ async function syncDataToSupabase() {
     }
 
     if (syncStatus) {
-      syncStatus.textContent = `동기화 완료: members ${result.counts?.members || 0}, notices ${result.counts?.notices || 0}, guests ${result.counts?.guests || 0}`;
+      syncStatus.textContent = `동기화 완료: members ${result.counts?.members || 0}, notices ${result.counts?.notices || 0}, guests ${result.counts?.guests || 0}, raffle ${result.counts?.raffle_history || 0}`;
     }
     loadPublicNoticeData();
     loadPublicRaffleData();
@@ -1969,6 +1995,10 @@ async function updateApprovalStatus(userId, status, role = null) {
   loadRoleList();
   renderAll();
 }
+
+
+
+
 
 
 

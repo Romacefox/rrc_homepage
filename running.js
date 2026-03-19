@@ -62,7 +62,7 @@ function initRunningHub() {
   });
 
   runningClient.auth.getSession().then(async ({ data }) => {
-    runningUser = data?.session?.user || null;
+    runningUser = data?.session?.user || readStoredRunningUser() || null;
     await refreshRunningSession();
   });
 
@@ -71,7 +71,7 @@ function initRunningHub() {
       return;
     }
     const { data } = await runningClient.auth.getSession();
-    runningUser = data?.session?.user || null;
+    runningUser = data?.session?.user || readStoredRunningUser() || null;
     await refreshRunningSession();
   });
 }
@@ -144,6 +144,7 @@ function renderRunningAuthState() {
 function updateSharedNavigation(memberVisible, adminVisible) {
   memberNavLinks.forEach((node) => setVisibility(node, memberVisible));
   adminNavLinks.forEach((node) => setVisibility(node, adminVisible));
+  authEntryLinks.forEach((node) => setVisibility(node, !memberVisible));
 }
 
 function readStoredRunningUser() {
@@ -191,7 +192,11 @@ async function loadRunningPublicPosts() {
     runningPosts = [];
     renderRunningFeatured([]);
     if (runningPublicList) {
-      runningPublicList.innerHTML = `<div class="panel"><p class="list-meta">러닝 허브 로드 실패: ${escapeHtml(postsResult.error.message)}</p></div>`;
+      const rawMessage = String(postsResult.error.message || "알 수 없는 오류");
+      const friendlyMessage = rawMessage.includes("running_hub_posts")
+        ? "러닝 허브 데이터 테이블이 아직 Supabase에 반영되지 않았습니다. SQL 패치를 먼저 실행해 주세요."
+        : `러닝 허브 로드 실패: ${escapeHtml(rawMessage)}`;
+      runningPublicList.innerHTML = `<div class="panel"><p class="list-meta">${friendlyMessage}</p></div>`;
     }
     return;
   }
@@ -473,5 +478,8 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 }
+
+
+
 
 
