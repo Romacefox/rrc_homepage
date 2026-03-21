@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RRC | 濡쒓렇??& ?쒕룞 蹂대뱶</title>
-  <meta name="description" content="RRC ?뚯썝 濡쒓렇?멸낵 ?쒕룞 蹂대뱶瑜??뺤씤?섎뒗 ?섏씠吏" />
+  <title>RRC | 로그인 & 활동 보드</title>
+  <meta name="description" content="RRC 회원 로그인과 활동 보드를 확인하는 페이지" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=SUIT:wght@300;400;500;700;800&display=swap" rel="stylesheet" />
@@ -15,15 +15,15 @@
     <div class="container nav-wrap">
       <a href="index.html" class="logo">RRC</a>
       <nav class="nav-links">
-        <a href="login.html" data-auth-entry>?뚯썝媛??/ 濡쒓렇??/a>
-        <a href="index.html#about">?щ（ ?뚭컻</a>
-        <a href="index.html#notice">怨듭?</a>
-        <a href="login.html">?쒕룞 蹂대뱶</a>
-        <a href="gallery.html">?ъ쭊泥?/a>
-        <a href="running.html">?щ떇 ?덈툕</a>
-        <a href="login.html" data-member-nav class="hidden" hidden>?쒕룞 蹂대뱶</a>
-        <a href="index.html#admin" data-admin-nav class="hidden nav-admin-link" hidden>?댁쁺 愿由?/a>
-        <a href="index.html">硫붿씤</a>
+        <a href="login.html" data-auth-entry>회원가입 / 로그인</a>
+        <a href="index.html#about">크루 소개</a>
+        <a href="index.html#notice">공지</a>
+        <a href="login.html">활동 보드</a>
+        <a href="gallery.html">사진첩</a>
+        <a href="running.html">러닝 허브</a>
+        <a href="login.html" data-member-nav class="hidden" hidden>활동 보드</a>
+        <a href="index.html#admin" data-admin-nav class="hidden nav-admin-link" hidden>운영 관리</a>
+        <a href="index.html">메인</a>
       </nav>
     </div>
   </header>
@@ -32,85 +32,85 @@
     <section class="section alt">
       <div class="container two-col auth-shell">
         <article id="login-panel" class="panel login-panel">
-          <h2 id="login-panel-title">濡쒓렇??/h2>
-          <p class="list-meta">濡쒓렇?????쒕룞 蹂대뱶? ?ъ쭊泥??낅줈??湲곕뒫???ъ슜?????덉뒿?덈떎.</p>
+          <h2 id="login-panel-title">활동 보드</h2>
+          <p class="list-meta">로그인 후 활동 보드와 사진첩 업로드 기능을 사용할 수 있습니다.</p>
           <form class="form compact" id="login-form">
-            <input id="login-email" type="email" placeholder="?대찓?? autocomplete="username" required />
-            <input id="login-password" type="password" placeholder="鍮꾨?踰덊샇" autocomplete="current-password" required />
+            <input id="login-email" type="email" placeholder="이메일" autocomplete="username" required />
+            <input id="login-password" type="password" placeholder="비밀번호" autocomplete="current-password" required />
             <div class="inline-form">
-              <button id="login-submit" class="btn primary" type="submit">濡쒓렇??/button>
+              <button id="login-submit" class="btn primary" type="submit">로그인</button>
             </div>
           </form>
-          <p id="login-status" class="list-meta">濡쒓렇?몄씠 ?꾩슂?⑸땲??</p>
-          <p id="login-approval-status" class="list-meta">?뱀씤 ?뚯썝留??쒕룞 蹂대뱶? ?곹샇?묒슜 湲곕뒫???ъ슜?????덉뒿?덈떎.</p>
+          <p id="login-status" class="list-meta">로그인이 필요합니다.</p>
+          <p id="login-approval-status" class="list-meta">승인 회원만 활동 보드와 상호작용 기능을 사용할 수 있습니다.</p>
           <div id="login-guest-actions" class="auth-links-row">
-            <a class="btn ghost" href="signup.html">?뚯썝媛??/a>
-            <a class="btn ghost" href="gallery.html">?ъ쭊泥⑹쑝濡??대룞</a>
+            <a class="btn ghost" href="signup.html">회원가입</a>
+            <a class="btn ghost" href="gallery.html">사진첩으로 이동</a>
           </div>
-          <div id="login-member-actions" class="auth-links-row auth-success-actions hidden">
-            <a class="btn primary" href="gallery.html">?ъ쭊泥⑹쑝濡??대룞</a>
-            <a class="btn ghost" href="running.html">?щ떇 ?덈툕</a>
-            <a class="btn ghost hidden" href="index.html#admin" data-admin-nav hidden>?댁쁺 愿由?/a>
-            <button id="login-logout" class="btn ghost" type="button">濡쒓렇?꾩썐</button>
+          <div id="login-member-actions" class="auth-links-row auth-success-actions hidden" hidden>
+            <a class="btn primary" href="gallery.html">사진첩으로 이동</a>
+            <a class="btn ghost" href="running.html">러닝 허브</a>
+            <a class="btn ghost hidden" href="index.html#admin" data-admin-nav hidden>운영 관리</a>
+            <button id="login-logout" class="btn ghost" type="button">로그아웃</button>
           </div>
         </article>
 
         <article class="panel member-board-panel">
           <div class="section-head">
-            <h2>?쒕룞 蹂대뱶</h2>
-            <span id="runner-month-label" class="badge">?대쾲 ??湲곗?</span>
+            <h2>활동 보드</h2>
+            <span id="runner-month-label" class="badge">이번 달 기준</span>
           </div>
-          <p id="activity-lock" class="list-meta">?뱀씤 ?뚯썝 濡쒓렇?????붾퀎 異쒖꽍, 異쒖꽍 ?ㅽ듃由? ?대떖???щ꼫瑜?蹂????덉뒿?덈떎.</p>
+          <p id="activity-lock" class="list-meta">승인 회원 로그인 후 월별 출석, 출석 스트릭, 이달의 러너를 볼 수 있습니다.</p>
           <div id="activity-board" class="hidden">
             <div class="inline-form" style="margin-top:0.8rem;">
               <select id="activity-month"></select>
-              <button id="activity-refresh" class="btn ghost" type="button">?덈줈怨좎묠</button>
+              <button id="activity-refresh" class="btn ghost" type="button">새로고침</button>
             </div>
             <div class="stats-grid member-board-stats" style="margin-top:0.8rem;">
-              <div class="stat-card"><span>?대쾲 ??異쒖꽍</span><strong id="my-month-runs">0??/strong></div>
-              <div class="stat-card"><span>?꾩쟻 異쒖꽍</span><strong id="my-total-runs">0??/strong></div>
-              <div class="stat-card"><span>異쒖꽍 ?ㅽ듃由?/span><strong id="my-streak">0媛쒖썡</strong></div>
+              <div class="stat-card"><span>이번 달 출석</span><strong id="my-month-runs">0회</strong></div>
+              <div class="stat-card"><span>누적 출석</span><strong id="my-total-runs">0회</strong></div>
+              <div class="stat-card"><span>출석 스트릭</span><strong id="my-streak">0개월</strong></div>
             </div>
             <article class="panel board-highlight member-focus-panel" style="margin-top:1rem;">
               <div class="section-head">
-                <h3>?쒕룞 蹂대뱶 ?붿빟</h3>
-                <span class="badge">媛쒖씤 湲곕줉</span>
+                <h3>활동 보드 요약</h3>
+                <span class="badge">개인 기록</span>
               </div>
               <div class="stats-grid member-personal-stats" style="margin-top:0.8rem;">
-                <div class="stat-card"><span>?대쾲 ???뚮퉬</span><strong id="my-fee-status">?뺤씤 以?/strong></div>
-                <div class="stat-card"><span>理쒓렐 異붿꺼 寃곌낵</span><strong id="my-raffle-status">?뺤씤 以?/strong></div>
-                <div class="stat-card"><span>?ㅽ듃由?蹂??/span><strong id="my-streak-change">?뺤씤 以?/strong></div>
+                <div class="stat-card"><span>이번 달 회비</span><strong id="my-fee-status">확인 중</strong></div>
+                <div class="stat-card"><span>최근 추첨 결과</span><strong id="my-raffle-status">확인 중</strong></div>
+                <div class="stat-card"><span>스트릭 변화</span><strong id="my-streak-change">확인 중</strong></div>
               </div>
               <div style="margin-top:0.9rem;">
-                <h4 style="margin-bottom:0.45rem;">??異쒖꽍 ?ъ꽦 諛곗?</h4>
+                <h4 style="margin-bottom:0.45rem;">내 출석 달성 배지</h4>
                 <div id="my-badges" class="raffle-winner-tags"></div>
               </div>
             </article>
             <div class="board-layout" style="margin-top:1rem;">
               <div>
-                <h3>?붾퀎 異쒖꽍 ?쒖쐞</h3>
+                <h3>월별 출석 순위</h3>
                 <ul id="attendance-board" class="list small"></ul>
               </div>
               <div>
-                <h3>?대떖???щ꼫</h3>
+                <h3>이달의 러너</h3>
                 <div id="runner-card" class="panel board-highlight">
-                  <p class="list-meta">?곗씠?곕? 遺덈윭?ㅻ뒗 以묒엯?덈떎.</p>
+                  <p class="list-meta">데이터를 불러오는 중입니다.</p>
                 </div>
-                <h3 style="margin-top:1rem;">理쒓렐 異붿꺼 湲곕줉</h3>
+                <h3 style="margin-top:1rem;">최근 추첨 기록</h3>
                 <ul id="board-raffle-history" class="list small"></ul>
               </div>
             </div>
             <div class="board-record-grid" style="margin-top:1rem;">
               <article class="panel">
-                <h3>???ъ쭊 ?낅줈??湲곕줉</h3>
+                <h3>내 사진 업로드 기록</h3>
                 <ul id="my-photo-history" class="list small"></ul>
               </article>
               <article class="panel">
-                <h3>???볤?</h3>
+                <h3>내 댓글</h3>
                 <ul id="my-comment-history" class="list small"></ul>
               </article>
               <article class="panel">
-                <h3>??異붿꺼 ?대젰</h3>
+                <h3>내 추첨 이력</h3>
                 <ul id="my-raffle-history" class="list small"></ul>
               </article>
             </div>
@@ -123,13 +123,11 @@
   <footer class="site-footer">
     <div class="container footer-wrap">
       <p>&copy; <span id="year"></span> RRC</p>
-      <p><a href="index.html">硫붿씤?쇰줈 ?뚯븘媛湲?/a></p>
+      <p><a href="index.html">메인으로 돌아가기</a></p>
     </div>
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="auth.js?v=20260321c"></script>
+  <script src="auth.js?v=20260321a"></script>
 </body>
 </html>
-
-

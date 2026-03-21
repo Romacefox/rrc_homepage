@@ -1,6 +1,5 @@
 ﻿const SUPABASE_URL = "https://aqpszgycsfpxtlsuaqrt.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_C20xXZZRWdjmkzGneCcpjw_mrRnXucq";
-const AUTH_SESSION_CACHE_KEY = "rrc-auth-session-cache-v1";
 
 let runningClient = null;
 let runningUser = null;
@@ -45,7 +44,7 @@ function initRunningHub() {
     return;
   }
 
-  runningClient = window.__RRC_SUPABASE_CLIENT || window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  runningClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
@@ -58,51 +57,29 @@ function initRunningHub() {
   runningAdminRefresh?.addEventListener("click", loadRunningAdminList);
   runningFilter?.addEventListener("change", renderRunningPublic);
 
-  window.addEventListener("rrc-auth-state", async (event) => {
-    const detail = event?.detail || {};
-    runningUser = detail.user || null;
-    runningProfile = detail.profile || null;
-    await refreshRunningSession(false);
-  });
-
   runningClient.auth.onAuthStateChange(async (_event, session) => {
-    runningUser = session?.user || runningUser || null;
-    await refreshRunningSession(!runningProfile);
+    runningUser = session?.user || null;
+    await refreshRunningSession();
   });
 
-  const sharedState = window.__RRC_AUTH_STATE || null;
-  if (sharedState?.user || sharedState?.profile) {
-    runningUser = sharedState.user || null;
-    runningProfile = sharedState.profile || null;
-    void refreshRunningSession(false);
-  } else {
-    void resolveRunningUser().then(async (user) => {
-      runningUser = user;
-      await refreshRunningSession(true);
-    });
-  }
+  runningClient.auth.getSession().then(async ({ data }) => {
+    runningUser = data?.session?.user || readStoredRunningUser() || null;
+    await refreshRunningSession();
+  });
 
   document.addEventListener("visibilitychange", async () => {
     if (document.visibilityState !== "visible" || !runningClient) {
       return;
     }
-    const visibleShared = window.__RRC_AUTH_STATE || null;
-    if (visibleShared?.user || visibleShared?.profile) {
-      runningUser = visibleShared.user || null;
-      runningProfile = visibleShared.profile || null;
-      await refreshRunningSession(false);
-      return;
-    }
-    runningUser = await resolveRunningUser();
-    await refreshRunningSession(true);
+    const { data } = await runningClient.auth.getSession();
+    runningUser = data?.session?.user || readStoredRunningUser() || null;
+    await refreshRunningSession();
   });
 }
 
-async function refreshRunningSession(shouldReloadProfile = true) {
+async function refreshRunningSession() {
   try {
-    if (shouldReloadProfile || (!runningProfile && runningUser)) {
-      await loadRunningProfile();
-    }
+    await loadRunningProfile();
     renderRunningAuthState();
     await loadRunningHub();
   } catch (error) {
@@ -191,15 +168,6 @@ function updateSharedNavigation(memberVisible, adminVisible) {
   authEntryLinks.forEach((node) => setVisibility(node, !memberVisible));
 }
 
-function readCachedRunningSession() {
-  try {
-    const raw = localStorage.getItem(AUTH_SESSION_CACHE_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch (_error) {
-    return null;
-  }
-}
-
 function readStoredRunningUser() {
   try {
     const raw = localStorage.getItem("rrc-auth");
@@ -226,23 +194,7 @@ async function resolveRunningUser() {
       return sessionUser;
     }
   } catch (_error) {
-    // Continue to fallback checks.
-  }
-
-  const cachedSession = readCachedRunningSession();
-  if (cachedSession?.access_token && cachedSession?.refresh_token) {
-    try {
-      const restored = await runningClient.auth.setSession({
-        access_token: cachedSession.access_token,
-        refresh_token: cachedSession.refresh_token
-      });
-      const restoredUser = restored.data?.user || restored.data?.session?.user || null;
-      if (restoredUser) {
-        return restoredUser;
-      }
-    } catch (_error) {
-      // Continue to other fallbacks.
-    }
+    // Ignore and continue to fallback checks.
   }
 
   try {
@@ -252,10 +204,10 @@ async function resolveRunningUser() {
       return directUser;
     }
   } catch (_error) {
-    // Continue to local fallback.
+    // Ignore and continue to local fallback.
   }
 
-  return readStoredRunningUser() || cachedSession?.user || null;
+  return readStoredRunningUser() || null;
 }
 function setVisibility(node, visible) {
   if (!node) {
@@ -629,9 +581,6 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 }
-
-
-
 
 
 

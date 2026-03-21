@@ -3,7 +3,6 @@ const SUPABASE_ANON_KEY = "sb_publishable_C20xXZZRWdjmkzGneCcpjw_mrRnXucq";
 const PHOTO_BUCKET = "rrc-photos";
 const PENDING_SIGNUP_PREFIX = "rrc-pending-signup:";
 const ADMIN_SNAPSHOT_META_KEY = "rrc-admin-snapshot-meta-v1";
-const AUTH_SESSION_CACHE_KEY = "rrc-auth-session-cache-v1";
 
 let supabaseClient = null;
 let authUser = null;
@@ -90,19 +89,6 @@ if (yearNode) {
 }
 init();
 
-function publishAuthState() {
-  try {
-    const snapshot = {
-      user: authUser || null,
-      profile: authProfile || null
-    };
-    window.__RRC_AUTH_STATE = snapshot;
-    window.dispatchEvent(new CustomEvent('rrc-auth-state', { detail: snapshot }));
-  } catch (_error) {
-    // Ignore event publishing failures.
-  }
-}
-
 
 function getPostLoginRedirectUrl() {
   try {
@@ -130,30 +116,6 @@ function redirectAfterLoginIfNeeded() {
   window.location.href = redirectUrl;
   return true;
 }
-
-function cacheAuthSession(session) {
-  try {
-    if (!session?.access_token || !session?.refresh_token) {
-      localStorage.removeItem(AUTH_SESSION_CACHE_KEY);
-      return;
-    }
-    localStorage.setItem(AUTH_SESSION_CACHE_KEY, JSON.stringify({
-      access_token: session.access_token,
-      refresh_token: session.refresh_token,
-      user: session.user ? { id: session.user.id, email: session.user.email || "" } : null
-    }));
-  } catch (_error) {
-    // Ignore storage errors.
-  }
-}
-
-function clearAuthSessionCache() {
-  try {
-    localStorage.removeItem(AUTH_SESSION_CACHE_KEY);
-  } catch (_error) {
-    // Ignore storage errors.
-  }
-}
 function init() {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     setStatus(loginStatus, "설정 필요: auth.js 상단의 SUPABASE 값을 입력해 주세요.");
@@ -177,7 +139,6 @@ function init() {
       storageKey: "rrc-auth"
     }
   });
-  window.__RRC_SUPABASE_CLIENT = supabaseClient;
 
   signupForm?.addEventListener("submit", handleSignup);
   loginForm?.addEventListener("submit", handleLogin);
@@ -202,7 +163,6 @@ function init() {
   }
 
   supabaseClient.auth.onAuthStateChange((_event, session) => {
-    cacheAuthSession(session || null);
     void hydrateAuthState(session?.user || null);
   });
 
@@ -223,7 +183,6 @@ async function hydrateAuthState(forcedUser = undefined) {
 
   if (forcedUser === undefined) {
     const sessionResult = await supabaseClient.auth.getSession();
-    cacheAuthSession(sessionResult.data?.session || null);
     authUser = sessionResult.data?.session?.user || null;
   } else {
     authUser = forcedUser;
@@ -232,23 +191,9 @@ async function hydrateAuthState(forcedUser = undefined) {
   await ensurePendingProfile();
   await loadMyProfile();
   renderAuthState();
-  publishAuthState();
   await Promise.allSettled([loadPhotos(), loadActivityBoard()]);
 }
 
-
-function getFriendlySignupErrorMessage(error) {
-  const rawMessage = String(error?.message || error || "알 수 없는 오류");
-  const normalized = rawMessage.toLowerCase();
-
-  if (normalized.includes("email rate limit exceeded")) {
-    return "인증 메일 발송 제한에 걸렸습니다. 잠시 후 다시 시도하거나, 이미 받은 인증 메일과 스팸함을 먼저 확인해 주세요.";
-  }
-  if (normalized.includes("user already registered")) {
-    return "이미 가입된 이메일입니다. 아래 로그인으로 진행해 주세요.";
-  }
-  return `가입 실패: ${rawMessage}`;
-}
 async function handleSignup(event) {
   event?.preventDefault();
 
@@ -299,15 +244,12 @@ async function handleSignup(event) {
     }
   });
   if (signUpResult.error) {
-    const errorMessage = getFriendlySignupErrorMessage(signUpResult.error);
-    if (!String(signUpResult.error.message || "").toLowerCase().includes("email rate limit exceeded")) {
-      localStorage.removeItem(`${PENDING_SIGNUP_PREFIX}${payload.email.toLowerCase()}`);
-    }
-    setStatus(signupStatus, errorMessage);
+    localStorage.removeItem(`${PENDING_SIGNUP_PREFIX}${payload.email.toLowerCase()}`);
+    setStatus(signupStatus, `가입 실패: ${signUpResult.error.message}`);
     return;
   }
 
-  setStatus(signupStatus, "가입 신청이 접수되었습니다. 이메일 인증을 완료한 뒤 로그인하면 운영진 승인 대기 상태를 확인할 수 있습니다. 인증 메일은 스팸함도 함께 확인해 주세요.");
+  setStatus(signupStatus, "가입 신청이 완료되었습니다. 이메일 인증 후 로그인하면 운영진 승인 대기 상태로 연결됩니다.");
 }
 
 async function handleLogin(event) {
@@ -333,7 +275,6 @@ async function handleLogin(event) {
       return;
     }
 
-    cacheAuthSession(loginResult.data?.session || null);
     const signedInUser = loginResult.data?.session?.user || loginResult.data?.user || null;
     await hydrateAuthState(signedInUser);
 
@@ -355,14 +296,12 @@ async function handleLogout() {
     return;
   }
   await supabaseClient.auth.signOut();
-  clearAuthSessionCache();
   authUser = null;
   authProfile = null;
   if (loginPasswordInput) {
     loginPasswordInput.value = "";
   }
   renderAuthState();
-  publishAuthState();
   renderBoardLocked("승인 회원 로그인 후 월별 출석, 출석 스트릭, 이달의 러너를 볼 수 있습니다.");
   setStatus(loginStatus, loginStatus ? "로그아웃 완료" : null);
 }
@@ -480,7 +419,7 @@ function renderAuthState() {
     return;
   }
 
-  const label = authProfile.approval_status === "pending" ? `승인 상태: 승인 대기${roleSuffix} / 운영진 확인 후 활동 보드, 사진첩, 러닝 허브 글쓰기가 열립니다.` : `승인 상태: ${statusLabel(authProfile.approval_status)}${roleSuffix}`;
+  const label = `승인 상태: ${statusLabel(authProfile.approval_status)}${roleSuffix}`;
   setStatus(loginApprovalStatus, loginApprovalStatus ? label : null);
   setStatus(galleryApprovalStatus, galleryApprovalStatus ? label : null);
 
@@ -1448,10 +1387,6 @@ async function notifySignupRequest(payload) {
     // Notification failure should not block signup flow.
   }
 }
-
-
-
-
 
 
 
