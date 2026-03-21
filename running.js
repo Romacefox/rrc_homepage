@@ -45,7 +45,7 @@ function initRunningHub() {
     return;
   }
 
-  runningClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  runningClient = window.__RRC_SUPABASE_CLIENT || window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
@@ -58,28 +58,51 @@ function initRunningHub() {
   runningAdminRefresh?.addEventListener("click", loadRunningAdminList);
   runningFilter?.addEventListener("change", renderRunningPublic);
 
-  runningClient.auth.onAuthStateChange(async (_event, session) => {
-    runningUser = session?.user || null;
-    await refreshRunningSession();
+  window.addEventListener("rrc-auth-state", async (event) => {
+    const detail = event?.detail || {};
+    runningUser = detail.user || null;
+    runningProfile = detail.profile || null;
+    await refreshRunningSession(false);
   });
 
-  void resolveRunningUser().then(async (user) => {
-    runningUser = user;
-    await refreshRunningSession();
+  runningClient.auth.onAuthStateChange(async (_event, session) => {
+    runningUser = session?.user || runningUser || null;
+    await refreshRunningSession(!runningProfile);
   });
+
+  const sharedState = window.__RRC_AUTH_STATE || null;
+  if (sharedState?.user || sharedState?.profile) {
+    runningUser = sharedState.user || null;
+    runningProfile = sharedState.profile || null;
+    void refreshRunningSession(false);
+  } else {
+    void resolveRunningUser().then(async (user) => {
+      runningUser = user;
+      await refreshRunningSession(true);
+    });
+  }
 
   document.addEventListener("visibilitychange", async () => {
     if (document.visibilityState !== "visible" || !runningClient) {
       return;
     }
+    const visibleShared = window.__RRC_AUTH_STATE || null;
+    if (visibleShared?.user || visibleShared?.profile) {
+      runningUser = visibleShared.user || null;
+      runningProfile = visibleShared.profile || null;
+      await refreshRunningSession(false);
+      return;
+    }
     runningUser = await resolveRunningUser();
-    await refreshRunningSession();
+    await refreshRunningSession(true);
   });
 }
 
-async function refreshRunningSession() {
+async function refreshRunningSession(shouldReloadProfile = true) {
   try {
-    await loadRunningProfile();
+    if (shouldReloadProfile || (!runningProfile && runningUser)) {
+      await loadRunningProfile();
+    }
     renderRunningAuthState();
     await loadRunningHub();
   } catch (error) {

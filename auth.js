@@ -90,6 +90,19 @@ if (yearNode) {
 }
 init();
 
+function publishAuthState() {
+  try {
+    const snapshot = {
+      user: authUser || null,
+      profile: authProfile || null
+    };
+    window.__RRC_AUTH_STATE = snapshot;
+    window.dispatchEvent(new CustomEvent('rrc-auth-state', { detail: snapshot }));
+  } catch (_error) {
+    // Ignore event publishing failures.
+  }
+}
+
 
 function getPostLoginRedirectUrl() {
   try {
@@ -164,6 +177,7 @@ function init() {
       storageKey: "rrc-auth"
     }
   });
+  window.__RRC_SUPABASE_CLIENT = supabaseClient;
 
   signupForm?.addEventListener("submit", handleSignup);
   loginForm?.addEventListener("submit", handleLogin);
@@ -218,6 +232,7 @@ async function hydrateAuthState(forcedUser = undefined) {
   await ensurePendingProfile();
   await loadMyProfile();
   renderAuthState();
+  publishAuthState();
   await Promise.allSettled([loadPhotos(), loadActivityBoard()]);
 }
 
@@ -347,6 +362,7 @@ async function handleLogout() {
     loginPasswordInput.value = "";
   }
   renderAuthState();
+  publishAuthState();
   renderBoardLocked("승인 회원 로그인 후 월별 출석, 출석 스트릭, 이달의 러너를 볼 수 있습니다.");
   setStatus(loginStatus, loginStatus ? "로그아웃 완료" : null);
 }
