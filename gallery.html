@@ -1,122 +1,117 @@
-﻿>?? ??<!DOCTYPE html>
->?? ??<html lang="ko">
->?? ??<head>
- >?? ??<meta charset="UTF-8" />
- >?? ??<meta name="viewport" content="width=device-width, initial-scale=1.0" />
- >?? ??<title>RRC | 사진첩>?? ??</title>
- >?? ??<meta name="description" content="RRC 월별 사진첩과 회원 업로드 페이지" />
- >?? ??<link rel="preconnect" href="https://fonts.googleapis.com" />
- >?? ??<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
- >?? ??<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=SUIT:wght@300;400;500;700;800&display=swap" rel="stylesheet" />
- >?? ??<link rel="stylesheet" href="styles.css?v=20260317c" />
->?? ??</head>
->?? ??<body>
- >?? ??<header class="site-header">
-   >?? ??<div class="container nav-wrap">
-     >?? ??<a href="index.html" class="logo">RRC>?? ??</a>
-     >?? ??<nav class="nav-links">
-       >?? ??<a href="login.html" data-auth-entry>회원가입 / 로그인>?? ??</a>
-       >?? ??<a href="index.html#about">크루 소개>?? ??</a>
-       >?? ??<a href="index.html#notice">공지>?? ??</a>
-       >?? ??<a href="login.html">활동 보드>?? ??</a>
-       >?? ??<a href="gallery.html">사진첩>?? ??</a>
-       >?? ??<a href="running.html">러닝 허브>?? ??</a>
-       >?? ??<a href="login.html" data-member-nav class="hidden" hidden>활동 보드>?? ??</a>
-       >?? ??<a href="index.html#admin" data-admin-nav class="hidden" hidden>운영 관리>?? ??</a>
-       >?? ??<a href="index.html">메인>?? ??</a>
-     >?? ??</nav>
-   >?? ??</div>
- >?? ??</header>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RRC | 사진첩</title>
+  <meta name="description" content="RRC 월별 사진첩과 회원 업로드 페이지" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=SUIT:wght@300;400;500;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=20260317c" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="container nav-wrap">
+      <a href="index.html" class="logo">RRC</a>
+      <nav class="nav-links">
+        <a href="login.html" data-auth-entry>회원가입 / 로그인</a>
+        <a href="index.html#about">크루 소개</a>
+        <a href="index.html#notice">공지</a>
+        <a href="login.html">활동 보드</a>
+        <a href="gallery.html">사진첩</a>
+        <a href="running.html">러닝 허브</a>
+        <a href="login.html" data-member-nav class="hidden" hidden>활동 보드</a>
+        <a href="index.html#admin" data-admin-nav class="hidden" hidden>운영 관리</a>
+        <a href="index.html">메인</a>
+      </nav>
+    </div>
+  </header>
 
- >?? ??<main>
-   >?? ??<section class="section alt">
-     >?? ??<div class="container two-col auth-shell gallery-shell">
-       >?? ??<article class="panel gallery-upload-panel">
-         >?? ??<div class="section-head">
-           >?? ??<h2>사진첩 업로드>?? ??</h2>
-           >?? ??<span class="badge">로그인 회원 업로드>?? ??</span>
-         >?? ??</div>
-         >?? ??<p class="list-meta">보기는 누구나 가능하고 업로드는 로그인 회원만 가능합니다.>?? ??</p>
-         >?? ??<div class="gallery-status-box">
-           >?? ??<p id="gallery-auth-status" class="list-meta">로그인 상태를 확인하는 중입니다.>?? ??</p>
-           >?? ??<p id="gallery-approval-status" class="list-meta">승인 상태에 따라 일부 기능이 제한될 수 있습니다.>?? ??</p>
-         >?? ??</div>
-         >?? ??<div id="gallery-guest-actions" class="auth-links-row" style="margin-bottom:0.8rem;">
-           >?? ??<a class="btn ghost" href="login.html">로그인 페이지>?? ??</a>
-           >?? ??<a class="btn ghost" href="login.html">회원가입 / 로그인>?? ??</a>
-         >?? ??</div>
-         >?? ??<div id="gallery-member-actions" class="auth-links-row hidden" style="margin-bottom:0.8rem;">
-           >?? ??<a class="btn ghost" href="login.html">활동 보드 보드>?? ??</a>
-           >?? ??<a class="btn ghost" href="running.html">러닝 허브>?? ??</a>
-           >?? ??<a class="btn ghost hidden" href="index.html#admin" data-admin-nav hidden>운영 관리>?? ??</a>
-         >?? ??</div>
-         >?? ??<form class="form compact" id="photo-upload-form">
-           >?? ??<input id="photo-file" type="file" accept="image/*" />
-           >?? ??<input id="photo-caption" type="text" placeholder="사진 설명 (선택 사항, 짧게 적어도 됩니다)" />
-           >?? ??<button id="photo-upload" class="btn primary" type="button">사진 업로드>?? ??</button>
-         >?? ??</form>
-         >?? ??<p id="photo-status" class="list-meta">로그인 후 업로드 가능합니다.>?? ??</p>
-       >?? ??</article>
+  <main>
+    <section class="section alt">
+      <div class="container two-col auth-shell gallery-shell">
+        <article class="panel gallery-upload-panel">
+          <div class="section-head">
+            <h2>사진첩 업로드</h2>
+            <span class="badge">로그인 회원 업로드</span>
+          </div>
+          <p class="list-meta">보기는 누구나 가능하고 업로드는 로그인 회원만 가능합니다.</p>
+          <div class="gallery-status-box">
+            <p id="gallery-auth-status" class="list-meta">로그인 상태를 확인하는 중입니다.</p>
+            <p id="gallery-approval-status" class="list-meta">승인 상태에 따라 일부 기능이 제한될 수 있습니다.</p>
+          </div>
+          <div id="gallery-guest-actions" class="auth-links-row" style="margin-bottom:0.8rem;">
+            <a class="btn ghost" href="login.html">로그인 페이지</a>
+            <a class="btn ghost" href="login.html">회원가입 / 로그인</a>
+          </div>
+          <div id="gallery-member-actions" class="auth-links-row hidden" style="margin-bottom:0.8rem;">
+            <a class="btn ghost" href="login.html">내 활동 보드</a>
+            <a class="btn ghost" href="running.html">러닝 허브</a>
+            <a class="btn ghost hidden" href="index.html#admin" data-admin-nav hidden>운영 관리</a>
+          </div>
+          <form class="form compact" id="photo-upload-form">
+            <input id="photo-file" type="file" accept="image/*" />
+            <input id="photo-caption" type="text" placeholder="사진 설명 (선택 사항, 짧게 적어도 됩니다)" />
+            <button id="photo-upload" class="btn primary" type="button">사진 업로드</button>
+          </form>
+          <p id="photo-status" class="list-meta">로그인 후 업로드 가능합니다.</p>
+        </article>
 
-       >?? ??<article class="panel gallery-list-panel">
-         >?? ??<div class="section-head">
-           >?? ??<h2>월별 사진첩>?? ??</h2>
-           >?? ??<span class="badge">월별 필터>?? ??</span>
-         >?? ??</div>
-         >?? ??<div class="inline-form" style="margin-top:0.8rem;">
-           >?? ??<select id="photo-month-filter">?? ??</select>
-           >?? ??<button id="photo-filter-reset" class="btn ghost" type="button">전체 보기>?? ??</button>
-         >?? ??</div>
-         >?? ??<div id="photo-grid" class="photo-grid" style="margin-top:1rem;">?? ??</div>
-         >?? ??<div id="photo-modal" class="photo-modal hidden" hidden>
-           >?? ??<div class="photo-modal-backdrop" data-photo-modal-close>?? ??</div>
-           >?? ??<article class="photo-modal-card">
-             >?? ??<button id="photo-modal-close" class="btn ghost photo-modal-close" type="button">닫기>?? ??</button>
-             >?? ??<img id="photo-modal-image" class="photo-modal-image" alt="RRC photo detail" />
-             >?? ??<div class="photo-modal-meta">
-               >?? ??<h3 id="photo-modal-caption">사진 설명>?? ??</h3>
-               >?? ??<p id="photo-modal-date" class="list-meta">?? ??</p>
-               >?? ??<div class="like-row">
-                 >?? ??<button id="photo-like-button" class="btn ghost" type="button">좋아요>?? ??</button>
-                 >?? ??<span id="photo-like-count" class="list-meta">좋아요 0>?? ??</span>
-               >?? ??</div>
-             >?? ??</div>
-             >?? ??<div class="photo-comments">
-               >?? ??<div class="section-head">
-                 >?? ??<h3>댓글>?? ??</h3>
-                 >?? ??<span class="badge">승인 회원 작성>?? ??</span>
-               >?? ??</div>
-               >?? ??<p id="photo-comment-lock" class="list-meta">로그인 및 댓글 권한 상태를 확인 중입니다.>?? ??</p>
-               >?? ??<form id="photo-comment-form" class="form compact hidden">
-                 >?? ??<textarea id="photo-comment-input" rows="3" placeholder="함께 뛰었던 기억이나 짧은 코멘트를 남겨 보세요">?? ??</textarea>
-                 >?? ??<button id="photo-comment-submit" class="btn primary" type="submit">댓글 등록>?? ??</button>
-               >?? ??</form>
-               >?? ??<p id="photo-comment-status" class="list-meta">?? ??</p>
-               >?? ??<ul id="photo-comment-list" class="list small">?? ??</ul>
-             >?? ??</div>
-           >?? ??</article>
-         >?? ??</div>
-       >?? ??</article>
-     >?? ??</div>
-   >?? ??</section>
- >?? ??</main>
+        <article class="panel gallery-list-panel">
+          <div class="section-head">
+            <h2>월별 사진첩</h2>
+            <span class="badge">월별 필터</span>
+          </div>
+          <div class="inline-form" style="margin-top:0.8rem;">
+            <select id="photo-month-filter"></select>
+            <button id="photo-filter-reset" class="btn ghost" type="button">전체 보기</button>
+          </div>
+          <div id="photo-grid" class="photo-grid" style="margin-top:1rem;"></div>
+          <div id="photo-modal" class="photo-modal hidden" hidden>
+            <div class="photo-modal-backdrop" data-photo-modal-close></div>
+            <article class="photo-modal-card">
+              <button id="photo-modal-close" class="btn ghost photo-modal-close" type="button">닫기</button>
+              <img id="photo-modal-image" class="photo-modal-image" alt="RRC photo detail" />
+              <div class="photo-modal-meta">
+                <h3 id="photo-modal-caption">사진 설명</h3>
+                <p id="photo-modal-date" class="list-meta"></p>
+                <div class="like-row">
+                  <button id="photo-like-button" class="btn ghost" type="button">좋아요</button>
+                  <span id="photo-like-count" class="list-meta">좋아요 0</span>
+                </div>
+              </div>
+              <div class="photo-comments">
+                <div class="section-head">
+                  <h3>댓글</h3>
+                  <span class="badge">승인 회원 작성</span>
+                </div>
+                <p id="photo-comment-lock" class="list-meta">로그인 및 댓글 권한 상태를 확인 중입니다.</p>
+                <form id="photo-comment-form" class="form compact hidden">
+                  <textarea id="photo-comment-input" rows="3" placeholder="함께 뛰었던 기억이나 짧은 코멘트를 남겨 보세요"></textarea>
+                  <button id="photo-comment-submit" class="btn primary" type="submit">댓글 등록</button>
+                </form>
+                <p id="photo-comment-status" class="list-meta"></p>
+                <ul id="photo-comment-list" class="list small"></ul>
+              </div>
+            </article>
+          </div>
+        </article>
+      </div>
+    </section>
+  </main>
 
- >?? ??<footer class="site-footer">
-   >?? ??<div class="container footer-wrap">
-     >?? ??<p>&copy;>?? ??<span id="year">?? ??</span> RRC>?? ??</p>
-     >?? ??<p>?? ??<a href="index.html">메인으로 돌아가기>?? ??</a>?? ??</p>
-   >?? ??</div>
- >?? ??</footer>
+  <footer class="site-footer">
+    <div class="container footer-wrap">
+      <p>&copy; <span id="year"></span> RRC</p>
+      <p><a href="index.html">메인으로 돌아가기</a></p>
+    </div>
+  </footer>
 
- >?? ??<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">?? ??</script>
- >?? ??<script src="auth.js?v=20260321a">?? ??</script>
->?? ??</body>
->?? ??</html>
-
-
-
-
-
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="auth.js?v=20260321a"></script>
+</body>
+</html>
 
 
 
