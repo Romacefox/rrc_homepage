@@ -115,12 +115,12 @@ function renderRunningAuthState() {
     setVisibility(runningGuestActions, true);
     setVisibility(runningMemberActions, false);
     setVisibility(runningComposeJump, true);
-    setRunningText(runningAuthStatus, "로그인하면 러닝 허브 글을 더 편하게 보고 글 제안도 할 수 있습니다.");
-    setRunningText(runningRoleStatus, "승인 회원은 루트, 팁, 체크리스트, 후기를 제안할 수 있습니다.");
+    setRunningText(runningAuthStatus, "로그인하면 러닝 허브 글을 더 편하게 보고 글도 쓸 수 있습니다.");
+    setRunningText(runningRoleStatus, "승인 회원은 루트, 팁, 체크리스트, 후기를 작성할 수 있습니다.");
     setRunningText(runningComposeLock, "회원가입 후 운영진 승인까지 완료되면 글쓰기가 열립니다.");
     if (runningComposeJump) {
       runningComposeJump.textContent = "로그인하고 글쓰기";
-      runningComposeJump.setAttribute("href", "login.html");
+      runningComposeJump.setAttribute("href", "login.html?next=running&compose=1");
     }
     runningPostForm?.classList.add("hidden");
     runningAdminPanel?.classList.add("hidden");
@@ -151,7 +151,7 @@ function renderRunningAuthState() {
     setRunningText(runningComposeLock, "현재는 승인 대기 중입니다. 승인 완료 후 글쓰기가 열립니다.");
     if (runningComposeJump) {
       runningComposeJump.textContent = "승인 상태 확인하기";
-      runningComposeJump.setAttribute("href", "login.html");
+      runningComposeJump.setAttribute("href", "login.html?next=running&compose=1");
     }
     runningPostForm?.classList.add("hidden");
   }
@@ -175,12 +175,40 @@ function readStoredRunningUser() {
       return null;
     }
     const parsed = JSON.parse(raw);
-    return parsed?.user ?? parsed?.currentSession?.user ?? null;
+    return parsed?.user ?? parsed?.currentSession?.user ?? parsed?.session?.user ?? null;
   } catch (_error) {
     return null;
   }
 }
 
+
+async function resolveRunningUser() {
+  if (!runningClient) {
+    return null;
+  }
+
+  try {
+    const sessionResult = await runningClient.auth.getSession();
+    const sessionUser = sessionResult.data?.session?.user || null;
+    if (sessionUser) {
+      return sessionUser;
+    }
+  } catch (_error) {
+    // Ignore and continue to fallback checks.
+  }
+
+  try {
+    const userResult = await runningClient.auth.getUser();
+    const directUser = userResult.data?.user || null;
+    if (directUser) {
+      return directUser;
+    }
+  } catch (_error) {
+    // Ignore and continue to local fallback.
+  }
+
+  return readStoredRunningUser() || null;
+}
 function setVisibility(node, visible) {
   if (!node) {
     return;
@@ -553,4 +581,6 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 }
+
+
 

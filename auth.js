@@ -89,6 +89,33 @@ if (yearNode) {
 }
 init();
 
+
+function getPostLoginRedirectUrl() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const next = String(params.get("next") || "").trim();
+    const compose = params.get("compose") === "1";
+
+    if (next === "running") {
+      return compose ? "running.html#running-compose-section" : "running.html";
+    }
+    if (next === "gallery") {
+      return "gallery.html";
+    }
+    return "";
+  } catch (_error) {
+    return "";
+  }
+}
+
+function redirectAfterLoginIfNeeded() {
+  const redirectUrl = getPostLoginRedirectUrl();
+  if (!redirectUrl) {
+    return false;
+  }
+  window.location.href = redirectUrl;
+  return true;
+}
 function init() {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     setStatus(loginStatus, "설정 필요: auth.js 상단의 SUPABASE 값을 입력해 주세요.");
@@ -369,6 +396,10 @@ function renderAuthState() {
     setStatus(galleryApprovalStatus, galleryApprovalStatus ? "승인 상태 확인 후 이용할 수 있습니다." : null);
     disablePhotoUpload();
     updatePhotoCommentComposer(false);
+    return;
+  }
+
+  if (redirectAfterLoginIfNeeded()) {
     return;
   }
 
@@ -1356,6 +1387,7 @@ async function notifySignupRequest(payload) {
     // Notification failure should not block signup flow.
   }
 }
+
 
 
 

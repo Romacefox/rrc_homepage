@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>RRC | 러닝 허브</title>
-  <meta name="description" content="RRC 추천 루트, 러닝 팁, 체크리스트, 회원 제안을 모아보는 러닝 허브" />
+  <meta name="description" content="RRC 추천 루트, 러닝 팁, 체크리스트, 회원 글을 모아보는 러닝 허브" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=SUIT:wght@300;400;500;700;800&display=swap" rel="stylesheet" />
@@ -34,11 +34,11 @@
         <div class="section-head">
           <h2>러닝 허브</h2>
           <div class="running-cta-row">
-            <a id="running-compose-jump" class="btn primary" href="login.html">로그인하고 글쓰기</a>
+            <a id="running-compose-jump" class="btn primary" href="login.html?next=running&compose=1">로그인하고 글쓰기</a>
             <span class="badge">루트 · 팁 · 체크리스트 · 후기</span>
           </div>
         </div>
-        <p class="list-meta running-intro">운영진 추천 글과 승인 회원 제안을 함께 보는 러닝 아카이브입니다.</p>
+        <p class="list-meta running-intro">운영진 추천 글과 회원 글을 함께 보는 러닝 아카이브입니다.</p>
         <div class="auth-links-row" style="margin-top:0.9rem; margin-bottom:0.2rem;">
           <a class="btn ghost" href="login.html">활동 보드 보기</a>
           <a class="btn ghost" href="gallery.html">사진첩 보기</a>
@@ -51,7 +51,7 @@
             <p id="running-role-status" class="list-meta">승인 회원은 루트, 팁, 체크리스트, 후기를 작성할 수 있습니다.</p>
 
             <div id="running-guest-actions" class="auth-links-row">
-              <a class="btn ghost" href="login.html">로그인 페이지</a>
+              <a class="btn ghost" href="login.html?next=running&compose=1">로그인 페이지</a>
               <a class="btn ghost" href="signup.html">회원가입</a>
             </div>
 
@@ -63,7 +63,7 @@
 
             <ul class="bullet" style="margin-top:1rem;">
               <li>추천 루트, 훈련 팁, 준비 체크리스트, 러닝 후기를 한곳에서 볼 수 있습니다.</li>
-              <li>승인 회원은 글을 제안하고 운영진 검토 후 공개됩니다.</li>
+              <li>승인 회원은 글을 자유롭게 작성할 수 있으며 운영진 확인 후 공개됩니다.</li>
               <li>활동 보드와 사진첩으로 바로 이동해 흐름을 이어 볼 수 있습니다.</li>
             </ul>
 
@@ -80,7 +80,7 @@
                 <input id="running-post-title" type="text" placeholder="제목" />
                 <input id="running-post-summary" type="text" placeholder="짧은 요약" />
                 <textarea id="running-post-content" rows="6" placeholder="코스 설명, 준비물, 추천 포인트, 느낀 점을 적어 주세요."></textarea>
-                <button id="running-post-submit" class="btn primary" type="button">제안 등록</button>
+                <button id="running-post-submit" class="btn primary" type="button">글 등록</button>
               </form>
               <p id="running-post-status" class="list-meta">운영진 확인 후 공개됩니다.</p>
             </div>
@@ -108,7 +108,7 @@
                   </select>
                 </div>
               </div>
-              <div id="running-public-list" class="running-post-list" style="margin-top:1rem;"><div class="panel running-empty-state"><p class="list-meta">아직 공개된 글이 없습니다. 로그인 후 첫 글을 올려 보세요.</p><div class="auth-links-row" style="margin-top:0.8rem;"><a class="btn ghost" href="login.html">로그인하고 글쓰기</a></div></div></div>
+              <div id="running-public-list" class="running-post-list" style="margin-top:1rem;"><div class="panel running-empty-state"><p class="list-meta">아직 공개된 글이 없습니다. 로그인 후 첫 글을 올려 보세요.</p><div class="auth-links-row" style="margin-top:0.8rem;"><a class="btn ghost" href="login.html?next=running&compose=1">로그인하고 글쓰기</a></div></div></div>
             </article>
 
             <article id="running-admin-panel" class="panel hidden" style="margin-top:1rem;" hidden>
@@ -136,5 +136,7 @@
   <script src="running.js?v=20260321c"></script>
 </body>
 </html>
+
+
 
 
