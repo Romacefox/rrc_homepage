@@ -60,6 +60,13 @@ const runnerMonthLabel = document.getElementById("runner-month-label");
 const runnerCard = document.getElementById("runner-card");
 const attendanceBoard = document.getElementById("attendance-board");
 const boardRaffleHistory = document.getElementById("board-raffle-history");
+const myFeeStatus = document.getElementById("my-fee-status");
+const myRaffleStatus = document.getElementById("my-raffle-status");
+const myStreakChange = document.getElementById("my-streak-change");
+const myBadges = document.getElementById("my-badges");
+const myPhotoHistory = document.getElementById("my-photo-history");
+const myCommentHistory = document.getElementById("my-comment-history");
+const myRaffleHistory = document.getElementById("my-raffle-history");
 const memberNavLinks = document.querySelectorAll("[data-member-nav]");
 const adminNavLinks = document.querySelectorAll("[data-admin-nav]");
 const authEntryLinks = document.querySelectorAll("[data-auth-entry]");
@@ -400,6 +407,7 @@ function setVisibility(node, visible) {
 function updateSharedNavigation(memberVisible, adminVisible) {
   memberNavLinks.forEach((node) => setVisibility(node, memberVisible));
   adminNavLinks.forEach((node) => setVisibility(node, adminVisible));
+  authEntryLinks.forEach((node) => setVisibility(node, !memberVisible));
 }
 
 function updateLoginLayout(isLoggedIn) {
@@ -407,7 +415,7 @@ function updateLoginLayout(isLoggedIn) {
   setVisibility(loginGuestActions, !isLoggedIn);
   setVisibility(loginMemberActions, isLoggedIn);
   if (loginPanelTitle) {
-    loginPanelTitle.textContent = isLoggedIn ? "내 활동" : "로그인";
+    loginPanelTitle.textContent = isLoggedIn ? "활동 보드" : "로그인";
   }
   if (loginPanel) {
     loginPanel.classList.toggle("login-panel-success", isLoggedIn);
@@ -807,10 +815,17 @@ async function loadActivityBoard() {
   }
 
   if (!members.length) {
-    const membersResult = await supabaseClient
+    let membersResult = await supabaseClient
       .from("members")
-      .select("id,name,birth_year,total_runs,monthly_runs")
+      .select("id,name,birth_year,total_runs,monthly_runs,fee_status")
       .order("name", { ascending: true });
+
+    if (membersResult.error && String(membersResult.error.message || "").includes("fee_status")) {
+      membersResult = await supabaseClient
+        .from("members")
+        .select("id,name,birth_year,total_runs,monthly_runs")
+        .order("name", { ascending: true });
+    }
 
     if (membersResult.error) {
       renderBoardLocked(`활동 보드 로드 실패: ${membersResult.error.message}`);
@@ -824,13 +839,14 @@ async function loadActivityBoard() {
     .from("raffle_history")
     .select("target_month_key,threshold,winner_count,winners,created_at")
     .order("created_at", { ascending: false })
-    .limit(4);
+    .limit(10);
 
+  const raffleRecords = Array.isArray(raffleResult.data) ? raffleResult.data : [];
   const rows = members
     .map((member) => ({
       ...member,
       monthRuns: getMonthlyRuns(member, selectedMonth),
-      streak: getAttendanceStreak(member)
+      streak: getAttendanceStreakFromMonth(member, selectedMonth)
     }))
     .sort((a, b) => (b.monthRuns - a.monthRuns) || (Number(b.total_runs || 0) - Number(a.total_runs || 0)) || String(a.name || "").localeCompare(String(b.name || ""), "ko"));
 
@@ -845,7 +861,7 @@ async function loadActivityBoard() {
       return profileBirthYear === memberBirthYear;
     }
     return true;
-  });
+  }) || null;
   const runner = rows.find((member) => member.monthRuns > 0) || null;
 
   activityLock.textContent = `${monthKeyToLabel(selectedMonth)} 출석 기준입니다. ${boardSourceLabel}를 바탕으로 표시됩니다.`;
@@ -863,7 +879,8 @@ async function loadActivityBoard() {
 
   renderAttendanceBoard(rows, selectedMonth);
   renderRunnerCard(runner, selectedMonth);
-  renderBoardRaffleHistory(Array.isArray(raffleResult.data) ? raffleResult.data : []);
+  renderBoardRaffleHistory(raffleRecords.slice(0, 4));
+  await renderMyActivityState(me, selectedMonth, raffleRecords);
 }
 
 function renderBoardLocked(message) {
@@ -873,6 +890,7 @@ function renderBoardLocked(message) {
   if (activityBoard) {
     activityBoard.classList.add("hidden");
   }
+  renderPersonalBoardEmpty();
 }
 
 function renderAttendanceBoard(rows, monthKey) {
@@ -890,7 +908,7 @@ function renderAttendanceBoard(rows, monthKey) {
     item.className = "list-item";
     const badge = index === 0 && member.monthRuns > 0
       ? '<span class="status-chip">선두</span>'
-      : member.monthRuns >= 5
+      : member.monthRuns >= getMonthThreshold(monthKey)
         ? '<span class="status-chip">추첨 대상</span>'
         : "";
     item.innerHTML = `
@@ -960,15 +978,7 @@ function populateRecentMonthOptions(selectNode) {
 }
 
 function getAttendanceStreak(member) {
-  let streak = 0;
-  for (let i = 0; i < 12; i += 1) {
-    const key = shiftMonthKey(currentMonthKey(), -i);
-    if (getMonthlyRuns(member, key) <= 0) {
-      break;
-    }
-    streak += 1;
-  }
-  return streak;
+  return getAttendanceStreakFromMonth(member, currentMonthKey());
 }
 
 function getMonthlyRuns(member, monthKey) {
@@ -980,6 +990,252 @@ function getMonthlyRuns(member, monthKey) {
   return Number(monthlyRuns[monthKey] || 0);
 }
 
+async function renderMyActivityState(me, selectedMonth, raffleRecords) {
+  const [photos, comments] = await Promise.all([loadMyPhotos(), loadMyComments()]);
+  const wins = Array.isArray(raffleRecords)
+    ? raffleRecords.filter((record) => hasRaffleWinner(record, authProfile?.name))
+    : [];
+  const latestWin = wins[0] || null;
+  const feeLabel = getPersonalFeeLabel(me, selectedMonth);
+  const previousStreak = getAttendanceStreakFromMonth(me, shiftMonthKey(selectedMonth, -1));
+  const currentStreak = getAttendanceStreakFromMonth(me, selectedMonth);
+  const raffleThreshold = getMonthThreshold(selectedMonth);
+  const raffleLabel = latestWin
+    ? `${monthKeyToLabel(latestWin.target_month_key)} 당첨`
+    : (me?.monthRuns || 0) >= raffleThreshold
+      ? `${monthKeyToLabel(selectedMonth)} 후보`
+      : "대기 중";
+
+  if (myFeeStatus) {
+    myFeeStatus.textContent = feeLabel;
+  }
+  if (myRaffleStatus) {
+    myRaffleStatus.textContent = raffleLabel;
+  }
+  if (myStreakChange) {
+    myStreakChange.textContent = formatStreakDelta(currentStreak, previousStreak);
+  }
+
+  renderBadgeList(buildPersonalBadges({
+    me,
+    selectedMonth,
+    feeLabel,
+    latestWin,
+    photoCount: photos.length,
+    commentCount: comments.length
+  }));
+
+  renderSimpleHistory(
+    myPhotoHistory,
+    photos.map((photo) => ({
+      title: photo.caption || "설명 없는 사진",
+      meta: formatDate(photo.created_at),
+      body: "사진첩 업로드"
+    })),
+    "아직 사진 업로드 기록이 없습니다."
+  );
+
+  renderSimpleHistory(
+    myCommentHistory,
+    comments.map((comment) => ({
+      title: comment.content || "댓글",
+      meta: formatDate(comment.created_at),
+      body: "사진 댓글"
+    })),
+    "아직 댓글 기록이 없습니다."
+  );
+
+  renderSimpleHistory(
+    myRaffleHistory,
+    wins.map((record) => ({
+      title: `${monthKeyToLabel(record.target_month_key)} 추첨`,
+      meta: formatDate(record.created_at),
+      body: `${record.threshold}회 기준 / ${record.winner_count}명 추첨`
+    })),
+    "아직 당첨 이력이 없습니다."
+  );
+}
+
+function renderPersonalBoardEmpty() {
+  if (myFeeStatus) {
+    myFeeStatus.textContent = "확인 중";
+  }
+  if (myRaffleStatus) {
+    myRaffleStatus.textContent = "확인 중";
+  }
+  if (myStreakChange) {
+    myStreakChange.textContent = "확인 중";
+  }
+  renderBadgeList([]);
+  renderSimpleHistory(myPhotoHistory, [], "로그인 후 개인 사진 기록이 표시됩니다.");
+  renderSimpleHistory(myCommentHistory, [], "로그인 후 내 댓글 기록이 표시됩니다.");
+  renderSimpleHistory(myRaffleHistory, [], "로그인 후 내 추첨 기록이 표시됩니다.");
+}
+
+async function loadMyPhotos() {
+  if (!supabaseClient || !authUser) {
+    return [];
+  }
+  const result = await supabaseClient
+    .from("photos")
+    .select("id,caption,created_at")
+    .eq("user_id", authUser.id)
+    .order("created_at", { ascending: false })
+    .limit(5);
+  return result.error ? [] : (Array.isArray(result.data) ? result.data : []);
+}
+
+async function loadMyComments() {
+  if (!supabaseClient || !authUser) {
+    return [];
+  }
+  const result = await supabaseClient
+    .from("photo_comments")
+    .select("id,content,created_at")
+    .eq("user_id", authUser.id)
+    .order("created_at", { ascending: false })
+    .limit(5);
+  return result.error ? [] : (Array.isArray(result.data) ? result.data : []);
+}
+
+function renderSimpleHistory(node, items, emptyText) {
+  if (!node) {
+    return;
+  }
+  node.innerHTML = "";
+  if (!items.length) {
+    node.innerHTML = `<li class="list-item"><p class="list-meta">${escapeHtml(emptyText)}</p></li>`;
+    return;
+  }
+  items.forEach((item) => {
+    const element = document.createElement("li");
+    element.className = "list-item";
+    element.innerHTML = `
+      <div class="list-top">
+        <span class="list-title">${escapeHtml(item.title || "기록")}</span>
+        <span class="list-meta">${escapeHtml(item.meta || "")}</span>
+      </div>
+      <p class="list-meta">${escapeHtml(item.body || "")}</p>
+    `;
+    node.appendChild(element);
+  });
+}
+
+function renderBadgeList(badges) {
+  if (!myBadges) {
+    return;
+  }
+  myBadges.innerHTML = "";
+  if (!badges.length) {
+    myBadges.innerHTML = '<span class="raffle-tag">이번 달 활동 시작</span>';
+    return;
+  }
+  badges.forEach((badge) => {
+    const node = document.createElement("span");
+    node.className = "raffle-tag";
+    node.textContent = badge;
+    myBadges.appendChild(node);
+  });
+}
+
+function buildPersonalBadges({ me, selectedMonth, feeLabel, latestWin, photoCount, commentCount }) {
+  const badges = [];
+  const threshold = getMonthThreshold(selectedMonth);
+  if ((me?.monthRuns || 0) >= threshold) {
+    badges.push("이번 달 추첨 대상");
+  }
+  if ((me?.monthRuns || 0) >= threshold + 1) {
+    badges.push("꾸준 러너");
+  }
+  if (String(feeLabel).includes("납부")) {
+    badges.push("회비 완료");
+  }
+  if (photoCount > 0) {
+    badges.push("사진 공유");
+  }
+  if (commentCount > 0) {
+    badges.push("응원 댓글러");
+  }
+  if (latestWin) {
+    badges.push("추첨 당첨");
+  }
+  return badges;
+}
+
+function getPersonalFeeLabel(member, monthKey) {
+  const feeStatus = member?.fee_status || member?.feeStatus || {};
+  const raw = feeStatus?.[monthKey] ?? feeStatus?.monthly?.[monthKey] ?? feeStatus?.status ?? null;
+  if (!raw) {
+    return "확인 필요";
+  }
+  if (typeof raw === "string") {
+    if (raw.includes("paid") || raw.includes("납부")) {
+      return "납부 완료";
+    }
+    if (raw.includes("late") || raw.includes("경과")) {
+      return "납부 기한 경과";
+    }
+    if (raw.includes("unpaid") || raw.includes("미납")) {
+      return "미납";
+    }
+  }
+  if (typeof raw === "object") {
+    const status = String(raw.status || raw.state || "");
+    if (status.includes("paid") || status.includes("납부")) {
+      return "납부 완료";
+    }
+    if (status.includes("late") || status.includes("경과")) {
+      return "납부 기한 경과";
+    }
+    if (status.includes("unpaid") || status.includes("미납")) {
+      return "미납";
+    }
+  }
+  return "확인 필요";
+}
+
+function getAttendanceStreakFromMonth(member, startMonthKey) {
+  if (!member) {
+    return 0;
+  }
+  let streak = 0;
+  for (let i = 0; i < 12; i += 1) {
+    const key = shiftMonthKey(startMonthKey, -i);
+    if (getMonthlyRuns(member, key) <= 0) {
+      break;
+    }
+    streak += 1;
+  }
+  return streak;
+}
+
+function formatStreakDelta(currentStreak, previousStreak) {
+  if (currentStreak <= 0) {
+    return "이번 달 새 기록 필요";
+  }
+  const delta = currentStreak - previousStreak;
+  if (delta > 0) {
+    return `+${delta}개월 이어짐`;
+  }
+  if (delta === 0) {
+    return `${currentStreak}개월 유지 중`;
+  }
+  return "스트릭 재시작";
+}
+
+function hasRaffleWinner(record, name) {
+  if (!record || !name || !Array.isArray(record.winners)) {
+    return false;
+  }
+  const normalized = normalizeName(name);
+  return record.winners.some((winner) => normalizeName(winner?.name) === normalized);
+}
+
+function getMonthThreshold(monthKey) {
+  const parts = String(monthKey || "").split("-");
+  const month = Number(parts[1] || 0);
+  return [12, 1, 2].includes(month) ? 4 : 5;
+}
 function loadLocalAdminMembers(expectedUserId) {
   try {
     const rawMeta = localStorage.getItem(ADMIN_SNAPSHOT_META_KEY);
@@ -1014,6 +1270,7 @@ function loadLocalAdminMembers(expectedUserId) {
       name: String(member.name || "이름없음"),
       birth_year: Number(member.birthYear || member.birth_year || 0),
       total_runs: Number(member.totalRuns || member.total_runs || 0),
+      fee_status: member.feeStatus || member.fee_status || {},
       monthly_runs: member.monthlyRuns && typeof member.monthlyRuns === "object"
         ? member.monthlyRuns
         : member.monthly_runs && typeof member.monthly_runs === "object"
@@ -1099,6 +1356,11 @@ async function notifySignupRequest(payload) {
     // Notification failure should not block signup flow.
   }
 }
+
+
+
+
+
 
 
 

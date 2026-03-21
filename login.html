@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=SUIT:wght@300;400;500;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20260317b" />
+  <link rel="stylesheet" href="styles.css?v=20260321a" />
 </head>
 <body>
   <header class="site-header">
@@ -21,7 +21,7 @@
         <a href="login.html">활동 보드</a>
         <a href="gallery.html">사진첩</a>
         <a href="running.html">러닝 허브</a>
-        <a href="login.html" data-member-nav class="hidden" hidden>내 활동</a>
+        <a href="login.html" data-member-nav class="hidden" hidden>활동 보드</a>
         <a href="index.html#admin" data-admin-nav class="hidden" hidden>운영 관리</a>
         <a href="index.html">메인</a>
       </nav>
@@ -57,7 +57,7 @@
 
         <article class="panel member-board-panel">
           <div class="section-head">
-            <h2>회원 활동 보드</h2>
+            <h2>활동 보드</h2>
             <span id="runner-month-label" class="badge">이번 달 기준</span>
           </div>
           <p id="activity-lock" class="list-meta">승인 회원 로그인 후 월별 출석, 출석 스트릭, 이달의 러너를 볼 수 있습니다.</p>
@@ -71,6 +71,21 @@
               <div class="stat-card"><span>누적 출석</span><strong id="my-total-runs">0회</strong></div>
               <div class="stat-card"><span>출석 스트릭</span><strong id="my-streak">0개월</strong></div>
             </div>
+            <article class="panel board-highlight member-focus-panel" style="margin-top:1rem;">
+              <div class="section-head">
+                <h3>활동 보드 요약</h3>
+                <span class="badge">개인 기록</span>
+              </div>
+              <div class="stats-grid member-personal-stats" style="margin-top:0.8rem;">
+                <div class="stat-card"><span>이번 달 회비</span><strong id="my-fee-status">확인 중</strong></div>
+                <div class="stat-card"><span>최근 추첨 결과</span><strong id="my-raffle-status">확인 중</strong></div>
+                <div class="stat-card"><span>스트릭 변화</span><strong id="my-streak-change">확인 중</strong></div>
+              </div>
+              <div style="margin-top:0.9rem;">
+                <h4 style="margin-bottom:0.45rem;">내 출석 달성 배지</h4>
+                <div id="my-badges" class="raffle-winner-tags"></div>
+              </div>
+            </article>
             <div class="board-layout" style="margin-top:1rem;">
               <div>
                 <h3>월별 출석 순위</h3>
@@ -84,6 +99,20 @@
                 <h3 style="margin-top:1rem;">최근 추첨 기록</h3>
                 <ul id="board-raffle-history" class="list small"></ul>
               </div>
+            </div>
+            <div class="board-record-grid" style="margin-top:1rem;">
+              <article class="panel">
+                <h3>내 사진 업로드 기록</h3>
+                <ul id="my-photo-history" class="list small"></ul>
+              </article>
+              <article class="panel">
+                <h3>내 댓글</h3>
+                <ul id="my-comment-history" class="list small"></ul>
+              </article>
+              <article class="panel">
+                <h3>내 추첨 이력</h3>
+                <ul id="my-raffle-history" class="list small"></ul>
+              </article>
             </div>
           </div>
         </article>
@@ -99,13 +128,8 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="auth.js?v=20260317d"></script>
+  <script src="auth.js?v=20260321a"></script>
 </body>
 </html>
-
-
-
-
-
 
 

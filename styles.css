@@ -590,3 +590,28 @@ body.modal-open {
   font-weight: 700;
   color: #fff3e8;
 }
+
+
+.member-personal-stats {
+  grid-template-columns: repeat(3, minmax(120px, 1fr));
+}
+
+.member-focus-panel {
+  border-color: rgba(255, 140, 66, 0.22);
+}
+
+.board-record-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+@media (max-width: 960px) {
+  .member-personal-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .board-record-grid {
+    grid-template-columns: 1fr;
+  }
+}
