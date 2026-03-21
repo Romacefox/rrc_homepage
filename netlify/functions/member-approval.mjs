@@ -1,4 +1,4 @@
-﻿const TABLE = "member_profiles";
+const TABLE = "member_profiles";
 const LOG_TABLE = "operation_logs";
 
 export default async (request) => {
@@ -55,7 +55,7 @@ export default async (request) => {
 
       const targetProfile = await getTargetProfile(userId);
       await supabasePatch(`${TABLE}?user_id=eq.${encodeURIComponent(userId)}`, patch);
-      await insertOperationLog(auth, targetProfile, patch);
+      await tryInsertOperationLog(auth, targetProfile, patch);
       return json(200, { ok: true });
     }
 
@@ -111,6 +111,18 @@ async function insertOperationLog(auth, targetProfile, patch) {
     action,
     detail: details.join(" / ") || displayName
   });
+}
+
+async function tryInsertOperationLog(auth, targetProfile, patch) {
+  try {
+    await insertOperationLog(auth, targetProfile, patch);
+  } catch (error) {
+    const message = String(error?.message || error || "");
+    const missingLogTable = message.includes("operation_logs") && message.includes("schema cache");
+    if (!missingLogTable) {
+      throw error;
+    }
+  }
 }
 
 function extractBearerToken(header) {

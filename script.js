@@ -1,4 +1,4 @@
-﻿
+
 const STORAGE_KEY = "rrc-site-db-v3";
 const ADMIN_SNAPSHOT_META_KEY = "rrc-admin-snapshot-meta-v1";
 
@@ -1210,8 +1210,9 @@ function renderFees() {
   let unpaidCount = 0;
   const unpaidNames = [];
   let visibleCount = 0;
+  const membersForFees = [...db.members].sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "ko"));
 
-  db.members.forEach((member) => {
+  membersForFees.forEach((member) => {
     const status = getFeeStatus(member, monthKey);
     if (status === "paid") {
       paidCount += 1;
@@ -1241,7 +1242,7 @@ function renderFees() {
     feeList.innerHTML = `<li class="list-item"><p class="list-meta">표시할 회원이 없습니다.</p></li>`;
   }
 
-  const warningMembers = getOverdueMembers(monthKey, 2);
+  const warningMembers = getOverdueMembers(monthKey, 2).sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "ko"));
   if (!warningMembers.length) {
     feeWarningList.innerHTML = `<li class="list-item"><p class="list-meta">연속 미납 경고 없음</p></li>`;
   } else {
