@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RRC | 사진첩</title>
-  <meta name="description" content="RRC 월별 사진첩과 회원 업로드 페이지" />
+  <title>RRC | ?ъ쭊泥?/title>
+  <meta name="description" content="RRC ?붾퀎 ?ъ쭊泥⑷낵 ?뚯썝 ?낅줈???섏씠吏" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=SUIT:wght@300;400;500;700;800&display=swap" rel="stylesheet" />
@@ -15,15 +15,15 @@
     <div class="container nav-wrap">
       <a href="index.html" class="logo">RRC</a>
       <nav class="nav-links">
-        <a href="login.html" data-auth-entry>회원가입 / 로그인</a>
-        <a href="index.html#about">크루 소개</a>
-        <a href="index.html#notice">공지</a>
-        <a href="login.html">활동 보드</a>
-        <a href="gallery.html">사진첩</a>
-        <a href="running.html">러닝 허브</a>
-        <a href="login.html" data-member-nav class="hidden" hidden>활동 보드</a>
-        <a href="index.html#admin" data-admin-nav class="hidden nav-admin-link" hidden>운영 관리</a>
-        <a href="index.html">메인</a>
+        <a href="login.html" data-auth-entry>?뚯썝媛??/ 濡쒓렇??/a>
+        <a href="index.html#about">?щ（ ?뚭컻</a>
+        <a href="index.html#notice">怨듭?</a>
+        <a href="login.html">?쒕룞 蹂대뱶</a>
+        <a href="gallery.html">?ъ쭊泥?/a>
+        <a href="running.html">?щ떇 ?덈툕</a>
+        <a href="login.html" data-member-nav class="hidden" hidden>?쒕룞 蹂대뱶</a>
+        <a href="index.html#admin" data-admin-nav class="hidden nav-admin-link" hidden>?댁쁺 愿由?/a>
+        <a href="index.html">硫붿씤</a>
       </nav>
     </div>
   </header>
@@ -33,63 +33,63 @@
       <div class="container two-col auth-shell gallery-shell">
         <article class="panel gallery-upload-panel">
           <div class="section-head">
-            <h2>사진첩 업로드</h2>
-            <span class="badge">로그인 회원 업로드</span>
+            <h2>?ъ쭊泥??낅줈??/h2>
+            <span class="badge">濡쒓렇???뚯썝 ?낅줈??/span>
           </div>
-          <p class="list-meta">보기는 누구나 가능하고 업로드는 로그인 회원만 가능합니다.</p>
+          <p class="list-meta">蹂닿린???꾧뎄??媛?ν븯怨??낅줈?쒕뒗 濡쒓렇???뚯썝留?媛?ν빀?덈떎.</p>
           <div class="gallery-status-box">
-            <p id="gallery-auth-status" class="list-meta">로그인 상태를 확인하는 중입니다.</p>
-            <p id="gallery-approval-status" class="list-meta">승인 상태에 따라 일부 기능이 제한될 수 있습니다.</p>
+            <p id="gallery-auth-status" class="list-meta">濡쒓렇???곹깭瑜??뺤씤?섎뒗 以묒엯?덈떎.</p>
+            <p id="gallery-approval-status" class="list-meta">?뱀씤 ?곹깭???곕씪 ?쇰? 湲곕뒫???쒗븳?????덉뒿?덈떎.</p>
           </div>
           <div id="gallery-guest-actions" class="auth-links-row" style="margin-bottom:0.8rem;">
-            <a class="btn ghost" href="login.html">로그인 페이지</a>
-            <a class="btn ghost" href="login.html">회원가입 / 로그인</a>
+            <a class="btn ghost" href="login.html">濡쒓렇???섏씠吏</a>
+            <a class="btn ghost" href="login.html">?뚯썝媛??/ 濡쒓렇??/a>
           </div>
           <div id="gallery-member-actions" class="auth-links-row hidden" style="margin-bottom:0.8rem;">
-            <a class="btn ghost" href="login.html">내 활동 보드</a>
-            <a class="btn ghost" href="running.html">러닝 허브</a>
-            <a class="btn ghost hidden" href="index.html#admin" data-admin-nav hidden>운영 관리</a>
+            <a class="btn ghost" href="login.html">???쒕룞 蹂대뱶</a>
+            <a class="btn ghost" href="running.html">?щ떇 ?덈툕</a>
+            <a class="btn ghost hidden" href="index.html#admin" data-admin-nav hidden>?댁쁺 愿由?/a>
           </div>
           <form class="form compact" id="photo-upload-form">
             <input id="photo-file" type="file" accept="image/*" />
-            <input id="photo-caption" type="text" placeholder="사진 설명 (선택 사항, 짧게 적어도 됩니다)" />
-            <button id="photo-upload" class="btn primary" type="button">사진 업로드</button>
+            <input id="photo-caption" type="text" placeholder="?ъ쭊 ?ㅻ챸 (?좏깮 ?ы빆, 吏㏐쾶 ?곸뼱???⑸땲??" />
+            <button id="photo-upload" class="btn primary" type="button">?ъ쭊 ?낅줈??/button>
           </form>
-          <p id="photo-status" class="list-meta">로그인 후 업로드 가능합니다.</p>
+          <p id="photo-status" class="list-meta">濡쒓렇?????낅줈??媛?ν빀?덈떎.</p>
         </article>
 
         <article class="panel gallery-list-panel">
           <div class="section-head">
-            <h2>월별 사진첩</h2>
-            <span class="badge">월별 필터</span>
+            <h2>?붾퀎 ?ъ쭊泥?/h2>
+            <span class="badge">?붾퀎 ?꾪꽣</span>
           </div>
           <div class="inline-form" style="margin-top:0.8rem;">
             <select id="photo-month-filter"></select>
-            <button id="photo-filter-reset" class="btn ghost" type="button">전체 보기</button>
+            <button id="photo-filter-reset" class="btn ghost" type="button">?꾩껜 蹂닿린</button>
           </div>
           <div id="photo-grid" class="photo-grid" style="margin-top:1rem;"></div>
           <div id="photo-modal" class="photo-modal hidden" hidden>
             <div class="photo-modal-backdrop" data-photo-modal-close></div>
             <article class="photo-modal-card">
-              <button id="photo-modal-close" class="btn ghost photo-modal-close" type="button">닫기</button>
+              <button id="photo-modal-close" class="btn ghost photo-modal-close" type="button">?リ린</button>
               <img id="photo-modal-image" class="photo-modal-image" alt="RRC photo detail" />
               <div class="photo-modal-meta">
-                <h3 id="photo-modal-caption">사진 설명</h3>
+                <h3 id="photo-modal-caption">?ъ쭊 ?ㅻ챸</h3>
                 <p id="photo-modal-date" class="list-meta"></p>
                 <div class="like-row">
-                  <button id="photo-like-button" class="btn ghost" type="button">좋아요</button>
-                  <span id="photo-like-count" class="list-meta">좋아요 0</span>
+                  <button id="photo-like-button" class="btn ghost" type="button">醫뗭븘??/button>
+                  <span id="photo-like-count" class="list-meta">醫뗭븘??0</span>
                 </div>
               </div>
               <div class="photo-comments">
                 <div class="section-head">
-                  <h3>댓글</h3>
-                  <span class="badge">승인 회원 작성</span>
+                  <h3>?볤?</h3>
+                  <span class="badge">?뱀씤 ?뚯썝 ?묒꽦</span>
                 </div>
-                <p id="photo-comment-lock" class="list-meta">로그인 및 댓글 권한 상태를 확인 중입니다.</p>
+                <p id="photo-comment-lock" class="list-meta">濡쒓렇??諛??볤? 沅뚰븳 ?곹깭瑜??뺤씤 以묒엯?덈떎.</p>
                 <form id="photo-comment-form" class="form compact hidden">
-                  <textarea id="photo-comment-input" rows="3" placeholder="함께 뛰었던 기억이나 짧은 코멘트를 남겨 보세요"></textarea>
-                  <button id="photo-comment-submit" class="btn primary" type="submit">댓글 등록</button>
+                  <textarea id="photo-comment-input" rows="3" placeholder="?④퍡 ?곗뿀??湲곗뼲?대굹 吏㏃? 肄붾찘?몃? ?④꺼 蹂댁꽭??></textarea>
+                  <button id="photo-comment-submit" class="btn primary" type="submit">?볤? ?깅줉</button>
                 </form>
                 <p id="photo-comment-status" class="list-meta"></p>
                 <ul id="photo-comment-list" class="list small"></ul>
@@ -104,12 +104,12 @@
   <footer class="site-footer">
     <div class="container footer-wrap">
       <p>&copy; <span id="year"></span> RRC</p>
-      <p><a href="index.html">메인으로 돌아가기</a></p>
+      <p><a href="index.html">硫붿씤?쇰줈 ?뚯븘媛湲?/a></p>
     </div>
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="auth.js?v=20260321a"></script>
+  <script src="auth.js?v=20260321b"></script>
 </body>
 </html>
 
