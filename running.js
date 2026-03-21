@@ -1,5 +1,6 @@
 ﻿const SUPABASE_URL = "https://aqpszgycsfpxtlsuaqrt.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_C20xXZZRWdjmkzGneCcpjw_mrRnXucq";
+const AUTH_SESSION_CACHE_KEY = "rrc-auth-session-cache-v1";
 
 let runningClient = null;
 let runningUser = null;
@@ -62,8 +63,8 @@ function initRunningHub() {
     await refreshRunningSession();
   });
 
-  runningClient.auth.getSession().then(async ({ data }) => {
-    runningUser = data?.session?.user || readStoredRunningUser() || null;
+  void resolveRunningUser().then(async (user) => {
+    runningUser = user;
     await refreshRunningSession();
   });
 
@@ -71,8 +72,7 @@ function initRunningHub() {
     if (document.visibilityState !== "visible" || !runningClient) {
       return;
     }
-    const { data } = await runningClient.auth.getSession();
-    runningUser = data?.session?.user || readStoredRunningUser() || null;
+    runningUser = await resolveRunningUser();
     await refreshRunningSession();
   });
 }
@@ -168,6 +168,15 @@ function updateSharedNavigation(memberVisible, adminVisible) {
   authEntryLinks.forEach((node) => setVisibility(node, !memberVisible));
 }
 
+function readCachedRunningSession() {
+  try {
+    const raw = localStorage.getItem(AUTH_SESSION_CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (_error) {
+    return null;
+  }
+}
+
 function readStoredRunningUser() {
   try {
     const raw = localStorage.getItem("rrc-auth");
@@ -194,7 +203,23 @@ async function resolveRunningUser() {
       return sessionUser;
     }
   } catch (_error) {
-    // Ignore and continue to fallback checks.
+    // Continue to fallback checks.
+  }
+
+  const cachedSession = readCachedRunningSession();
+  if (cachedSession?.access_token && cachedSession?.refresh_token) {
+    try {
+      const restored = await runningClient.auth.setSession({
+        access_token: cachedSession.access_token,
+        refresh_token: cachedSession.refresh_token
+      });
+      const restoredUser = restored.data?.user || restored.data?.session?.user || null;
+      if (restoredUser) {
+        return restoredUser;
+      }
+    } catch (_error) {
+      // Continue to other fallbacks.
+    }
   }
 
   try {
@@ -204,10 +229,10 @@ async function resolveRunningUser() {
       return directUser;
     }
   } catch (_error) {
-    // Ignore and continue to local fallback.
+    // Continue to local fallback.
   }
 
-  return readStoredRunningUser() || null;
+  return readStoredRunningUser() || cachedSession?.user || null;
 }
 function setVisibility(node, visible) {
   if (!node) {
@@ -581,6 +606,9 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 }
+
+
+
 
 
 
