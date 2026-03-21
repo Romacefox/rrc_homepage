@@ -2004,9 +2004,6 @@ async function loadRoleList() {
 
     if (roleStatus) {
       roleStatus.textContent = buildAdminRoleStatusText("admin", "approved", currentAdminCanManageRoles);
-
-
-
     }
 
     items.slice(0, 200).forEach((item) => {
@@ -2116,6 +2113,8 @@ async function updateApprovalStatus(userId, status, role = null) {
   loadRoleList();
   renderAll();
 }
+
+
 
 
 

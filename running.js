@@ -84,10 +84,10 @@ async function refreshRunningSession() {
     await loadRunningHub();
   } catch (error) {
     setRunningText(runningAuthStatus, "러닝 허브 상태를 새로 불러오지 못했습니다.");
-    setRunningText(runningRoleStatus, `?? ??: ${statusLabel(runningProfile?.approval_status)} / ??: ${runningRoleLabel(runningProfile?.role, runningProfile?.approval_status)}`);
+    setRunningText(runningRoleStatus, String(error?.message || error || "잠시 후 다시 시도해 주세요."));
     renderRunningFeatured([]);
     if (runningPublicList) {
-      runningPublicList.innerHTML = '<div class="panel"><p class="list-meta">러닝 허브를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</p></div>';
+      runningPublicList.innerHTML = '<div class="panel running-empty-state"><p class="list-meta">러닝 허브를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</p></div>';
     }
   }
 }
@@ -114,34 +114,52 @@ function renderRunningAuthState() {
     updateSharedNavigation(false, false);
     setVisibility(runningGuestActions, true);
     setVisibility(runningMemberActions, false);
-    setVisibility(runningComposeJump, false);
-    setRunningText(runningAuthStatus, "로그인이 필요합니다.");
-    setRunningText(runningRoleStatus, "승인 회원 로그인 후 러닝 허브 글을 읽고 제안할 수 있습니다.");
-    setRunningText(runningComposeLock, "가입 승인된 회원만 글 등록이 열립니다.");
+    setVisibility(runningComposeJump, true);
+    setRunningText(runningAuthStatus, "로그인하면 러닝 허브 글을 더 편하게 보고 글 제안도 할 수 있습니다.");
+    setRunningText(runningRoleStatus, "승인 회원은 루트, 팁, 체크리스트, 후기를 제안할 수 있습니다.");
+    setRunningText(runningComposeLock, "회원가입 후 운영진 승인까지 완료되면 글쓰기가 열립니다.");
+    if (runningComposeJump) {
+      runningComposeJump.textContent = "로그인하고 글쓰기";
+      runningComposeJump.setAttribute("href", "login.html");
+    }
     runningPostForm?.classList.add("hidden");
     runningAdminPanel?.classList.add("hidden");
+    runningAdminPanel && (runningAdminPanel.hidden = true);
     return;
   }
 
-  const isApproved = runningProfile?.approval_status === "approved";
+  const approvalStatus = runningProfile?.approval_status || "pending";
+  const isApproved = approvalStatus === "approved";
   const isAdmin = isApproved && runningProfile?.role === "admin";
 
   updateSharedNavigation(true, isAdmin);
   setVisibility(runningGuestActions, false);
   setVisibility(runningMemberActions, true);
-  setVisibility(runningComposeJump, isApproved);
+  setVisibility(runningComposeJump, true);
+
   setRunningText(runningAuthStatus, `로그인됨: ${runningUser.email}`);
-  setRunningText(runningRoleStatus, `승인 상태: ${statusLabel(runningProfile?.approval_status)} / 권한: ${runningRoleLabel(runningProfile?.role, runningProfile?.approval_status)}`);
+  setRunningText(runningRoleStatus, `승인 상태: ${statusLabel(approvalStatus)} / 권한: ${runningRoleLabel(runningProfile?.role, approvalStatus)}`);
 
   if (isApproved) {
-    setRunningText(runningComposeLock, "승인 회원은 러닝 허브 글을 제안할 수 있습니다. 등록된 글은 운영진 검토 후 공개됩니다.");
+    setRunningText(runningComposeLock, "승인 회원은 루트, 팁, 체크리스트, 후기를 자유롭게 작성할 수 있습니다.");
+    if (runningComposeJump) {
+      runningComposeJump.textContent = "글쓰기";
+      runningComposeJump.setAttribute("href", "#running-compose-section");
+    }
     runningPostForm?.classList.remove("hidden");
   } else {
-    setRunningText(runningComposeLock, "로그인만으로는 작성되지 않고, 운영진 승인 후 글 제안이 열립니다.");
+    setRunningText(runningComposeLock, "현재는 승인 대기 중입니다. 승인 완료 후 글쓰기가 열립니다.");
+    if (runningComposeJump) {
+      runningComposeJump.textContent = "승인 상태 확인하기";
+      runningComposeJump.setAttribute("href", "login.html");
+    }
     runningPostForm?.classList.add("hidden");
   }
 
   runningAdminPanel?.classList.toggle("hidden", !isAdmin);
+  if (runningAdminPanel) {
+    runningAdminPanel.hidden = !isAdmin;
+  }
 }
 
 function updateSharedNavigation(memberVisible, adminVisible) {
@@ -162,6 +180,7 @@ function readStoredRunningUser() {
     return null;
   }
 }
+
 function setVisibility(node, visible) {
   if (!node) {
     return;
@@ -181,15 +200,18 @@ async function loadRunningPublicPosts() {
   }
 
   if (runningPublicList) {
-    runningPublicList.innerHTML = '<div class="panel"><p class="list-meta">러닝 허브 글을 불러오는 중입니다.</p></div>';
+    runningPublicList.innerHTML = '<div class="panel running-empty-state"><p class="list-meta">러닝 허브 글을 불러오는 중입니다.</p></div>';
   }
 
-  const postsResult = await runningClient
+  const query = runningClient
     .from("running_hub_posts")
     .select("id,author_name,category,title,summary,content,status,is_featured,created_at")
-    .or(runningProfile?.role === "admin" && runningProfile?.approval_status === "approved" ? "status.eq.approved,status.eq.pending,status.eq.rejected" : "status.eq.approved")
     .order("is_featured", { ascending: false })
     .order("created_at", { ascending: false });
+
+  const postsResult = await query.or(runningProfile?.role === "admin" && runningProfile?.approval_status === "approved"
+    ? "status.eq.approved,status.eq.pending,status.eq.rejected"
+    : "status.eq.approved");
 
   if (postsResult.error) {
     runningPosts = [];
@@ -197,9 +219,9 @@ async function loadRunningPublicPosts() {
     if (runningPublicList) {
       const rawMessage = String(postsResult.error.message || "알 수 없는 오류");
       const friendlyMessage = rawMessage.includes("running_hub_posts")
-        ? "러닝 허브 데이터 테이블이 아직 Supabase에 반영되지 않았습니다. SQL 패치를 먼저 실행해 주세요."
+        ? "러닝 허브 테이블이 아직 Supabase에 반영되지 않았습니다. SQL 패치를 먼저 실행해 주세요."
         : `러닝 허브 로드 실패: ${escapeHtml(rawMessage)}`;
-      runningPublicList.innerHTML = `<div class="panel"><p class="list-meta">${friendlyMessage}</p></div>`;
+      runningPublicList.innerHTML = `<div class="panel running-empty-state"><p class="list-meta">${friendlyMessage}</p></div>`;
     }
     return;
   }
@@ -214,6 +236,7 @@ async function loadRunningLikes() {
   if (!runningClient) {
     return;
   }
+
   const likeResult = await runningClient
     .from("running_hub_likes")
     .select("post_id,user_id")
@@ -312,7 +335,7 @@ async function submitRunningPost() {
   if (runningPostTitle) runningPostTitle.value = "";
   if (runningPostSummary) runningPostSummary.value = "";
   if (runningPostContent) runningPostContent.value = "";
-  setRunningText(runningPostStatus, "제안이 등록되었습니다. 운영진 확인 후 공개됩니다.");
+  setRunningText(runningPostStatus, "글이 등록되었습니다. 운영진 확인 후 공개됩니다.");
   await loadRunningHub();
 }
 
@@ -380,20 +403,35 @@ function renderRunningFeatured(rows) {
   if (!runningFeaturedList) {
     return;
   }
+
   runningFeaturedList.innerHTML = "";
   if (!rows.length) {
-    runningFeaturedList.innerHTML = '<article class="card"><h3>추천 글 준비 중</h3><p class="list-meta">운영진이 추천 루트와 팁을 정리하고 있습니다.</p><p class="list-meta">승인 회원은 글 제안하기 버튼으로 첫 글을 올릴 수 있습니다.</p></article>';
+    runningFeaturedList.innerHTML = '<article class="card running-feature-card"><h3>추천 글 준비 중</h3><p class="list-meta">운영진이 추천 루트와 팁을 정리하고 있습니다.</p><p class="list-meta">승인 회원은 글쓰기로 첫 글을 올릴 수 있습니다.</p></article>';
     return;
   }
 
   rows.forEach((row) => {
     const card = document.createElement("article");
-    card.className = "card";
+    card.className = "card running-feature-card";
     const likeCount = Number(runningLikeCounts.get(row.id) || 0);
     const liked = runningLikedByMe.has(row.id);
-    card.innerHTML = `<h3>${escapeHtml(row.title)}</h3><p class="list-meta">${categoryLabel(row.category)} · ${escapeHtml(row.author_name || "회원")}</p><p>${escapeHtml(row.summary || row.content || "")}</p><div class="like-row"><button class="btn ghost tiny" type="button">${liked ? "좋아요 취소" : "좋아요"}</button><span class="list-meta">좋아요 ${likeCount}</span></div>`;
-    const button = card.querySelector("button");
-    button?.addEventListener("click", () => toggleRunningLike(row.id));
+    card.innerHTML = `
+      <div class="running-post-header">
+        <h3>${escapeHtml(row.title)}</h3>
+        <span class="badge">${categoryLabel(row.category)}</span>
+      </div>
+      <p class="list-meta">${escapeHtml(row.author_name || "회원")} · ${formatDate(row.created_at)}</p>
+      <p class="running-post-summary">${escapeHtml(row.summary || row.content || "")}</p>
+      <details class="running-post-details">
+        <summary>본문 보기</summary>
+        <div class="running-post-body">${escapeHtml(row.content).replaceAll("\n", "<br />")}</div>
+      </details>
+      <div class="like-row">
+        <button class="btn ghost tiny" type="button">${liked ? "좋아요 취소" : "좋아요"}</button>
+        <span class="list-meta">좋아요 ${likeCount}</span>
+      </div>
+    `;
+    card.querySelector("button")?.addEventListener("click", () => toggleRunningLike(row.id));
     runningFeaturedList.appendChild(card);
   });
 }
@@ -416,21 +454,48 @@ function renderRunningPublic() {
 
   runningPublicList.innerHTML = "";
   if (!visibleRows.length) {
-    const emptyMessage = runningProfile?.approval_status === "approved" ? "아직 공개된 글이 없습니다. 글 제안하기로 첫 글을 올려 보세요." : "조건에 맞는 러닝 허브 글이 없습니다.";
-    runningPublicList.innerHTML = `<div class="panel"><p class="list-meta">${emptyMessage}</p></div>`;
+    const emptyMessage = runningProfile?.approval_status === "approved"
+      ? "아직 공개된 글이 없습니다. 글쓰기로 첫 글을 올려 보세요."
+      : "조건에 맞는 러닝 허브 글이 없습니다.";
+    const cta = runningProfile?.approval_status === "approved"
+      ? '<a class="btn primary" href="#running-compose-section">글쓰기</a>'
+      : '<a class="btn ghost" href="login.html">로그인하고 글쓰기</a>';
+    runningPublicList.innerHTML = `<div class="panel running-empty-state"><p class="list-meta">${emptyMessage}</p><div class="auth-links-row" style="margin-top:0.8rem;">${cta}</div></div>`;
+    return;
   }
 
   visibleRows.forEach((row) => {
     const article = document.createElement("article");
     article.className = "panel running-post-item";
     const adminState = row.status !== "approved"
-      ? `<p class="list-meta">상태: ${statusLabel(row.status)}</p>`
+      ? `<span class="raffle-tag">${statusLabel(row.status)}</span>`
       : "";
+    const featuredTag = row.is_featured ? '<span class="raffle-tag">추천 글</span>' : "";
     const likeCount = Number(runningLikeCounts.get(row.id) || 0);
     const liked = runningLikedByMe.has(row.id);
-    article.innerHTML = `<div class="list-top"><span class="list-title">${escapeHtml(row.title)}</span><span class="list-meta">${formatDate(row.created_at)}</span></div><p class="list-meta">${categoryLabel(row.category)} · ${escapeHtml(row.author_name || "회원")}${row.is_featured ? " · 추천 글" : ""}</p><p>${escapeHtml(row.summary || "")}</p>${adminState}<div class="running-post-body">${escapeHtml(row.content).replaceAll("\n", "<br />")}</div><div class="like-row"><button class="btn ghost tiny" type="button">${liked ? "좋아요 취소" : "좋아요"}</button><span class="list-meta">좋아요 ${likeCount}</span></div>`;
-    const button = article.querySelector("button");
-    button?.addEventListener("click", () => toggleRunningLike(row.id));
+    article.innerHTML = `
+      <div class="running-post-header">
+        <div>
+          <h3>${escapeHtml(row.title)}</h3>
+          <p class="list-meta">${escapeHtml(row.author_name || "회원")} · ${formatDate(row.created_at)}</p>
+        </div>
+        <div class="running-post-tags">
+          <span class="raffle-tag">${categoryLabel(row.category)}</span>
+          ${featuredTag}
+          ${adminState}
+        </div>
+      </div>
+      <p class="running-post-summary">${escapeHtml(row.summary || "요약 없음")}</p>
+      <details class="running-post-details">
+        <summary>본문 보기</summary>
+        <div class="running-post-body">${escapeHtml(row.content).replaceAll("\n", "<br />")}</div>
+      </details>
+      <div class="like-row">
+        <button class="btn ghost tiny" type="button">${liked ? "좋아요 취소" : "좋아요"}</button>
+        <span class="list-meta">좋아요 ${likeCount}</span>
+      </div>
+    `;
+    article.querySelector("button")?.addEventListener("click", () => toggleRunningLike(row.id));
     runningPublicList.appendChild(article);
   });
 }
@@ -488,8 +553,4 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 }
-
-
-
-
 
