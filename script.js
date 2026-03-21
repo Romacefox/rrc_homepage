@@ -109,6 +109,9 @@ const roleStatus = document.getElementById("role-status");
 const publicRaffleRule = document.getElementById("public-raffle-rule");
 const publicNextDraw = document.getElementById("public-next-draw");
 const publicWinnerHistory = document.getElementById("public-winner-history");
+const publicRaffleSpotlight = document.getElementById("public-raffle-spotlight");
+const publicRaffleCandidates = document.getElementById("public-raffle-candidates");
+const raffleCandidates = document.getElementById("raffle-candidates");
 const auditLogList = document.getElementById("audit-log-list");
 
 let adminAuthClient = null;
@@ -158,7 +161,7 @@ function init() {
   feeOnlyUnpaidInput.addEventListener("change", renderFees);
   feeDownloadCsvButton.addEventListener("click", downloadFeeCsv);
 
-  runRouletteButton.addEventListener("click", () => checkScheduledDraw(true));
+  runRouletteButton.addEventListener("click", runManualRafflePreview);
 
   if (approvalRefreshButton) {
     approvalRefreshButton.addEventListener("click", loadApprovalQueue);
@@ -879,7 +882,16 @@ function checkScheduledDraw(forceRun) {
 
   saveDb();
   renderAll();
-  runRouletteAnimation(candidates, winners, schedule.targetMonthKey, threshold, forceRun);
+  runRouletteAnimation(candidates, winners, schedule.targetMonthKey, threshold, false);
+}
+
+function runManualRafflePreview() {
+  const schedule = getDrawSchedule(new Date());
+  const threshold = getThresholdForMonthKey(schedule.targetMonthKey);
+  const candidates = getEligibleMembers(schedule.targetMonthKey);
+  const winners = pickWinners(candidates, DRAW_WINNER_COUNT);
+
+  runRouletteAnimation(candidates, winners, schedule.targetMonthKey, threshold, true);
 }
 
 function runRouletteAnimation(candidates, winners, monthKey, threshold, isManual) {
@@ -894,28 +906,43 @@ function runRouletteAnimation(candidates, winners, monthKey, threshold, isManual
   }
 
   let tick = 0;
-  rouletteTrack.classList.add("spinning");
-  const timer = setInterval(() => {
-    rouletteTrack.textContent = candidates[tick % candidates.length].name;
-    tick += 1;
-  }, 95);
-
-  setTimeout(() => {
-    clearInterval(timer);
-    rouletteTrack.classList.remove("spinning");
-
-    if (!winners.length) {
-      rouletteTrack.textContent = "NO WINNER";
-      winnerResult.textContent = `${monthKeyToLabel(monthKey)} 당첨자가 없습니다.`;
+  let phase = 3;
+  winnerResult.textContent = "3초 후 룰렛을 시작합니다.";
+  rouletteTrack.textContent = monthKeyToLabel(monthKey);
+  const countdownTimer = setInterval(() => {
+    phase -= 1;
+    if (phase <= 0) {
+      clearInterval(countdownTimer);
+      startRaffleSpin();
       return;
     }
+    winnerResult.textContent = `${phase}초 후 룰렛을 시작합니다.`;
+  }, 450);
 
-    const names = winners.map((winner) => winner.name).join(" / ");
-    rouletteTrack.textContent = names;
-    winnerResult.textContent = `${isManual ? "테스트" : "자동"} 추첨 완료: ${names}`;
-  }, 2200);
+  function startRaffleSpin() {
+    rouletteTrack.classList.add("spinning");
+    const timer = setInterval(() => {
+      const member = candidates[tick % candidates.length];
+      rouletteTrack.textContent = `${member.name} · ${getRaffleBadge(member, monthKey, tick % candidates.length)}`;
+      tick += 1;
+    }, 90);
+
+    setTimeout(() => {
+      clearInterval(timer);
+      rouletteTrack.classList.remove("spinning");
+
+      if (!winners.length) {
+        rouletteTrack.textContent = "NO WINNER";
+        winnerResult.textContent = `${monthKeyToLabel(monthKey)} 당첨자가 없습니다.`;
+        return;
+      }
+
+      const names = winners.map((winner) => `${winner.name} (${Number(winner.runs || 0)}회)`).join(" / ");
+      rouletteTrack.textContent = names;
+      winnerResult.textContent = `${isManual ? "테스트" : "자동"} 추첨 완료: ${names}`;
+    }, 2600);
+  }
 }
-
 function renderAll() {
   renderNotices();
   renderGuests();
@@ -1028,20 +1055,25 @@ function renderMembers() {
     return;
   }
 
+  filteredMembers.sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "ko"));
+
   filteredMembers.forEach((member) => {
     const monthly = getMonthlyRuns(member, monthKey);
     const eligible = monthly >= threshold;
     const risk = computeMemberRisk(member, new Date());
 
-    const riskChip = risk.level === "danger"
-      ? '<span class="status-chip danger">위험</span>'
-      : risk.level === "warn"
-        ? '<span class="status-chip warn">주의</span>'
-        : "";
+    const feeOnlyRisk = risk.level !== "ok" && risk.reasons.every((reason) => String(reason).includes("회비"));
+    const riskChip = feeOnlyRisk
+      ? '<span class="status-chip">회비</span>'
+      : risk.level === "danger"
+        ? '<span class="status-chip danger">위험</span>'
+        : risk.level === "warn"
+          ? '<span class="status-chip warn">주의</span>'
+          : "";
 
     const item = document.createElement("li");
     item.className = "list-item";
-    item.innerHTML = `<div class="list-top"><span class="list-title">${escapeHtml(member.name)} (${member.birthYear})${eligible ? '<span class="status-chip">추첨 대상</span>' : ""}${riskChip}</span><span class="list-meta">이번 달 ${monthly}회 / 누적 ${member.totalRuns}회</span></div>`;
+    item.innerHTML = `<div class="list-top"><span class="list-title">${escapeHtml(member.name)} (${member.birthYear})${eligible ? '<span class="status-chip">추첨 대상</span>' : ""}${riskChip}</span><span class="list-meta">이번 달 ${monthly}회 / 누적 ${member.totalRuns}회</span></div><p class="list-meta">${feeOnlyRisk ? escapeHtml(risk.reasons.join(" / ")) : ""}</p>`;
 
     const actions = document.createElement("div");
     actions.className = "item-actions";
@@ -1429,6 +1461,13 @@ function renderRaffle() {
     publicNextDraw.textContent = nextText;
   }
 
+  const candidatePreview = getEligibleMembers(nextSchedule.targetMonthKey)
+    .sort((a, b) => getMonthlyRuns(b, nextSchedule.targetMonthKey) - getMonthlyRuns(a, nextSchedule.targetMonthKey) || String(a.name || "").localeCompare(String(b.name || ""), "ko"))
+    .slice(0, 8);
+
+  renderRaffleCandidates(raffleCandidates, candidatePreview, nextSchedule.targetMonthKey, latestRecord);
+  renderRaffleCandidates(publicRaffleCandidates, candidatePreview, nextSchedule.targetMonthKey, latestRecord);
+  renderRaffleSpotlight(publicRaffleSpotlight, latestRecord);
   renderRaffleHistoryList(winnerHistory, localHistory);
   renderRaffleHistoryList(publicWinnerHistory, publicHistory);
 
@@ -1451,10 +1490,53 @@ function renderRaffleHistoryList(target, history = []) {
     const winners = Array.isArray(record.winners) ? record.winners : [];
     const names = winners.length ? winners.map((winner) => winner.name).join(", ") : "당첨자 없음";
     const item = document.createElement("li");
-    item.className = "list-item";
-    item.innerHTML = `<div class="list-top"><span class="list-title">${monthKeyToLabel(record.targetMonthKey)} 추첨</span><span class="list-meta">${formatDate(record.createdAt)}</span></div><p class="list-meta">기준 ${record.threshold}회 / ${record.winnerCount}명 추첨</p><p>${escapeHtml(names)}</p>`;
+    item.className = "raffle-history-card";
+    item.innerHTML = `<div class="list-top"><span class="list-title">${monthKeyToLabel(record.targetMonthKey)} 추첨</span><span class="list-meta">${formatDate(record.createdAt)}</span></div><p class="list-meta">기준 ${record.threshold}회 / ${record.winnerCount}명 추첨</p><p class="raffle-history-names">${escapeHtml(names)}</p>`;
     target.appendChild(item);
   });
+}
+
+function renderRaffleCandidates(target, candidates = [], monthKey, latestRecord = null) {
+  if (!target) {
+    return;
+  }
+  target.innerHTML = "";
+  if (!candidates.length) {
+    target.innerHTML = `<div class="raffle-candidate-card"><strong>후보 준비 중</strong><p class="list-meta">${monthKeyToLabel(monthKey)} 기준 후보가 아직 없습니다.</p></div>`;
+    return;
+  }
+
+  const winnerIds = new Set(Array.isArray(latestRecord?.winners) ? latestRecord.winners.map((winner) => winner.id) : []);
+  candidates.forEach((member, index) => {
+    const card = document.createElement("article");
+    const badge = getRaffleBadge(member, monthKey, index);
+    const isWinner = winnerIds.has(member.id);
+    card.className = `raffle-candidate-card${isWinner ? " is-winner" : ""}`;
+    card.innerHTML = `<strong>${escapeHtml(member.name)}</strong><span class="list-meta">${getMonthlyRuns(member, monthKey)}회 출석 · ${badge}</span><span class="list-meta">누적 ${Number(member.totalRuns || 0)}회</span>`;
+    target.appendChild(card);
+  });
+}
+
+function renderRaffleSpotlight(target, record) {
+  if (!target) {
+    return;
+  }
+  if (!record) {
+    target.innerHTML = `<p class="list-meta">첫 추첨이 진행되면 이달의 하이라이트가 여기에 표시됩니다.</p>`;
+    return;
+  }
+
+  const winners = Array.isArray(record.winners) ? record.winners : [];
+  const headline = winners.length ? winners.map((winner) => winner.name).join(" / ") : "당첨자 없음";
+  target.innerHTML = `<p class="list-meta">최근 하이라이트</p><h4>${escapeHtml(headline)}</h4><div class="raffle-winner-tags">${winners.map((winner) => `<span class="raffle-tag">${escapeHtml(winner.name)} · ${Number(winner.runs || 0)}회</span>`).join("") || '<span class="raffle-tag">기준 충족자 없음</span>'}</div>`;
+}
+
+function getRaffleBadge(member, monthKey, index) {
+  const runs = getMonthlyRuns(member, monthKey);
+  if (runs >= 8) return "출석 에이스";
+  if (runs >= 6) return "꾸준 러너";
+  if (index === 0) return "선두 후보";
+  return "룰렛 후보";
 }
 function getEligibleMembers(monthKey) {
   const threshold = getThresholdForMonthKey(monthKey);
@@ -1995,6 +2077,15 @@ async function updateApprovalStatus(userId, status, role = null) {
   loadRoleList();
   renderAll();
 }
+
+
+
+
+
+
+
+
+
 
 
 

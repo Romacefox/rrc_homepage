@@ -16,6 +16,8 @@
     const attendanceLogs = normalizeAttendanceLogs(body?.attendance_logs);
     const raffleHistory = normalizeRaffleHistory(body?.raffle_history);
 
+    await validateSyncTargets();
+
     // Local admin 화면 데이터를 Supabase 기준 데이터로 일괄 교체
     await replaceMembersTable(members);
     await replaceTable("notices", notices);
@@ -95,20 +97,60 @@ async function replaceTable(table, rows) {
 }
 
 async function replaceMembersTable(rows) {
+  const insertRows = await resolveMembersInsertRows(rows);
   await supabaseDeleteAll("members");
-  if (rows.length === 0) {
+  if (insertRows.length === 0) {
     return;
   }
 
-  try {
-    await supabaseInsert("members", rows);
-  } catch (error) {
-    if (!isMissingColumnError(error, "fee_status")) {
-      throw error;
-    }
+  await supabaseInsert("members", insertRows);
+}
 
-    const legacyRows = rows.map(({ fee_status, ...rest }) => rest);
-    await supabaseInsert("members", legacyRows);
+async function resolveMembersInsertRows(rows) {
+  const attempts = [
+    { path: "members?select=name,birth_year,total_runs,monthly_runs,fee_status,aliases&limit=1", omit: [] },
+    { path: "members?select=name,birth_year,total_runs,monthly_runs,fee_status&limit=1", omit: ["aliases"] },
+    { path: "members?select=name,birth_year,total_runs,monthly_runs,aliases&limit=1", omit: ["fee_status"] },
+    { path: "members?select=name,birth_year,total_runs,monthly_runs&limit=1", omit: ["fee_status", "aliases"] }
+  ];
+
+  for (const attempt of attempts) {
+    try {
+      await supabaseSelect(attempt.path);
+      return rows.map((row) => {
+        const nextRow = { ...row };
+        attempt.omit.forEach((key) => {
+          delete nextRow[key];
+        });
+        return nextRow;
+      });
+    } catch (error) {
+      const missingKnownColumn = isMissingColumnError(error, "fee_status") || isMissingColumnError(error, "aliases");
+      if (!missingKnownColumn) {
+        throw error;
+      }
+    }
+  }
+
+  return rows.map(({ fee_status, aliases, ...rest }) => rest);
+}
+
+async function validateSyncTargets() {
+  const checks = [
+    { path: "members?select=name&limit=1", label: "members" },
+    { path: "notices?select=title&limit=1", label: "notices" },
+    { path: "guests?select=name&limit=1", label: "guests" },
+    { path: "attendance_logs?select=source&limit=1", label: "attendance_logs" },
+    { path: "raffle_history?select=draw_id&limit=1", label: "raffle_history" },
+    { path: "settings?select=key&limit=1", label: "settings" }
+  ];
+
+  for (const check of checks) {
+    try {
+      await supabaseSelect(check.path);
+    } catch (error) {
+      throw new Error(`sync target missing or unavailable: ${check.label} / ${String(error?.message || error)}`);
+    }
   }
 }
 
@@ -270,6 +312,9 @@ function json(status, body) {
     headers: { "content-type": "application/json; charset=utf-8" }
   });
 }
+
+
+
 
 
 

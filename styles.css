@@ -488,3 +488,105 @@ body.modal-open {
 }
 
 
+
+.raffle-candidate-block {
+  margin-top: 0.95rem;
+}
+
+.raffle-candidate-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.55rem;
+  margin-top: 0.5rem;
+}
+
+.admin-raffle-candidates {
+  margin: 0.8rem 0;
+}
+
+.raffle-candidate-card {
+  border: 1px solid rgba(255, 140, 66, 0.28);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(49, 28, 12, 0.95) 0%, rgba(18, 18, 18, 0.96) 100%);
+  padding: 0.7rem 0.8rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.raffle-candidate-card strong {
+  font-size: 1rem;
+}
+
+.raffle-candidate-card .list-meta {
+  font-size: 0.78rem;
+}
+
+.raffle-candidate-card.is-winner {
+  border-color: rgba(255, 188, 109, 0.9);
+  box-shadow: 0 0 0 1px rgba(255, 188, 109, 0.2), 0 14px 34px rgba(255, 120, 40, 0.12);
+}
+
+.raffle-spotlight-card {
+  border: 1px solid rgba(255, 181, 110, 0.35);
+  border-radius: 16px;
+  padding: 0.95rem 1rem;
+  background: radial-gradient(circle at top left, rgba(255, 145, 77, 0.22), transparent 42%), linear-gradient(180deg, rgba(44, 25, 12, 0.98) 0%, rgba(18, 18, 18, 0.98) 100%);
+  display: grid;
+  gap: 0.35rem;
+}
+
+.raffle-spotlight-card h4 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.raffle-winner-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.raffle-tag {
+  border: 1px solid rgba(255, 178, 112, 0.4);
+  color: #ffd5b6;
+  background: rgba(255, 122, 41, 0.08);
+  border-radius: 999px;
+  padding: 0.18rem 0.55rem;
+  font-size: 0.72rem;
+}
+
+.roulette-shell {
+  position: relative;
+}
+
+.roulette-shell::before,
+.roulette-shell::after {
+  content: "";
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  width: 2px;
+  background: linear-gradient(180deg, transparent 0%, rgba(255, 190, 135, 0.92) 20%, rgba(255, 190, 135, 0.92) 80%, transparent 100%);
+  z-index: 1;
+}
+
+.roulette-shell::before { left: 18px; }
+.roulette-shell::after { right: 18px; }
+
+.roulette-track {
+  min-width: 100%;
+}
+
+.raffle-history-card {
+  border: 1px solid rgba(255, 133, 61, 0.18);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(27, 17, 11, 0.95) 0%, rgba(17, 17, 17, 0.98) 100%);
+  padding: 0.8rem 0.9rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.raffle-history-names {
+  font-weight: 700;
+  color: #fff3e8;
+}

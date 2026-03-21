@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=SUIT:wght@300;400;500;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20260317b" />
+  <link rel="stylesheet" href="styles.css?v=20260319a" />
 </head>
 <body>
   <header class="site-header">
@@ -18,6 +18,7 @@
         <a href="login.html" data-auth-entry>회원가입 / 로그인</a>
         <a href="#about">크루 소개</a>
         <a href="#notice">공지</a>
+        <a href="login.html">활동 보드</a>
         <a href="gallery.html">사진첩</a>
         <a href="running.html">러닝 허브</a>
         <a href="login.html" data-member-nav class="hidden" hidden>내 활동</a>
@@ -117,6 +118,11 @@
             <h3>이번 달 안내</h3>
             <p id="public-raffle-rule" class="list-meta">추첨 기준을 불러오는 중입니다.</p>
             <p id="public-next-draw" class="list-meta">다음 추첨 일정을 불러오는 중입니다.</p>
+            <div id="public-raffle-spotlight" class="raffle-spotlight-card" style="margin-top:0.9rem;"></div>
+            <div class="raffle-candidate-block">
+              <div class="list-top" style="margin-bottom:0.45rem;"><span class="list-title">이번 달 후보 미리보기</span><span class="list-meta">출석 기준</span></div>
+              <div id="public-raffle-candidates" class="raffle-candidate-grid"></div>
+            </div>
             <p class="muted raffle-help">운영진이 기록한 출석 데이터를 기준으로 전월 참여 추첨을 진행합니다.</p>
           </article>
           <article class="panel raffle-public-history-panel">
@@ -292,6 +298,7 @@
               <h3>참여 추첨 운영 추첨</h3>
               <p id="raffle-rule" class="list-meta"></p>
               <p id="next-draw" class="list-meta"></p>
+              <div id="raffle-candidates" class="raffle-candidate-grid admin-raffle-candidates"></div>
               <div class="roulette-shell"><div id="roulette-track" class="roulette-track">READY</div></div>
               <button id="run-roulette" class="btn primary" type="button">룰렛 테스트 실행</button>
               <p id="winner-result" class="winner"></p>
@@ -312,9 +319,12 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="script.js?v=20260317b"></script>
+  <script src="script.js?v=20260319a"></script>
 </body>
 </html>
+
+
+
 
 
 
