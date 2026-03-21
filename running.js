@@ -30,6 +30,7 @@ const adminNavLinks = document.querySelectorAll("[data-admin-nav]");
 const authEntryLinks = document.querySelectorAll("[data-auth-entry]");
 const runningGuestActions = document.getElementById("running-guest-actions");
 const runningMemberActions = document.getElementById("running-member-actions");
+const runningComposeJump = document.getElementById("running-compose-jump");
 
 if (yearNode) {
   yearNode.textContent = new Date().getFullYear();
@@ -83,7 +84,7 @@ async function refreshRunningSession() {
     await loadRunningHub();
   } catch (error) {
     setRunningText(runningAuthStatus, "러닝 허브 상태를 새로 불러오지 못했습니다.");
-    setRunningText(runningRoleStatus, String(error?.message || error || "잠시 후 다시 시도해 주세요."));
+    setRunningText(runningRoleStatus, `?? ??: ${statusLabel(runningProfile?.approval_status)} / ??: ${runningRoleLabel(runningProfile?.role, runningProfile?.approval_status)}`);
     renderRunningFeatured([]);
     if (runningPublicList) {
       runningPublicList.innerHTML = '<div class="panel"><p class="list-meta">러닝 허브를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</p></div>';
@@ -113,6 +114,7 @@ function renderRunningAuthState() {
     updateSharedNavigation(false, false);
     setVisibility(runningGuestActions, true);
     setVisibility(runningMemberActions, false);
+    setVisibility(runningComposeJump, false);
     setRunningText(runningAuthStatus, "로그인이 필요합니다.");
     setRunningText(runningRoleStatus, "승인 회원 로그인 후 러닝 허브 글을 읽고 제안할 수 있습니다.");
     setRunningText(runningComposeLock, "가입 승인된 회원만 글 등록이 열립니다.");
@@ -127,8 +129,9 @@ function renderRunningAuthState() {
   updateSharedNavigation(true, isAdmin);
   setVisibility(runningGuestActions, false);
   setVisibility(runningMemberActions, true);
+  setVisibility(runningComposeJump, isApproved);
   setRunningText(runningAuthStatus, `로그인됨: ${runningUser.email}`);
-  setRunningText(runningRoleStatus, `승인 상태: ${statusLabel(runningProfile?.approval_status)} / 권한: ${runningProfile?.role || "member"}`);
+  setRunningText(runningRoleStatus, `승인 상태: ${statusLabel(runningProfile?.approval_status)} / 권한: ${runningRoleLabel(runningProfile?.role, runningProfile?.approval_status)}`);
 
   if (isApproved) {
     setRunningText(runningComposeLock, "승인 회원은 러닝 허브 글을 제안할 수 있습니다. 등록된 글은 운영진 검토 후 공개됩니다.");
@@ -379,7 +382,7 @@ function renderRunningFeatured(rows) {
   }
   runningFeaturedList.innerHTML = "";
   if (!rows.length) {
-    runningFeaturedList.innerHTML = '<article class="card"><h3>추천 글 준비 중</h3><p class="list-meta">운영진이 추천 루트와 팁을 정리하고 있습니다.</p></article>';
+    runningFeaturedList.innerHTML = '<article class="card"><h3>추천 글 준비 중</h3><p class="list-meta">운영진이 추천 루트와 팁을 정리하고 있습니다.</p><p class="list-meta">승인 회원은 글 제안하기 버튼으로 첫 글을 올릴 수 있습니다.</p></article>';
     return;
   }
 
@@ -413,8 +416,8 @@ function renderRunningPublic() {
 
   runningPublicList.innerHTML = "";
   if (!visibleRows.length) {
-    runningPublicList.innerHTML = '<div class="panel"><p class="list-meta">조건에 맞는 러닝 허브 글이 없습니다.</p></div>';
-    return;
+    const emptyMessage = runningProfile?.approval_status === "approved" ? "아직 공개된 글이 없습니다. 글 제안하기로 첫 글을 올려 보세요." : "조건에 맞는 러닝 허브 글이 없습니다.";
+    runningPublicList.innerHTML = `<div class="panel"><p class="list-meta">${emptyMessage}</p></div>`;
   }
 
   visibleRows.forEach((row) => {
@@ -430,6 +433,13 @@ function renderRunningPublic() {
     button?.addEventListener("click", () => toggleRunningLike(row.id));
     runningPublicList.appendChild(article);
   });
+}
+
+function runningRoleLabel(role, approvalStatus) {
+  if (approvalStatus !== "approved") {
+    return "승인 대기";
+  }
+  return role === "admin" ? "운영진" : "일반회원";
 }
 
 function setRunningText(node, text) {

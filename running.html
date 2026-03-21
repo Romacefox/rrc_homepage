@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=SUIT:wght@300;400;500;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20260317b" />
+  <link rel="stylesheet" href="styles.css?v=20260321b" />
 </head>
 <body>
   <header class="site-header">
@@ -22,7 +22,7 @@
         <a href="gallery.html">사진첩</a>
         <a href="running.html">러닝 허브</a>
         <a href="login.html" data-member-nav class="hidden" hidden>활동 보드</a>
-        <a href="index.html#admin" data-admin-nav class="hidden" hidden>운영 관리</a>
+        <a href="index.html#admin" data-admin-nav class="hidden nav-admin-link" hidden>운영 관리</a>
         <a href="index.html">메인</a>
       </nav>
     </div>
@@ -33,7 +33,7 @@
       <div class="container">
         <div class="section-head">
           <h2>러닝 허브</h2>
-          <span class="badge">루트 · 팁 · 회원 제안</span>
+          <div class="running-cta-row"><a id="running-compose-jump" class="btn primary hidden" href="#running-compose-section" hidden>글 제안하기</a><span class="badge">루트 · 팁 · 회원 제안</span></div>
         </div>
         <p class="list-meta running-intro">운영진 추천 글과 승인 회원 제안을 함께 보는 러닝 아카이브입니다.</p>
         <div class="auth-links-row" style="margin-top:0.9rem; margin-bottom:0.2rem;">
@@ -53,7 +53,7 @@
             <div id="running-member-actions" class="auth-links-row hidden" style="margin-top:0.8rem;">
               <a class="btn ghost" href="login.html">활동 보드</a>
               <a class="btn ghost" href="gallery.html">사진첩</a>
-              <a class="btn ghost hidden" href="index.html#admin" data-admin-nav hidden>운영 관리</a>
+              <a class="btn ghost hidden nav-admin-link" href="index.html#admin" data-admin-nav hidden>운영 관리</a>
             </div>
             <ul class="bullet" style="margin-top:1rem;">
               <li>추천 루트, 훈련 팁, 준비 체크리스트, 러닝 후기를 한곳에서 볼 수 있습니다.</li>
@@ -61,7 +61,7 @@
               <li>활동 보드와 사진첩으로 바로 이동해 흐름을 이어 볼 수 있습니다.</li>
             </ul>
 
-            <div class="running-compose" style="margin-top:1rem;">
+            <div id="running-compose-section" class="running-compose" style="margin-top:1rem;">
               <h3>러닝 허브 제안하기</h3>
               <p id="running-compose-lock" class="list-meta">승인 회원 로그인 후 글 등록이 열립니다.</p>
               <form id="running-post-form" class="form compact hidden">
@@ -127,7 +127,7 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="running.js?v=20260317b"></script>
+  <script src="running.js?v=20260321b"></script>
 </body>
 </html>
 

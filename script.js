@@ -1,4 +1,4 @@
-
+﻿
 const STORAGE_KEY = "rrc-site-db-v3";
 const ADMIN_SNAPSHOT_META_KEY = "rrc-admin-snapshot-meta-v1";
 
@@ -113,6 +113,7 @@ const publicRaffleSpotlight = document.getElementById("public-raffle-spotlight")
 const publicRaffleCandidates = document.getElementById("public-raffle-candidates");
 const raffleCandidates = document.getElementById("raffle-candidates");
 const auditLogList = document.getElementById("audit-log-list");
+const adminNavLinks = document.querySelectorAll("[data-admin-nav]");
 
 let adminAuthClient = null;
 let currentAdminToken = "";
@@ -457,6 +458,39 @@ async function loadAdminSnapshot() {
   saveDb();
 }
 
+function formatApprovalStatusLabel(status) {
+  if (status === "approved") return "승인";
+  if (status === "rejected") return "반려";
+  if (status === "pending") return "승인 대기";
+  return "미확인";
+}
+
+function formatRoleLabel(role, isOwner = false) {
+  if (role === "admin") {
+    return isOwner ? "운영진(오너)" : "운영진";
+  }
+  return "일반회원";
+}
+
+function buildAdminRoleStatusText(role, approvalStatus, canManageRoles) {
+  const roleLabel = formatRoleLabel(role, Boolean(canManageRoles));
+  const approvalLabel = formatApprovalStatusLabel(approvalStatus);
+  const manageLabel = canManageRoles ? "가능" : "불가";
+  return "내 권한: " + roleLabel + " / 승인: " + approvalLabel + " / 권한 변경 가능: " + manageLabel;
+}
+
+function setNodeVisibility(node, visible) {
+  if (!node) {
+    return;
+  }
+  node.classList.toggle("hidden", !visible);
+  node.hidden = !visible;
+}
+
+function getSelectedAttendanceDate() {
+  return bulkAttendanceDateInput?.value || toIsoDate(new Date());
+}
+
 function setDefaultBulkDate() {
   if (!bulkAttendanceDateInput) {
     return;
@@ -569,13 +603,14 @@ async function handleAdminLogin() {
     } catch (_error) {
       // Ignore local snapshot marker failures.
     }
-    currentAdminCanManageRoles = false;
+    currentAdminCanManageRoles = Boolean(user?.email && String(user.email).toLowerCase() === "chlgusgn11@gmail.com");
     currentAdminUserId = user.id;
+    adminNavLinks.forEach((node) => setNodeVisibility(node, true));
     if (syncStatus) {
       syncStatus.textContent = "동기화 준비 완료";
     }
     if (roleStatus) {
-      roleStatus.textContent = `내 권한: ${profile.role || "unknown"} / 승인: ${profile.approval_status || "unknown"}`;
+      roleStatus.textContent = buildAdminRoleStatusText(profile?.role, profile?.approval_status, currentAdminCanManageRoles);
     }
     adminLock.classList.add("hidden");
     adminPanel.classList.remove("hidden");
@@ -615,15 +650,16 @@ async function restoreAdminSession() {
     }
 
     currentAdminToken = accessToken;
-    currentAdminCanManageRoles = false;
+    currentAdminCanManageRoles = Boolean(user?.email && String(user.email).toLowerCase() === "chlgusgn11@gmail.com");
     currentAdminUserId = user.id;
+    adminNavLinks.forEach((node) => setNodeVisibility(node, true));
     adminLock.classList.add("hidden");
     adminPanel.classList.remove("hidden");
     if (syncStatus) {
       syncStatus.textContent = "동기화 준비 완료";
     }
     if (roleStatus) {
-      roleStatus.textContent = `내 권한: ${profile.role || "unknown"} / 승인: ${profile.approval_status || "unknown"}`;
+      roleStatus.textContent = buildAdminRoleStatusText(profile?.role, profile?.approval_status, currentAdminCanManageRoles);
     }
     await loadAdminSnapshot();
     loadApprovalQueue();
@@ -1078,15 +1114,17 @@ function renderMembers() {
     const actions = document.createElement("div");
     actions.className = "item-actions";
     actions.appendChild(buildTinyButton("+1 출석", () => {
-      updateMemberRuns(member.id, 1);
+      const attendanceDate = getSelectedAttendanceDate();
+      updateMemberRuns(member.id, 1, monthKeyFromDate(attendanceDate));
       saveDb();
-      logAdminAction("회원 출석 추가", `${member.name} +1`);
+      logAdminAction("회원 출석 추가", `${member.name} +1 (${attendanceDate})`);
       renderAll();
     }));
     actions.appendChild(buildTinyButton("-1 출석", () => {
-      updateMemberRuns(member.id, -1);
+      const attendanceDate = getSelectedAttendanceDate();
+      updateMemberRuns(member.id, -1, monthKeyFromDate(attendanceDate));
       saveDb();
-      logAdminAction("회원 출석 차감", `${member.name} -1`);
+      logAdminAction("회원 출석 차감", `${member.name} -1 (${attendanceDate})`);
       renderAll();
     }));
     actions.appendChild(buildTinyButton("삭제", () => {
@@ -1880,7 +1918,7 @@ async function loadApprovalQueue() {
   approvalList.innerHTML = '<li class="list-item"><p class="list-meta">불러오는 중...</p></li>';
 
   try {
-    const response = await fetch("/.netlify/functions/member-approval?action=list-all", {
+    const response = await fetch("/.netlify/functions/member-approval?action=list", {
       headers: {
         Authorization: `Bearer ${currentAdminToken}`
       }
@@ -1906,7 +1944,7 @@ async function loadApprovalQueue() {
       row.innerHTML = `
         <div class="list-top">
           <span class="list-title">${escapeHtml(item.name || "이름없음")} (${item.birth_year || "-"})</span>
-          <span class="list-meta">${escapeHtml(item.approval_status || "pending")} / ${escapeHtml(item.role || "member")}</span>
+          <span class="list-meta">${escapeHtml(formatApprovalStatusLabel(item.approval_status))} / ${escapeHtml(formatRoleLabel(item.role))}</span>
         </div>
         <p class="list-meta">${escapeHtml(item.email || "")}</p>
         <p>${escapeHtml(item.intro || "-")}</p>
@@ -1965,17 +2003,17 @@ async function loadRoleList() {
     }
 
     if (roleStatus) {
-      const manageLabel = currentAdminCanManageRoles ? "가능" : "불가";
-      const currentRoleText = roleStatus.textContent || "";
-      const trimmedRoleText = currentRoleText.split(" / 권한 변경 가능:")[0] || currentRoleText;
-      roleStatus.textContent = `${trimmedRoleText} / 권한 변경 가능: ${manageLabel}`;
+      roleStatus.textContent = buildAdminRoleStatusText("admin", "approved", currentAdminCanManageRoles);
+
+
+
     }
 
     items.slice(0, 200).forEach((item) => {
       const row = document.createElement("li");
       row.className = "list-item";
       const isMe = item.user_id === currentAdminUserId;
-      row.innerHTML = `<div class="list-top"><span class="list-title">${escapeHtml(item.name || "이름없음")}${isMe ? " (나)" : ""}</span><span class="list-meta">${escapeHtml(item.role || "member")}</span></div><p class="list-meta">${escapeHtml(item.email || "")}</p>`;
+      row.innerHTML = `<div class="list-top"><span class="list-title">${escapeHtml(item.name || "이름없음")}${isMe ? " (나)" : ""}</span><span class="list-meta">${escapeHtml(formatRoleLabel(item.role, isMe && currentAdminCanManageRoles))}</span></div><p class="list-meta">${escapeHtml(item.email || "")}</p>`;
 
       const actions = document.createElement("div");
       actions.className = "item-actions";
