@@ -38,13 +38,24 @@ if (yearNode) {
 
 initRunningHub();
 
+function syncRunningAuthFromSharedState() {
+  const sharedState = window.__RRC_AUTH_STATE || null;
+  if (!sharedState) {
+    return false;
+  }
+  runningUser = sharedState.user || runningUser || null;
+  runningProfile = sharedState.profile || runningProfile || null;
+  return Boolean(runningUser || runningProfile);
+}
+
+
 function initRunningHub() {
   if (!window.supabase || !window.supabase.createClient) {
     setRunningText(runningAuthStatus, "Supabase 라이브러리를 불러오지 못했습니다.");
     return;
   }
 
-  runningClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  runningClient = window.__RRC_SUPABASE_CLIENT || window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
@@ -57,13 +68,18 @@ function initRunningHub() {
   runningAdminRefresh?.addEventListener("click", loadRunningAdminList);
   runningFilter?.addEventListener("change", renderRunningPublic);
 
+  window.addEventListener("rrc-auth-state", async () => {
+    syncRunningAuthFromSharedState();
+    await refreshRunningSession();
+  });
+
   runningClient.auth.onAuthStateChange(async (_event, session) => {
     runningUser = session?.user || null;
     await refreshRunningSession();
   });
 
+  syncRunningAuthFromSharedState();
   runningClient.auth.getSession().then(async ({ data }) => {
-    runningUser = data?.session?.user || readStoredRunningUser() || null;
     await refreshRunningSession();
   });
 
@@ -71,6 +87,7 @@ function initRunningHub() {
     if (document.visibilityState !== "visible" || !runningClient) {
       return;
     }
+    syncRunningAuthFromSharedState();
     const { data } = await runningClient.auth.getSession();
     runningUser = data?.session?.user || readStoredRunningUser() || null;
     await refreshRunningSession();
@@ -78,6 +95,7 @@ function initRunningHub() {
 }
 
 async function refreshRunningSession() {
+  syncRunningAuthFromSharedState();
   try {
     await loadRunningProfile();
     renderRunningAuthState();
