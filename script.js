@@ -114,6 +114,7 @@ let currentAdminCanManageRoles = false;
 let publicDataClient = null;
 let publicRaffleHistory = [];
 let publicNoticeItems = [];
+let memberProfileSummaryByKey = new Map();
 let autoSyncTimer = null;
 let autoSyncPending = false;
 
@@ -121,7 +122,9 @@ init();
 
 function init() {
   yearNode.textContent = new Date().getFullYear();
+  markCurrentNavigation();
   migrateLegacyData();
+  configureAdminInputs();
   populateFeeMonthOptions();
   setDefaultBulkDate();
   renderAll();
@@ -169,6 +172,7 @@ function init() {
   }
   memberSearchInput?.addEventListener("input", renderMembers);
   memberFilterSelect?.addEventListener("change", renderMembers);
+  window.addEventListener("hashchange", markCurrentNavigation);
 
   setInterval(() => {
     renderRaffle();
@@ -178,6 +182,59 @@ function init() {
   setInterval(() => {
     loadPublicRaffleData();
   }, 10 * 60 * 1000);
+}
+
+function markCurrentNavigation() {
+  const currentPath = (window.location.pathname.split("/").pop() || "index.html").toLowerCase();
+  const currentHash = String(window.location.hash || "").toLowerCase();
+  document.querySelectorAll(".nav-links a[href]").forEach((link) => {
+    const rawHref = String(link.getAttribute("href") || "");
+    if (!rawHref || rawHref.startsWith("http")) {
+      return;
+    }
+
+    const [hrefPath, hrefHash = ""] = rawHref.toLowerCase().split("#");
+    const normalizedPath = hrefPath || currentPath;
+    const normalizedHash = hrefHash ? `#${hrefHash}` : "";
+    const isCurrent = normalizedPath === currentPath && (!normalizedHash || normalizedHash === currentHash);
+    link.classList.toggle("is-current", isCurrent);
+    if (isCurrent) {
+      link.setAttribute("aria-current", "page");
+    } else {
+      link.removeAttribute("aria-current");
+    }
+  });
+}
+
+function configureAdminInputs() {
+  const koreanTextInputs = [memberNameInput, attendanceNameInput, memberSearchInput, bulkAttendanceInput];
+  koreanTextInputs.forEach((node) => {
+    if (!node) {
+      return;
+    }
+    node.setAttribute("lang", "ko");
+    node.setAttribute("inputmode", "text");
+    node.setAttribute("autocapitalize", "off");
+    node.setAttribute("autocomplete", "off");
+  });
+
+  if (memberSearchInput) {
+    memberSearchInput.placeholder = "이름 검색";
+  }
+
+  if (memberFilterSelect && !memberFilterSelect.querySelector('option[value="active"]')) {
+    memberFilterSelect.insertAdjacentHTML("afterbegin", [
+      '<option value="all">전체</option>',
+      '<option value="active">활성 회원</option>',
+      '<option value="inactive">휴면 회원</option>'
+    ].join(""));
+    const duplicateAllOption = memberFilterSelect.querySelectorAll('option[value="all"]');
+    duplicateAllOption.forEach((option, index) => {
+      if (index > 0) {
+        option.remove();
+      }
+    });
+  }
 }
 
 function migrateLegacyData() {
@@ -197,6 +254,7 @@ function migrateLegacyData() {
       totalRuns,
       monthlyRuns,
       feeStatus,
+      isActive: member.isActive !== false && member.is_active !== false,
       aliases: Array.isArray(member.aliases) ? member.aliases : [],
       createdAt: member.createdAt || new Date().toISOString()
     };
@@ -263,7 +321,7 @@ function getPublicDataClient() {
 async function loadMembersSnapshot(client) {
   const withFeeStatus = await client
     .from("members")
-    .select("id,name,birth_year,total_runs,monthly_runs,fee_status,aliases,created_at")
+    .select("id,name,birth_year,total_runs,monthly_runs,fee_status,aliases,is_active,created_at")
     .order("created_at", { ascending: false });
 
   if (!withFeeStatus.error) {
@@ -276,7 +334,7 @@ async function loadMembersSnapshot(client) {
 
   const legacyResult = await client
     .from("members")
-    .select("id,name,birth_year,total_runs,monthly_runs,aliases,created_at")
+    .select("id,name,birth_year,total_runs,monthly_runs,aliases,is_active,created_at")
     .order("created_at", { ascending: false });
 
   if (legacyResult.error) {
@@ -392,13 +450,14 @@ async function loadAdminSnapshot() {
   }
 
   const client = getAdminAuthClient();
-  const [membersResult, guestsResult, noticesResult, attendanceResult, raffleResult, auditResult] = await Promise.all([
+  const [membersResult, guestsResult, noticesResult, attendanceResult, raffleResult, auditResult, profilesResult] = await Promise.all([
     loadMembersSnapshot(client),
     client.from("guests").select("id,name,birth_year,phone,message,status,created_at").order("created_at", { ascending: false }),
     client.from("notices").select("id,title,content,created_at").order("created_at", { ascending: false }),
     client.from("attendance_logs").select("id,source,event_type,attendance_date,raw_count,matched,unmatched,ambiguous,created_at").order("created_at", { ascending: false }).limit(50),
     client.from("raffle_history").select("draw_id,target_month_key,threshold,winner_count,winners,created_at").order("created_at", { ascending: false }).limit(12),
-    client.from("operation_logs").select("id,actor_name,action,detail,created_at").order("created_at", { ascending: false }).limit(50)
+    client.from("operation_logs").select("id,actor_name,action,detail,created_at").order("created_at", { ascending: false }).limit(50),
+    client.from("member_profiles").select("user_id,email,name,birth_year,approval_status,role").limit(500)
   ]);
 
   if (membersResult.error) {
@@ -428,6 +487,7 @@ async function loadAdminSnapshot() {
       totalRuns: Number(member.total_runs || 0),
       monthlyRuns: member.monthly_runs && typeof member.monthly_runs === "object" ? member.monthly_runs : {},
       feeStatus: member.fee_status && typeof member.fee_status === "object" ? member.fee_status : {},
+      isActive: member.is_active !== false,
       aliases: Array.isArray(member.aliases) ? member.aliases : [],
       createdAt: member.created_at || new Date().toISOString()
     })) : [],
@@ -473,6 +533,8 @@ async function loadAdminSnapshot() {
     members: preservedMembers
   };
 
+  hydrateMemberProfileSummary(profilesResult.error ? [] : profilesResult.data);
+
   migrateLegacyData();
   saveDb();
 
@@ -505,6 +567,81 @@ function buildAdminRoleStatusText(role, approvalStatus, canManageRoles) {
   const approvalLabel = formatApprovalStatusLabel(approvalStatus);
   const manageLabel = canManageRoles ? "가능" : "불가";
   return "내 권한: " + roleLabel + " / 승인: " + approvalLabel + " / 권한 변경 가능: " + manageLabel;
+}
+
+function hydrateMemberProfileSummary(items) {
+  memberProfileSummaryByKey = new Map();
+  (Array.isArray(items) ? items : []).forEach((item) => {
+    const key = buildMemberIdentityKey(item?.name, item?.birth_year);
+    if (!key) {
+      return;
+    }
+    memberProfileSummaryByKey.set(key, {
+      userId: item?.user_id || "",
+      email: String(item?.email || ""),
+      approvalStatus: String(item?.approval_status || "pending"),
+      role: String(item?.role || "member")
+    });
+  });
+}
+
+function buildMemberIdentityKey(name, birthYear) {
+  const normalizedName = normalizeName(name);
+  const normalizedBirthYear = Number(birthYear || 0);
+  if (!normalizedName) {
+    return "";
+  }
+  return `${normalizedName}|${normalizedBirthYear}`;
+}
+
+function getMemberAccountSummary(member) {
+  const key = buildMemberIdentityKey(member?.name, member?.birthYear);
+  return key ? (memberProfileSummaryByKey.get(key) || null) : null;
+}
+
+function buildMemberAccountChips(member) {
+  const summary = getMemberAccountSummary(member);
+  if (!summary) {
+    return '<span class="status-chip">미가입</span>';
+  }
+
+  const chips = ['<span class="status-chip">가입</span>'];
+  if (summary.approvalStatus === "pending") {
+    chips.push('<span class="status-chip warn">승인 대기</span>');
+  } else if (summary.approvalStatus === "rejected") {
+    chips.push('<span class="status-chip danger">반려</span>');
+  }
+  if (summary.role === "admin") {
+    chips.push('<span class="status-chip">운영진</span>');
+  }
+  return chips.join("");
+}
+
+function buildMemberAccountMeta(member) {
+  const summary = getMemberAccountSummary(member);
+  if (!summary) {
+    return "웹 계정 연결 없음";
+  }
+
+  const statusText = formatApprovalStatusLabel(summary.approvalStatus);
+  const roleText = formatRoleLabel(summary.role);
+  return `${summary.email || "이메일 없음"} · ${statusText} · ${roleText}`;
+}
+
+function confirmMemberDeletion(member) {
+  const summary = getMemberAccountSummary(member);
+  const warning = summary
+    ? "이 회원은 웹 가입 계정 정보와 연결되어 있을 수 있습니다. 운영 회원 목록에서만 삭제할지 꼭 확인해 주세요."
+    : "이 회원의 출석/회비/추첨 기준 데이터가 운영 목록에서 삭제됩니다.";
+  return confirm(`${member.name} (${member.birthYear}) 회원을 삭제할까요?\n\n${warning}`);
+}
+
+function confirmMemberToggleActive(member, nextActive) {
+  const actionLabel = nextActive ? "활성화" : "휴면 전환";
+  const effectText = nextActive
+    ? "다시 활성 회원 목록과 추첨/위험 관리에 포함됩니다."
+    : "휴면 회원으로 전환되어 기본 회원 목록, 추첨, 위험 관리에서 제외됩니다.";
+  return confirm(`${member.name} (${member.birthYear}) 회원을 ${actionLabel}할까요?\n\n${effectText}`);
 }
 
 function shouldPreserveLocalMembers(localMembers, remoteMembers) {
@@ -567,6 +704,7 @@ function normalizeMemberRecord(member) {
       : member?.fee_status && typeof member.fee_status === "object"
         ? member.fee_status
         : {},
+    isActive: member?.isActive !== false && member?.is_active !== false,
     aliases: Array.isArray(member?.aliases) ? member.aliases : [],
     createdAt: member?.createdAt || member?.created_at || new Date().toISOString()
   };
@@ -600,6 +738,7 @@ function mergeMemberRecord(primary, secondary) {
     totalRuns: Math.max(Number(primary.totalRuns || 0), Number(secondary.totalRuns || 0)),
     monthlyRuns: mergedMonthlyRuns,
     feeStatus: mergedFeeStatus,
+    isActive: primary.isActive !== false && secondary.isActive !== false,
     aliases,
     createdAt: primary.createdAt || secondary.createdAt || new Date().toISOString()
   };
@@ -840,6 +979,7 @@ function handleMemberAdd(event) {
     totalRuns: 0,
     monthlyRuns: { [currentMonthKey()]: 0 },
     feeStatus: { [currentMonthKey()]: "unpaid" },
+    isActive: true,
     aliases: [],
     createdAt: new Date().toISOString()
   });
@@ -1207,6 +1347,8 @@ function renderMembers() {
     const risk = computeMemberRisk(member, new Date()).level;
     const unpaid = getFeeStatus(member, feeMonthSelect?.value || currentMonthKey()) !== "paid";
 
+    if (filter === "active") return member.isActive !== false;
+    if (filter === "inactive") return member.isActive === false;
     if (filter === "eligible") return eligible;
     if (filter === "warn") return risk === "warn";
     if (filter === "danger") return risk === "danger";
@@ -1225,6 +1367,9 @@ function renderMembers() {
     const monthly = getMonthlyRuns(member, monthKey);
     const eligible = monthly >= threshold;
     const risk = computeMemberRisk(member, new Date());
+    const accountChips = buildMemberAccountChips(member);
+    const accountMeta = buildMemberAccountMeta(member);
+    const activeChip = member.isActive === false ? '<span class="status-chip warn">휴면</span>' : '<span class="status-chip">활성</span>';
 
     const feeOnlyRisk = risk.level !== "ok" && risk.reasons.every((reason) => String(reason).includes("회비"));
     const riskChip = feeOnlyRisk
@@ -1237,7 +1382,7 @@ function renderMembers() {
 
     const item = document.createElement("li");
     item.className = "list-item";
-    item.innerHTML = `<div class="list-top"><span class="list-title">${escapeHtml(member.name)} (${member.birthYear})${eligible ? '<span class="status-chip">추첨 대상</span>' : ""}${riskChip}</span><span class="list-meta">이번 달 ${monthly}회 / 누적 ${member.totalRuns}회</span></div><p class="list-meta">${feeOnlyRisk ? escapeHtml(risk.reasons.join(" / ")) : ""}</p>`;
+    item.innerHTML = `<div class="list-top"><span class="list-title">${escapeHtml(member.name)} (${member.birthYear})${activeChip}${accountChips}${eligible ? '<span class="status-chip">추첨 대상</span>' : ""}${riskChip}</span><span class="list-meta">이번 달 ${monthly}회 / 누적 ${member.totalRuns}회</span></div><p class="list-meta">${escapeHtml(accountMeta)}</p><p class="list-meta">${feeOnlyRisk ? escapeHtml(risk.reasons.join(" / ")) : ""}</p>`;
 
     const actions = document.createElement("div");
     actions.className = "item-actions";
@@ -1255,10 +1400,14 @@ function renderMembers() {
       logAdminAction("회원 출석 차감", `${member.name} -1 (${attendanceDate})`);
       renderAll();
     }));
-    actions.appendChild(buildTinyButton("삭제", () => {
-      db.members = db.members.filter((entry) => entry.id !== member.id);
+    actions.appendChild(buildTinyButton(member.isActive === false ? "활성화" : "휴면", () => {
+      const nextActive = member.isActive === false;
+      if (!confirmMemberToggleActive(member, nextActive)) {
+        return;
+      }
+      db.members = db.members.map((entry) => entry.id === member.id ? { ...entry, isActive: nextActive } : entry);
       saveDb();
-      logAdminAction("회원 삭제", member.name);
+      logAdminAction(nextActive ? "회원 활성화" : "회원 휴면 전환", member.name);
       renderAll();
     }));
 
@@ -1494,6 +1643,7 @@ function renderRisks() {
   }
 
   const risks = db.members
+    .filter((member) => member.isActive !== false)
     .map((member) => ({ member, risk: computeMemberRisk(member, new Date()) }))
     .filter((entry) => entry.risk.level !== "ok")
     .sort((a, b) => severityScore(b.risk.level) - severityScore(a.risk.level));
@@ -1559,13 +1709,14 @@ function computeMemberRisk(member, now) {
 
 function renderDashboard() {
   const monthKey = feeMonthSelect.value || currentMonthKey();
-  const memberCount = db.members.length;
-  const monthRunsTotal = db.members.reduce((sum, member) => sum + getMonthlyRuns(member, monthKey), 0);
+  const activeMembers = db.members.filter((member) => member.isActive !== false);
+  const memberCount = activeMembers.length;
+  const monthRunsTotal = activeMembers.reduce((sum, member) => sum + getMonthlyRuns(member, monthKey), 0);
   const avgRuns = memberCount ? monthRunsTotal / memberCount : 0;
   const eligibleCount = getEligibleMembers(monthKey).length;
-  const paidCount = db.members.filter((member) => getFeeStatus(member, monthKey) === "paid").length;
+  const paidCount = activeMembers.filter((member) => getFeeStatus(member, monthKey) === "paid").length;
   const feeRate = memberCount ? (paidCount / memberCount) * 100 : 0;
-  const riskCount = db.members.filter((member) => computeMemberRisk(member, new Date()).level !== "ok").length;
+  const riskCount = activeMembers.filter((member) => computeMemberRisk(member, new Date()).level !== "ok").length;
 
   statMembers.textContent = `${memberCount}명`;
   statAvgRuns.textContent = avgRuns.toFixed(1);
@@ -1574,9 +1725,9 @@ function renderDashboard() {
   statRisk.textContent = `${riskCount}명`;
 
   const keys = getRecentMonthKeys(6);
-  const runSeries = keys.map((key) => ({ key, value: db.members.reduce((sum, member) => sum + getMonthlyRuns(member, key), 0) }));
+  const runSeries = keys.map((key) => ({ key, value: activeMembers.reduce((sum, member) => sum + getMonthlyRuns(member, key), 0) }));
   const feeSeries = keys.map((key) => {
-    const paid = db.members.filter((member) => getFeeStatus(member, key) === "paid").length;
+    const paid = activeMembers.filter((member) => getFeeStatus(member, key) === "paid").length;
     return { key, value: memberCount ? (paid / memberCount) * 100 : 0 };
   });
 
@@ -1707,7 +1858,7 @@ function getRaffleBadge(member, monthKey, index) {
 }
 function getEligibleMembers(monthKey) {
   const threshold = getThresholdForMonthKey(monthKey);
-  return db.members.filter((member) => getMonthlyRuns(member, monthKey) >= threshold);
+  return db.members.filter((member) => member.isActive !== false && getMonthlyRuns(member, monthKey) >= threshold);
 }
 
 function getDrawSchedule(now) {
@@ -1950,7 +2101,7 @@ function buildSupabaseSyncPayload() {
     monthly_runs: member.monthlyRuns && typeof member.monthlyRuns === "object" ? member.monthlyRuns : {},
     fee_status: member.feeStatus && typeof member.feeStatus === "object" ? member.feeStatus : {},
     aliases: Array.isArray(member.aliases) ? member.aliases : [],
-    is_active: true
+    is_active: member.isActive !== false
   }));
 
   const notices = (Array.isArray(db.notices) ? db.notices : []).map((notice) => ({

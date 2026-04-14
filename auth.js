@@ -129,6 +129,7 @@ function redirectAfterLoginIfNeeded() {
   return true;
 }
 function init() {
+  markCurrentNavigation();
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     setStatus(loginStatus, "설정 필요: auth.js 상단의 SUPABASE 값을 입력해 주세요.");
     setStatus(signupStatus, "설정 필요: auth.js 상단의 SUPABASE 값을 입력해 주세요.");
@@ -186,6 +187,24 @@ function init() {
       return;
     }
     void hydrateAuthState();
+  });
+}
+
+function markCurrentNavigation() {
+  const currentPath = (window.location.pathname.split("/").pop() || "index.html").toLowerCase();
+  document.querySelectorAll(".nav-links a[href]").forEach((link) => {
+    const rawHref = String(link.getAttribute("href") || "");
+    if (!rawHref || rawHref.startsWith("http")) {
+      return;
+    }
+    const hrefPath = rawHref.split("#")[0].toLowerCase();
+    const isCurrent = currentPath === (hrefPath || currentPath);
+    link.classList.toggle("is-current", isCurrent);
+    if (isCurrent) {
+      link.setAttribute("aria-current", "page");
+    } else {
+      link.removeAttribute("aria-current");
+    }
   });
 }
 

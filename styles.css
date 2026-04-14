@@ -43,8 +43,21 @@ a { color: inherit; }
 }
 
 .nav-links { display: flex; gap: 0.8rem; flex-wrap: wrap; }
-.nav-links a { text-decoration: none; color: var(--muted); font-weight: 600; font-size: 0.95rem; }
+.nav-links a {
+  text-decoration: none;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 0.3rem 0.1rem;
+  border-bottom: 2px solid transparent;
+  transition: color 0.18s ease, border-color 0.18s ease;
+}
 .nav-links a:hover { color: var(--brand-soft); }
+.nav-links a.is-current,
+.nav-links a[aria-current="page"] {
+  color: #fff2e7;
+  border-bottom-color: rgba(255, 140, 66, 0.9);
+}
 
 .hero { position: relative; padding: 6.2rem 0 4.2rem; overflow: hidden; }
 .hero-overlay { position: absolute; inset: 0; background: linear-gradient(130deg, rgba(255, 107, 0, 0.2) 0%, rgba(255, 107, 0, 0) 58%); pointer-events: none; }
@@ -180,6 +193,17 @@ input, textarea, select {
 @media (max-width: 960px) {
   .two-col { grid-template-columns: 1fr; }
   .nav-wrap { align-items: flex-start; flex-direction: column; }
+  .nav-links {
+    width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 0.35rem;
+    scrollbar-width: thin;
+  }
+  .nav-links a {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
   .inline-form { flex-direction: column; }
   .stats-grid { grid-template-columns: repeat(2, minmax(100px, 1fr)); }
 }
@@ -646,6 +670,22 @@ body.modal-open {
   max-width: 760px;
 }
 
+.running-summary-bar {
+  display: flex;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+  margin: 0.95rem 0 0;
+}
+
+.running-summary-pill {
+  border: 1px solid rgba(255, 160, 94, 0.24);
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  background: rgba(255, 124, 40, 0.08);
+  color: #ffe2cb;
+  font-size: 0.84rem;
+}
+
 .running-feature-card {
   border: 1px solid rgba(255, 140, 66, 0.2);
   background: linear-gradient(180deg, rgba(41, 24, 13, 0.96) 0%, rgba(18, 18, 18, 0.98) 100%);
@@ -689,6 +729,18 @@ body.modal-open {
 .running-post-summary {
   margin: 0.85rem 0 0;
   color: #ffe7d3;
+}
+
+.running-post-item.is-pending {
+  border-color: rgba(255, 198, 108, 0.28);
+}
+
+.running-post-item.is-rejected {
+  border-color: rgba(255, 116, 116, 0.24);
+}
+
+.running-filter-meta {
+  margin-top: 0.7rem;
 }
 
 .running-post-details {

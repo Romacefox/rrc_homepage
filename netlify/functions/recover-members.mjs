@@ -60,29 +60,56 @@ async function requireAdmin(request) {
 }
 
 function rebuildMembers(profiles, currentMembers, attendanceLogs) {
-  const currentByKey = new Map();
-  (Array.isArray(currentMembers) ? currentMembers : []).forEach((member) => {
-    currentByKey.set(buildMemberKey(member.name, member.birth_year), member);
-  });
-
   const runMap = aggregateAttendance(Array.isArray(attendanceLogs) ? attendanceLogs : []);
-  const merged = [];
+  const mergedByKey = new Map();
+
+  (Array.isArray(currentMembers) ? currentMembers : []).forEach((member) => {
+    const key = buildMemberKey(member.name, member.birth_year);
+    const monthlyRunsFromLogs = runMap.get(normalizeName(member.name)) || {};
+    const monthlyRuns = mergeMonthlyRuns(member.monthly_runs, monthlyRunsFromLogs);
+    const totalRuns = Math.max(
+      Number(member.total_runs || 0),
+      Object.values(monthlyRuns).reduce((sum, value) => sum + Number(value || 0), 0)
+    );
+
+    mergedByKey.set(key, {
+      name: String(member.name || "이름없음").slice(0, 80),
+      birth_year: clampNumber(member.birth_year, 1989, 2000, 1994),
+      total_runs: totalRuns,
+      monthly_runs: monthlyRuns,
+      fee_status: member.fee_status && typeof member.fee_status === "object" ? member.fee_status : {},
+      aliases: Array.isArray(member.aliases) ? member.aliases : [],
+      is_active: member.is_active !== false
+    });
+  });
 
   (Array.isArray(profiles) ? profiles : []).forEach((profile) => {
     const key = buildMemberKey(profile.name, profile.birth_year);
-    const current = currentByKey.get(key) || null;
+    const current = mergedByKey.get(key) || null;
     const monthlyRuns = runMap.get(normalizeName(profile.name)) || {};
     const totalRuns = Object.values(monthlyRuns).reduce((sum, value) => sum + Number(value || 0), 0);
 
-    merged.push({
+    mergedByKey.set(key, {
       name: String(profile.name || "이름없음").slice(0, 80),
       birth_year: clampNumber(profile.birth_year, 1989, 2000, 1994),
       total_runs: Math.max(totalRuns, Number(current?.total_runs || 0)),
-      monthly_runs: totalRuns > 0 ? monthlyRuns : (current?.monthly_runs && typeof current.monthly_runs === "object" ? current.monthly_runs : {}),
+      monthly_runs: mergeMonthlyRuns(current?.monthly_runs, monthlyRuns),
       fee_status: current?.fee_status && typeof current.fee_status === "object" ? current.fee_status : {},
       aliases: Array.isArray(current?.aliases) ? current.aliases : [],
       is_active: true
     });
+  });
+
+  return Array.from(mergedByKey.values()).sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "ko"));
+}
+
+function mergeMonthlyRuns(baseRuns, nextRuns) {
+  const merged = {
+    ...(baseRuns && typeof baseRuns === "object" ? baseRuns : {})
+  };
+
+  Object.entries(nextRuns && typeof nextRuns === "object" ? nextRuns : {}).forEach(([monthKey, runs]) => {
+    merged[monthKey] = Math.max(Number(merged[monthKey] || 0), Number(runs || 0));
   });
 
   return merged;

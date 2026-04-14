@@ -67,6 +67,7 @@ function initRunningHub() {
   runningPostSubmit?.addEventListener("click", submitRunningPost);
   runningAdminRefresh?.addEventListener("click", loadRunningAdminList);
   runningFilter?.addEventListener("change", renderRunningPublic);
+  markCurrentNavigation();
 
   window.addEventListener("rrc-auth-state", async () => {
     syncRunningAuthFromSharedState();
@@ -112,6 +113,24 @@ async function refreshRunningSession() {
       runningPublicList.innerHTML = '<div class="panel running-empty-state"><p class="list-meta">러닝 허브를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</p></div>';
     }
   }
+}
+
+function markCurrentNavigation() {
+  const currentPath = (window.location.pathname.split("/").pop() || "index.html").toLowerCase();
+  document.querySelectorAll(".nav-links a[href]").forEach((link) => {
+    const rawHref = String(link.getAttribute("href") || "");
+    if (!rawHref || rawHref.startsWith("http")) {
+      return;
+    }
+    const hrefPath = rawHref.split("#")[0].toLowerCase();
+    const isCurrent = currentPath === (hrefPath || currentPath);
+    link.classList.toggle("is-current", isCurrent);
+    if (isCurrent) {
+      link.setAttribute("aria-current", "page");
+    } else {
+      link.removeAttribute("aria-current");
+    }
+  });
 }
 
 async function loadRunningProfile() {
@@ -503,6 +522,7 @@ function renderRunningPublic() {
   });
 
   runningPublicList.innerHTML = "";
+  renderRunningFilterSummary(selectedCategory, visibleRows);
   if (!visibleRows.length) {
     const emptyMessage = runningProfile?.approval_status === "approved"
       ? "아직 공개된 글이 없습니다. 글쓰기로 첫 글을 올려 보세요."
@@ -516,7 +536,7 @@ function renderRunningPublic() {
 
   visibleRows.forEach((row) => {
     const article = document.createElement("article");
-    article.className = "panel running-post-item";
+    article.className = `panel running-post-item${row.status === "pending" ? " is-pending" : row.status === "rejected" ? " is-rejected" : ""}`;
     const adminState = row.status !== "approved"
       ? `<span class="raffle-tag">${statusLabel(row.status)}</span>`
       : "";
@@ -548,6 +568,26 @@ function renderRunningPublic() {
     article.querySelector("button")?.addEventListener("click", () => toggleRunningLike(row.id));
     runningPublicList.appendChild(article);
   });
+}
+
+function renderRunningFilterSummary(selectedCategory, rows) {
+  if (!runningPublicList) {
+    return;
+  }
+
+  const approvedCount = rows.filter((row) => row.status === "approved").length;
+  const pendingCount = rows.filter((row) => row.status === "pending").length;
+  const categoryText = selectedCategory === "all" ? "전체 카테고리" : categoryLabel(selectedCategory);
+
+  const summary = document.createElement("div");
+  summary.className = "running-summary-bar";
+  summary.innerHTML = `
+    <span class="running-summary-pill">${categoryText}</span>
+    <span class="running-summary-pill">표시 글 ${rows.length}개</span>
+    <span class="running-summary-pill">공개 ${approvedCount}개</span>
+    ${pendingCount ? `<span class="running-summary-pill">대기 ${pendingCount}개</span>` : ""}
+  `;
+  runningPublicList.appendChild(summary);
 }
 
 function runningRoleLabel(role, approvalStatus) {
