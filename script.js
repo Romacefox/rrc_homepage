@@ -1,6 +1,7 @@
 ﻿
 const STORAGE_KEY = "rrc-site-db-v3";
 const ADMIN_SNAPSHOT_META_KEY = "rrc-admin-snapshot-meta-v1";
+const SHARED_AUTH_STORAGE_KEY = "rrc-auth";
 
 const WINTER_MONTHS = [12, 1, 2];
 const DRAW_WINNER_COUNT = 4;
@@ -19,18 +20,7 @@ const defaultData = {
     }
   ],
   guests: [],
-  members: [
-    {
-      id: makeId(),
-      name: "샘플회원",
-      birthYear: 1994,
-      totalRuns: 1,
-      monthlyRuns: { [currentMonthKey()]: 1 },
-      feeStatus: { [currentMonthKey()]: "unpaid" },
-      aliases: [],
-      createdAt: new Date().toISOString()
-    }
-  ],
+  members: [],
   raffle: {
     lastDrawId: "",
     history: []
@@ -101,6 +91,7 @@ const nextDraw = document.getElementById("next-draw");
 const approvalRefreshButton = document.getElementById("approval-refresh");
 const approvalList = document.getElementById("approval-list");
 const syncSupabaseButton = document.getElementById("sync-supabase");
+const recoverMembersButton = document.getElementById("recover-members");
 const syncStatus = document.getElementById("sync-status");
 const syncMeta = document.getElementById("sync-meta");
 const roleRefreshButton = document.getElementById("role-refresh");
@@ -170,6 +161,9 @@ function init() {
   if (syncSupabaseButton) {
     syncSupabaseButton.addEventListener("click", syncDataToSupabase);
   }
+  if (recoverMembersButton) {
+    recoverMembersButton.addEventListener("click", recoverMembersFromProfiles);
+  }
   if (roleRefreshButton) {
     roleRefreshButton.addEventListener("click", loadRoleList);
   }
@@ -234,7 +228,14 @@ function getAdminAuthClient() {
     throw new Error("Supabase 라이브러리를 불러오지 못했습니다.");
   }
   if (!adminAuthClient) {
-    adminAuthClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    adminAuthClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        storageKey: SHARED_AUTH_STORAGE_KEY
+      }
+    });
   }
   return adminAuthClient;
 }
@@ -247,7 +248,14 @@ function getPublicDataClient() {
     return null;
   }
   if (!publicDataClient) {
-    publicDataClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    publicDataClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        storageKey: SHARED_AUTH_STORAGE_KEY
+      }
+    });
   }
   return publicDataClient;
 }
@@ -397,7 +405,7 @@ async function loadAdminSnapshot() {
     throw membersResult.error;
   }
 
-  db = {
+  const remoteSnapshot = {
     notices: Array.isArray(noticesResult.data) ? noticesResult.data.map((notice) => ({
       id: notice.id || makeId(),
       title: String(notice.title || "??"),
@@ -454,8 +462,28 @@ async function loadAdminSnapshot() {
     })) : []
   };
 
+  const localMembers = Array.isArray(db.members) ? db.members : [];
+  const preserveLocalMembers = shouldPreserveLocalMembers(localMembers, remoteSnapshot.members);
+  const preservedMembers = preserveLocalMembers
+    ? mergeMemberCollections(localMembers, remoteSnapshot.members)
+    : remoteSnapshot.members;
+
+  db = {
+    ...remoteSnapshot,
+    members: preservedMembers
+  };
+
   migrateLegacyData();
   saveDb();
+
+  if (syncStatus) {
+    if (preserveLocalMembers) {
+      const localOnlyCount = Math.max(0, preservedMembers.length - remoteSnapshot.members.length);
+      syncStatus.textContent = `Supabase 회원 목록이 비어 있거나 오래된 상태라 로컬 회원 ${localOnlyCount || preservedMembers.length}명을 유지했습니다. 필요하면 지금 동기화를 눌러 주세요.`;
+    } else {
+      syncStatus.textContent = "동기화 준비 완료";
+    }
+  }
 }
 
 function formatApprovalStatusLabel(status) {
@@ -477,6 +505,104 @@ function buildAdminRoleStatusText(role, approvalStatus, canManageRoles) {
   const approvalLabel = formatApprovalStatusLabel(approvalStatus);
   const manageLabel = canManageRoles ? "가능" : "불가";
   return "내 권한: " + roleLabel + " / 승인: " + approvalLabel + " / 권한 변경 가능: " + manageLabel;
+}
+
+function shouldPreserveLocalMembers(localMembers, remoteMembers) {
+  const localMeaningfulCount = countMeaningfulMembers(localMembers);
+  if (localMeaningfulCount === 0) {
+    return false;
+  }
+
+  const remoteMeaningfulCount = countMeaningfulMembers(remoteMembers);
+  if (remoteMeaningfulCount === 0) {
+    return true;
+  }
+
+  return false;
+}
+
+function countMeaningfulMembers(members) {
+  if (!Array.isArray(members)) {
+    return 0;
+  }
+  return members.filter((member) => !isPlaceholderMember(member)).length;
+}
+
+function isPlaceholderMember(member) {
+  const name = String(member?.name || "").trim();
+  return name === "샘플회원";
+}
+
+function mergeMemberCollections(localMembers, remoteMembers) {
+  const merged = new Map();
+
+  remoteMembers.forEach((member) => {
+    const normalized = normalizeMemberRecord(member);
+    merged.set(memberMergeKey(normalized), normalized);
+  });
+
+  localMembers.forEach((member) => {
+    const normalized = normalizeMemberRecord(member);
+    const key = memberMergeKey(normalized);
+    const existing = merged.get(key);
+    merged.set(key, existing ? mergeMemberRecord(existing, normalized) : normalized);
+  });
+
+  return Array.from(merged.values()).sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "ko"));
+}
+
+function normalizeMemberRecord(member) {
+  return {
+    id: member?.id || makeId(),
+    name: String(member?.name || "이름없음"),
+    birthYear: Number(member?.birthYear || member?.birth_year || 1994),
+    totalRuns: Number(member?.totalRuns || member?.total_runs || 0),
+    monthlyRuns: member?.monthlyRuns && typeof member.monthlyRuns === "object"
+      ? member.monthlyRuns
+      : member?.monthly_runs && typeof member.monthly_runs === "object"
+        ? member.monthly_runs
+        : {},
+    feeStatus: member?.feeStatus && typeof member.feeStatus === "object"
+      ? member.feeStatus
+      : member?.fee_status && typeof member.fee_status === "object"
+        ? member.fee_status
+        : {},
+    aliases: Array.isArray(member?.aliases) ? member.aliases : [],
+    createdAt: member?.createdAt || member?.created_at || new Date().toISOString()
+  };
+}
+
+function memberMergeKey(member) {
+  const normalizedName = normalizeName(member?.name || "");
+  const birthYear = Number(member?.birthYear || 0);
+  return `${normalizedName}|${birthYear}`;
+}
+
+function mergeMemberRecord(primary, secondary) {
+  const mergedMonthlyRuns = { ...(primary.monthlyRuns || {}) };
+  Object.entries(secondary.monthlyRuns || {}).forEach(([monthKey, runs]) => {
+    mergedMonthlyRuns[monthKey] = Math.max(Number(mergedMonthlyRuns[monthKey] || 0), Number(runs || 0));
+  });
+
+  const mergedFeeStatus = { ...(primary.feeStatus || {}) };
+  Object.entries(secondary.feeStatus || {}).forEach(([monthKey, status]) => {
+    if (!mergedFeeStatus[monthKey] || mergedFeeStatus[monthKey] !== "paid") {
+      mergedFeeStatus[monthKey] = status;
+    }
+  });
+
+  const aliases = Array.from(new Set([...(primary.aliases || []), ...(secondary.aliases || [])].filter(Boolean)));
+
+  return {
+    id: primary.id || secondary.id || makeId(),
+    name: primary.name || secondary.name || "이름없음",
+    birthYear: Number(primary.birthYear || secondary.birthYear || 1994),
+    totalRuns: Math.max(Number(primary.totalRuns || 0), Number(secondary.totalRuns || 0)),
+    monthlyRuns: mergedMonthlyRuns,
+    feeStatus: mergedFeeStatus,
+    aliases,
+    createdAt: primary.createdAt || secondary.createdAt || new Date().toISOString()
+  };
 }
 
 function setNodeVisibility(node, visible) {
@@ -615,6 +741,7 @@ async function handleAdminLogin() {
     adminLock.classList.add("hidden");
     adminPanel.classList.remove("hidden");
     await loadAdminSnapshot();
+    loadSyncMetadata();
     loadApprovalQueue();
     loadRoleList();
     renderAll();
@@ -662,6 +789,7 @@ async function restoreAdminSession() {
       roleStatus.textContent = buildAdminRoleStatusText(profile?.role, profile?.approval_status, currentAdminCanManageRoles);
     }
     await loadAdminSnapshot();
+    loadSyncMetadata();
     loadApprovalQueue();
     loadRoleList();
     renderAll();
@@ -1863,6 +1991,26 @@ function buildSupabaseSyncPayload() {
   return { members, notices, guests, attendance_logs, raffle_history };
 }
 
+function getMeaningfulMemberPayloadCount(members) {
+  return (Array.isArray(members) ? members : []).filter((member) => {
+    const name = String(member?.name || "").trim();
+    return Boolean(name) && name !== "샘플회원";
+  }).length;
+}
+
+async function loadRemoteMemberCount() {
+  const client = getAdminAuthClient();
+  const result = await client
+    .from("members")
+    .select("id", { count: "exact", head: true });
+
+  if (result.error) {
+    throw result.error;
+  }
+
+  return Number(result.count || 0);
+}
+
 async function syncDataToSupabase() {
   if (!currentAdminToken) {
     alert("운영진 로그인 후 이용해 주세요.");
@@ -1877,6 +2025,18 @@ async function syncDataToSupabase() {
 
   try {
     const payload = buildSupabaseSyncPayload();
+    const localMemberCount = getMeaningfulMemberPayloadCount(payload.members);
+    const remoteMemberCount = await loadRemoteMemberCount();
+
+    if (localMemberCount === 0) {
+      throw new Error("현재 브라우저의 회원 데이터가 비어 있어 동기화를 차단했습니다. 회원 목록 복구 후 다시 시도해 주세요.");
+    }
+
+    const suspiciousDrop = remoteMemberCount >= 5 && localMemberCount < Math.ceil(remoteMemberCount * 0.7);
+    if (suspiciousDrop) {
+      throw new Error(`원격 회원 ${remoteMemberCount}명 대비 현재 브라우저 회원이 ${localMemberCount}명뿐이라 덮어쓰기를 차단했습니다. 다른 브라우저 데이터 또는 회원 목록 복구를 먼저 확인해 주세요.`);
+    }
+
     const response = await fetch("/.netlify/functions/admin-sync", {
       method: "POST",
       headers: {
@@ -1894,6 +2054,7 @@ async function syncDataToSupabase() {
     if (syncStatus) {
       syncStatus.textContent = `동기화 완료: members ${result.counts?.members || 0}, notices ${result.counts?.notices || 0}, guests ${result.counts?.guests || 0}, raffle ${result.counts?.raffle_history || 0}`;
     }
+    loadSyncMetadata();
     loadPublicNoticeData();
     loadPublicRaffleData();
   } catch (error) {
@@ -1906,6 +2067,54 @@ async function syncDataToSupabase() {
     }
   }
 }
+
+async function recoverMembersFromProfiles() {
+  if (!currentAdminToken) {
+    alert("운영진 로그인 후 이용해 주세요.");
+    return;
+  }
+
+  const confirmed = confirm("승인된 회원 프로필과 출석 로그를 기준으로 회원 목록을 복구할까요? 현재 members 테이블이 복구 결과로 교체됩니다.");
+  if (!confirmed) {
+    return;
+  }
+
+  if (recoverMembersButton) {
+    recoverMembersButton.disabled = true;
+  }
+  if (syncStatus) {
+    syncStatus.textContent = "회원 목록 복구 중...";
+  }
+
+  try {
+    const response = await fetch("/.netlify/functions/recover-members", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${currentAdminToken}`
+      }
+    });
+
+    const result = await response.json();
+    if (!response.ok || !result.ok) {
+      throw new Error(result.error || "unknown");
+    }
+
+    await loadAdminSnapshot();
+    renderAll();
+    if (syncStatus) {
+      syncStatus.textContent = `회원 복구 완료: ${result.counts?.members || 0}명 복구, 승인 프로필 ${result.counts?.profiles || 0}건, 출석 로그 ${result.counts?.attendance_logs || 0}건 반영`;
+    }
+  } catch (error) {
+    if (syncStatus) {
+      syncStatus.textContent = `회원 복구 실패: ${String(error.message || error)}`;
+    }
+  } finally {
+    if (recoverMembersButton) {
+      recoverMembersButton.disabled = false;
+    }
+  }
+}
+
 async function loadApprovalQueue() {
   if (!approvalList) {
     return;

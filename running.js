@@ -80,6 +80,7 @@ function initRunningHub() {
 
   syncRunningAuthFromSharedState();
   runningClient.auth.getSession().then(async ({ data }) => {
+    runningUser = data?.session?.user || runningUser || null;
     await refreshRunningSession();
   });
 
@@ -96,6 +97,9 @@ function initRunningHub() {
 
 async function refreshRunningSession() {
   syncRunningAuthFromSharedState();
+  if (!runningUser) {
+    runningUser = await resolveRunningUser();
+  }
   try {
     await loadRunningProfile();
     renderRunningAuthState();
@@ -599,6 +603,7 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 }
+
 
 
 

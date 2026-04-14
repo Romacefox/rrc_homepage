@@ -3,6 +3,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_C20xXZZRWdjmkzGneCcpjw_mrRnXucq";
 const PHOTO_BUCKET = "rrc-photos";
 const PENDING_SIGNUP_PREFIX = "rrc-pending-signup:";
 const ADMIN_SNAPSHOT_META_KEY = "rrc-admin-snapshot-meta-v1";
+const LOCAL_ADMIN_SNAPSHOT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
 let supabaseClient = null;
 let authUser = null;
@@ -1290,7 +1291,7 @@ function loadLocalAdminMembers(expectedUserId) {
 
     const meta = JSON.parse(rawMeta);
     const updatedAt = new Date(meta?.updatedAt || 0);
-    const isRecent = Date.now() - updatedAt.getTime() <= 30 * 60 * 1000;
+    const isRecent = Number.isFinite(updatedAt.getTime()) && (Date.now() - updatedAt.getTime() <= LOCAL_ADMIN_SNAPSHOT_MAX_AGE_MS);
     if (!meta?.active || !isRecent || (expectedUserId && meta.userId && meta.userId !== expectedUserId)) {
       return [];
     }

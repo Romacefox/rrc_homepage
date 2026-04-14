@@ -15,8 +15,11 @@
     const guests = normalizeGuests(body?.guests);
     const attendanceLogs = normalizeAttendanceLogs(body?.attendance_logs);
     const raffleHistory = normalizeRaffleHistory(body?.raffle_history);
+    const force = body?.force === true;
 
     await validateSyncTargets();
+    await guardSyncCounts({ members, force });
+    await backupCurrentSyncState(auth.user);
 
     // Local admin 화면 데이터를 Supabase 기준 데이터로 일괄 교체
     await replaceMembersTable(members);
@@ -66,6 +69,76 @@ async function requireAdmin(request) {
   const isAdmin = profile?.role === "admin" && profile?.approval_status === "approved";
 
   return { ok: Boolean(isAdmin), user };
+}
+
+async function guardSyncCounts({ members, force }) {
+  const incomingCount = countMeaningfulMembers(members);
+  const remoteCount = await loadRemoteMemberCount();
+
+  if (incomingCount === 0) {
+    throw new Error("refusing sync: incoming members are empty");
+  }
+
+  const suspiciousDrop = remoteCount >= 5 && incomingCount < Math.ceil(remoteCount * 0.7);
+  if (suspiciousDrop && !force) {
+    throw new Error(`refusing sync: incoming members ${incomingCount} is too small compared with remote ${remoteCount}`);
+  }
+}
+
+function countMeaningfulMembers(rows) {
+  if (!Array.isArray(rows)) {
+    return 0;
+  }
+  return rows.filter((row) => {
+    const name = String(row?.name || "").trim();
+    return Boolean(name) && name !== "샘플회원";
+  }).length;
+}
+
+async function loadRemoteMemberCount() {
+  const response = await fetch(`${env("SUPABASE_URL")}/rest/v1/members?select=id`, {
+    headers: {
+      Prefer: "count=exact,head=true",
+      apikey: env("SUPABASE_SERVICE_ROLE_KEY"),
+      Authorization: `Bearer ${env("SUPABASE_SERVICE_ROLE_KEY")}`
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  const total = String(response.headers.get("content-range") || "").split("/")[1] || "0";
+  return Number(total || 0);
+}
+
+async function backupCurrentSyncState(user) {
+  const [members, notices, guests, attendanceLogs, raffleHistory] = await Promise.all([
+    loadExistingMembers(),
+    supabaseSelect("notices?select=title,content,created_at&order=created_at.desc&limit=300"),
+    supabaseSelect("guests?select=name,birth_year,phone,message,status,created_at&order=created_at.desc&limit=500"),
+    supabaseSelect("attendance_logs?select=source,event_type,attendance_date,raw_count,matched,unmatched,ambiguous,created_at&order=created_at.desc&limit=500"),
+    supabaseSelect("raffle_history?select=draw_id,target_month_key,threshold,winner_count,winners,created_at&order=created_at.desc&limit=100")
+  ]);
+
+  await upsertSetting("last_sync_backup", {
+    backed_up_at: new Date().toISOString(),
+    actor_email: String(user?.email || ""),
+    counts: {
+      members: Array.isArray(members) ? members.length : 0,
+      notices: Array.isArray(notices) ? notices.length : 0,
+      guests: Array.isArray(guests) ? guests.length : 0,
+      attendance_logs: Array.isArray(attendanceLogs) ? attendanceLogs.length : 0,
+      raffle_history: Array.isArray(raffleHistory) ? raffleHistory.length : 0
+    },
+    data: {
+      members,
+      notices,
+      guests,
+      attendance_logs: attendanceLogs,
+      raffle_history: raffleHistory
+    }
+  });
 }
 
 function extractBearerToken(header) {
@@ -133,6 +206,27 @@ async function resolveMembersInsertRows(rows) {
   }
 
   return rows.map(({ fee_status, aliases, ...rest }) => rest);
+}
+
+async function loadExistingMembers() {
+  const attempts = [
+    "members?select=name,birth_year,total_runs,monthly_runs,fee_status,aliases,is_active&limit=500",
+    "members?select=name,birth_year,total_runs,monthly_runs,fee_status,is_active&limit=500",
+    "members?select=name,birth_year,total_runs,monthly_runs,is_active&limit=500"
+  ];
+
+  for (const path of attempts) {
+    try {
+      return await supabaseSelect(path);
+    } catch (error) {
+      const missingKnownColumn = isMissingColumnError(error, "fee_status") || isMissingColumnError(error, "aliases");
+      if (!missingKnownColumn) {
+        throw error;
+      }
+    }
+  }
+
+  return [];
 }
 
 async function validateSyncTargets() {
