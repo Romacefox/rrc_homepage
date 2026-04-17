@@ -2514,7 +2514,7 @@ async function loadRoleList() {
       const row = document.createElement("li");
       row.className = "list-item";
       const isMe = item.user_id === currentAdminUserId;
-      row.innerHTML = `<div class="list-top"><span class="list-title">${escapeHtml(item.name || "이름없음")}${isMe ? " (나)" : ""}</span><span class="list-meta">${escapeHtml(formatRoleLabel(item.role, isMe && currentAdminCanManageRoles))}</span></div><p class="list-meta">${escapeHtml(item.email || "")}</p>`;
+      row.innerHTML = `<div class="list-top"><span class="list-title">${escapeHtml(item.name || "이름없음")}${isMe ? " (나)" : ""}</span><span class="list-meta">${escapeHtml(formatRoleLabel(item.role, isMe && currentAdminCanManageRoles))}</span></div><p class="list-meta">${escapeHtml(item.email || "")}</p><p class="list-meta">상태: ${escapeHtml(formatApprovalStatusLabel(item.approval_status))}</p>`;
 
       const actions = document.createElement("div");
       actions.className = "item-actions";
@@ -2550,10 +2550,16 @@ async function updateMemberRole(userId, role, displayName = "회원") {
     return;
   }
 
-  const confirmed = confirm(`${displayName}님의 권한을 ${role === "admin" ? "운영진" : "일반회원"}으로 변경할까요?`);
+  const roleLabel = role === "admin" ? "운영진" : "일반회원";
+  const approvalNotice = role === "admin" ? "\n운영진 승격 시 승인 상태도 함께 '승인'으로 맞춥니다." : "";
+  const confirmed = confirm(`${displayName}님의 권한을 ${roleLabel}으로 변경할까요?${approvalNotice}`);
   if (!confirmed) {
     return;
   }
+
+  const payload = role === "admin"
+    ? { user_id: userId, role, approval_status: "approved" }
+    : { user_id: userId, role };
 
   const response = await fetch("/.netlify/functions/member-approval", {
     method: "POST",
@@ -2561,7 +2567,7 @@ async function updateMemberRole(userId, role, displayName = "회원") {
       "Content-Type": "application/json",
       Authorization: `Bearer ${currentAdminToken}`
     },
-    body: JSON.stringify({ user_id: userId, role })
+    body: JSON.stringify(payload)
   });
 
   const result = await response.json();
