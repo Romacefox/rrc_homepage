@@ -380,18 +380,44 @@ async function ensurePendingProfile() {
   payload.email = authUser.email;
 
   try {
+    const existingProfileResult = await supabaseClient
+      .from("member_profiles")
+      .select("user_id,email,name,birth_year,intro,approval_status,role")
+      .eq("user_id", authUser.id)
+      .maybeSingle();
+
+    if (existingProfileResult.error) {
+      throw existingProfileResult.error;
+    }
+
+    const existingProfile = existingProfileResult.data || null;
+    const hasExistingProfile = Boolean(existingProfile?.user_id);
+    const profilePayload = hasExistingProfile
+      ? {
+          user_id: authUser.id,
+          email: authUser.email,
+          name: String(existingProfile.name || payload.name || "").trim(),
+          birth_year: Number(existingProfile.birth_year || payload.birth_year || 0),
+          intro: String(existingProfile.intro || payload.intro || "").trim(),
+          role: existingProfile.role || "member",
+          approval_status: existingProfile.approval_status || "pending"
+        }
+      : payload;
+
     const profileInsert = await supabaseClient
       .from("member_profiles")
-      .upsert(payload, { onConflict: "user_id" });
+      .upsert(profilePayload, { onConflict: "user_id" });
 
     if (!profileInsert.error) {
       localStorage.removeItem(key);
-      await notifySignupRequest({
-        email: payload.email,
-        name: payload.name,
-        birthYear: payload.birth_year,
-        intro: payload.intro
-      });
+      if (!hasExistingProfile) {
+        await notifySignupRequest({
+          email: profilePayload.email,
+          name: profilePayload.name,
+          birthYear: profilePayload.birth_year,
+          intro: profilePayload.intro
+        });
+      }
     }
   } catch (_error) {
     // Keep pending payload for the next login attempt.

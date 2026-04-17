@@ -115,6 +115,8 @@ let publicDataClient = null;
 let publicRaffleHistory = [];
 let publicNoticeItems = [];
 let memberProfileSummaryByKey = new Map();
+let memberFilterMetaNode = null;
+let restoreBackupButton = null;
 let autoSyncTimer = null;
 let autoSyncPending = false;
 
@@ -125,6 +127,7 @@ function init() {
   markCurrentNavigation();
   migrateLegacyData();
   configureAdminInputs();
+  configureSyncActions();
   populateFeeMonthOptions();
   setDefaultBulkDate();
   renderAll();
@@ -222,6 +225,13 @@ function configureAdminInputs() {
     memberSearchInput.placeholder = "이름 검색";
   }
 
+  if (!memberFilterMetaNode && memberFilterSelect?.parentElement) {
+    memberFilterMetaNode = document.createElement("p");
+    memberFilterMetaNode.className = "list-meta";
+    memberFilterMetaNode.style.margin = "0.45rem 0 0";
+    memberFilterSelect.parentElement.insertAdjacentElement("afterend", memberFilterMetaNode);
+  }
+
   if (memberFilterSelect && !memberFilterSelect.querySelector('option[value="active"]')) {
     memberFilterSelect.insertAdjacentHTML("afterbegin", [
       '<option value="all">전체</option>',
@@ -235,6 +245,20 @@ function configureAdminInputs() {
       }
     });
   }
+}
+
+function configureSyncActions() {
+  if (!recoverMembersButton || restoreBackupButton) {
+    return;
+  }
+
+  restoreBackupButton = document.createElement("button");
+  restoreBackupButton.id = "restore-sync-backup";
+  restoreBackupButton.type = "button";
+  restoreBackupButton.className = "btn ghost";
+  restoreBackupButton.textContent = "마지막 백업 복원";
+  recoverMembersButton.insertAdjacentElement("afterend", restoreBackupButton);
+  restoreBackupButton.addEventListener("click", restoreLastSyncBackup);
 }
 
 function migrateLegacyData() {
@@ -433,13 +457,16 @@ async function loadSyncMetadata() {
 
     if (result.error || !result.data) {
       syncMeta.textContent = "마지막 동기화: 기록 없음";
+      await refreshSyncOverview();
       return;
     }
 
     const syncedAt = result.data?.value?.synced_at || result.data.updated_at;
     syncMeta.textContent = syncedAt ? `마지막 동기화: ${formatDateTime(new Date(syncedAt))}` : "마지막 동기화: 기록 없음";
+    await refreshSyncOverview();
   } catch (_error) {
     syncMeta.textContent = "마지막 동기화: 기록 없음";
+    await refreshSyncOverview();
   }
 }
 
@@ -1330,8 +1357,13 @@ function renderMembers() {
   memberList.innerHTML = "";
   if (!db.members.length) {
     memberList.innerHTML = `<li class="list-item"><p class="list-meta">등록된 회원이 없습니다.</p></li>`;
+    if (memberFilterMetaNode) {
+      memberFilterMetaNode.textContent = "회원 데이터가 없습니다.";
+    }
     return;
   }
+
+  updateMemberFilterMeta();
 
   const monthKey = currentMonthKey();
   const threshold = getThresholdForMonthKey(monthKey);
@@ -1414,6 +1446,18 @@ function renderMembers() {
     item.appendChild(actions);
     memberList.appendChild(item);
   });
+}
+
+function updateMemberFilterMeta() {
+  if (!memberFilterMetaNode) {
+    return;
+  }
+
+  const members = Array.isArray(db.members) ? db.members : [];
+  const activeCount = members.filter((member) => member.isActive !== false).length;
+  const inactiveCount = members.filter((member) => member.isActive === false).length;
+  const linkedCount = members.filter((member) => Boolean(getMemberAccountSummary(member))).length;
+  memberFilterMetaNode.textContent = `전체 ${members.length}명 · 활성 ${activeCount}명 · 휴면 ${inactiveCount}명 · 가입 연결 ${linkedCount}명`;
 }
 
 function renderAttendanceLogs() {
@@ -2006,7 +2050,6 @@ function loadDb() {
 function saveDb() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
   touchAdminSnapshotMeta();
-  scheduleAutoSync();
 }
 
 function touchAdminSnapshotMeta() {
@@ -2026,24 +2069,8 @@ function touchAdminSnapshotMeta() {
 }
 
 function scheduleAutoSync() {
-  if (!currentAdminToken) {
-    return;
-  }
-  autoSyncPending = true;
-  if (syncStatus) {
-    syncStatus.textContent = "변경 사항이 있어 자동 동기화를 대기 중입니다.";
-  }
-  if (autoSyncTimer) {
-    clearTimeout(autoSyncTimer);
-  }
-  autoSyncTimer = setTimeout(() => {
-    autoSyncTimer = null;
-    if (!autoSyncPending || !currentAdminToken) {
-      return;
-    }
-    autoSyncPending = false;
-    syncDataToSupabase();
-  }, 1200);
+  // Disabled intentionally.
+  // 운영 데이터는 명시적으로 "지금 동기화"를 눌렀을 때만 Supabase에 반영합니다.
 }
 
 function formatDate(iso) {
@@ -2162,6 +2189,23 @@ async function loadRemoteMemberCount() {
   return Number(result.count || 0);
 }
 
+async function refreshSyncOverview() {
+  if (!syncMeta || !currentAdminToken) {
+    return;
+  }
+
+  try {
+    const localCount = Array.isArray(db.members)
+      ? db.members.filter((member) => String(member?.name || "").trim() && String(member?.name || "").trim() !== "샘플회원").length
+      : 0;
+    const remoteCount = await loadRemoteMemberCount();
+    const baseText = String(syncMeta.textContent || "마지막 동기화: 기록 없음").split(" · 로컬 ")[0];
+    syncMeta.textContent = `${baseText} · 로컬 ${localCount}명 / 원격 ${remoteCount}명`;
+  } catch (_error) {
+    // Keep current sync meta if count fetch fails.
+  }
+}
+
 async function syncDataToSupabase() {
   if (!currentAdminToken) {
     alert("운영진 로그인 후 이용해 주세요.");
@@ -2186,6 +2230,14 @@ async function syncDataToSupabase() {
     const suspiciousDrop = remoteMemberCount >= 5 && localMemberCount < Math.ceil(remoteMemberCount * 0.7);
     if (suspiciousDrop) {
       throw new Error(`원격 회원 ${remoteMemberCount}명 대비 현재 브라우저 회원이 ${localMemberCount}명뿐이라 덮어쓰기를 차단했습니다. 다른 브라우저 데이터 또는 회원 목록 복구를 먼저 확인해 주세요.`);
+    }
+
+    const confirmed = confirm(`지금 동기화할까요?\n\n로컬 회원 ${localMemberCount}명 / 원격 회원 ${remoteMemberCount}명\n이 작업은 Supabase 운영 데이터를 현재 브라우저 상태로 덮어씁니다.`);
+    if (!confirmed) {
+      if (syncStatus) {
+        syncStatus.textContent = "동기화를 취소했습니다.";
+      }
+      return;
     }
 
     const response = await fetch("/.netlify/functions/admin-sync", {
@@ -2215,6 +2267,54 @@ async function syncDataToSupabase() {
   } finally {
     if (syncSupabaseButton) {
       syncSupabaseButton.disabled = false;
+    }
+  }
+}
+
+async function restoreLastSyncBackup() {
+  if (!currentAdminToken) {
+    alert("운영진 로그인 후 이용해 주세요.");
+    return;
+  }
+
+  const confirmed = confirm("마지막 자동 백업 상태로 Supabase 운영 데이터를 복원할까요?\n\n최근 동기화 이후 변경한 공지/회원/게스트/출석 기록도 함께 되돌아갈 수 있습니다.");
+  if (!confirmed) {
+    return;
+  }
+
+  if (restoreBackupButton) {
+    restoreBackupButton.disabled = true;
+  }
+  if (syncStatus) {
+    syncStatus.textContent = "마지막 백업에서 복원 중...";
+  }
+
+  try {
+    const response = await fetch("/.netlify/functions/restore-sync-backup", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${currentAdminToken}`
+      }
+    });
+
+    const result = await response.json();
+    if (!response.ok || !result.ok) {
+      throw new Error(result.error || "unknown");
+    }
+
+    await loadAdminSnapshot();
+    renderAll();
+    if (syncStatus) {
+      syncStatus.textContent = `백업 복원 완료: members ${result.counts?.members || 0}, notices ${result.counts?.notices || 0}, guests ${result.counts?.guests || 0}, raffle ${result.counts?.raffle_history || 0}`;
+    }
+    loadSyncMetadata();
+  } catch (error) {
+    if (syncStatus) {
+      syncStatus.textContent = `백업 복원 실패: ${String(error.message || error)}`;
+    }
+  } finally {
+    if (restoreBackupButton) {
+      restoreBackupButton.disabled = false;
     }
   }
 }
@@ -2255,6 +2355,7 @@ async function recoverMembersFromProfiles() {
     if (syncStatus) {
       syncStatus.textContent = `회원 복구 완료: ${result.counts?.members || 0}명 복구, 승인 프로필 ${result.counts?.profiles || 0}건, 출석 로그 ${result.counts?.attendance_logs || 0}건 반영`;
     }
+    loadSyncMetadata();
   } catch (error) {
     if (syncStatus) {
       syncStatus.textContent = `회원 복구 실패: ${String(error.message || error)}`;
