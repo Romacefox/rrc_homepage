@@ -15,7 +15,7 @@ export default async (request) => {
       supabaseSelect("guests?select=id,name,birth_year,phone,message,status,created_at&order=created_at.desc&limit=500"),
       supabaseSelect("attendance_logs?select=id,source,event_type,attendance_date,raw_count,matched,unmatched,ambiguous,created_at&order=created_at.desc&limit=200"),
       supabaseSelect("raffle_history?select=draw_id,target_month_key,threshold,winner_count,winners,created_at&order=created_at.desc&limit=100"),
-      supabaseSelect("operation_logs?select=id,actor_name,action,detail,created_at&order=created_at.desc&limit=100"),
+      loadOptionalRows("operation_logs?select=id,actor_name,action,detail,created_at&order=created_at.desc&limit=100", "operation_logs"),
       supabaseSelect("member_profiles?select=user_id,email,name,birth_year,approval_status,role&order=created_at.desc&limit=500"),
       loadSetting("last_sync_meta")
     ]);
@@ -107,13 +107,29 @@ async function loadExistingMembers() {
 }
 
 async function loadSetting(key) {
-  const rows = await supabaseSelect(`settings?key=eq.${encodeURIComponent(key)}&select=key,value,updated_at&limit=1`);
+  const rows = await loadOptionalRows(`settings?key=eq.${encodeURIComponent(key)}&select=key,value,updated_at&limit=1`, "settings");
   return Array.isArray(rows) ? rows[0] || null : null;
+}
+
+async function loadOptionalRows(path, tableName) {
+  try {
+    return await supabaseSelect(path);
+  } catch (error) {
+    if (isMissingTableError(error, tableName)) {
+      return [];
+    }
+    throw error;
+  }
 }
 
 function isMissingColumnError(error, columnName) {
   const message = String(error?.message || "").toLowerCase();
   return message.includes(String(columnName || "").toLowerCase()) && message.includes("does not exist");
+}
+
+function isMissingTableError(error, tableName) {
+  const message = String(error?.message || "").toLowerCase();
+  return message.includes(String(tableName || "").toLowerCase()) && (message.includes("could not find the table") || message.includes("schema cache"));
 }
 
 async function supabaseSelect(path) {
