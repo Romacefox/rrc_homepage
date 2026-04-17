@@ -759,7 +759,7 @@ function shouldPreserveLocalMembers(localMembers, remoteMembers) {
     return true;
   }
 
-  return false;
+  return localMeaningfulCount > remoteMeaningfulCount;
 }
 
 function countMeaningfulMembers(members) {
