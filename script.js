@@ -525,22 +525,18 @@ async function loadSyncMetadata() {
   }
 
   try {
-    const client = getAdminAuthClient();
-    const result = await client
-      .from("settings")
-      .select("value,updated_at")
-      .eq("key", "last_sync_meta")
-      .maybeSingle();
-
-    if (result.error || !result.data) {
+    const result = await fetchAdminSnapshot();
+    const syncValue = result.sync_meta || null;
+    const syncUpdatedAt = result.sync_meta_updated_at || null;
+    if (!syncValue && !syncUpdatedAt) {
       syncMeta.textContent = "마지막 동기화: 기록 없음";
-      await refreshSyncOverview();
+      updateSyncOverviewWithRemoteCount(result.counts?.members || 0);
       return;
     }
 
-    const syncedAt = result.data?.value?.synced_at || result.data.updated_at;
+    const syncedAt = syncValue?.synced_at || syncUpdatedAt;
     syncMeta.textContent = syncedAt ? `마지막 동기화: ${formatDateTime(new Date(syncedAt))}` : "마지막 동기화: 기록 없음";
-    await refreshSyncOverview();
+    updateSyncOverviewWithRemoteCount(result.counts?.members || 0);
   } catch (_error) {
     syncMeta.textContent = "마지막 동기화: 기록 없음";
     await refreshSyncOverview();
@@ -553,29 +549,17 @@ async function loadAdminSnapshot() {
     return;
   }
 
-  const client = getAdminAuthClient();
-  const [membersResult, guestsResult, noticesResult, attendanceResult, raffleResult, auditResult, profilesResult] = await Promise.all([
-    loadMembersSnapshot(client),
-    client.from("guests").select("id,name,birth_year,phone,message,status,created_at").order("created_at", { ascending: false }),
-    client.from("notices").select("id,title,content,created_at").order("created_at", { ascending: false }),
-    client.from("attendance_logs").select("id,source,event_type,attendance_date,raw_count,matched,unmatched,ambiguous,created_at").order("created_at", { ascending: false }).limit(50),
-    client.from("raffle_history").select("draw_id,target_month_key,threshold,winner_count,winners,created_at").order("created_at", { ascending: false }).limit(12),
-    client.from("operation_logs").select("id,actor_name,action,detail,created_at").order("created_at", { ascending: false }).limit(50),
-    client.from("member_profiles").select("user_id,email,name,birth_year,approval_status,role").limit(500)
-  ]);
-
-  if (membersResult.error) {
-    throw membersResult.error;
-  }
+  const result = await fetchAdminSnapshot();
+  const snapshot = result.snapshot || {};
 
   const remoteSnapshot = {
-    notices: Array.isArray(noticesResult.data) ? noticesResult.data.map((notice) => ({
+    notices: Array.isArray(snapshot.notices) ? snapshot.notices.map((notice) => ({
       id: notice.id || makeId(),
       title: String(notice.title || "??"),
       content: String(notice.content || ""),
       createdAt: notice.created_at || new Date().toISOString()
     })) : [],
-    guests: Array.isArray(guestsResult.data) ? guestsResult.data.map((guest) => ({
+    guests: Array.isArray(snapshot.guests) ? snapshot.guests.map((guest) => ({
       id: guest.id || makeId(),
       name: String(guest.name || "???"),
       birthYear: Number(guest.birth_year || 1994),
@@ -584,7 +568,7 @@ async function loadAdminSnapshot() {
       status: String(guest.status || "??"),
       createdAt: guest.created_at || new Date().toISOString()
     })) : [],
-    members: Array.isArray(membersResult.data) ? membersResult.data.map((member) => ({
+    members: Array.isArray(snapshot.members) ? snapshot.members.map((member) => ({
       id: member.id || makeId(),
       name: String(member.name || "이름없음"),
       birthYear: Number(member.birth_year || 1994),
@@ -596,8 +580,8 @@ async function loadAdminSnapshot() {
       createdAt: member.created_at || new Date().toISOString()
     })) : [],
     raffle: {
-      lastDrawId: Array.isArray(raffleResult.data) && raffleResult.data[0] ? String(raffleResult.data[0].draw_id || "") : "",
-      history: Array.isArray(raffleResult.data) ? raffleResult.data.map((record) => ({
+      lastDrawId: Array.isArray(snapshot.raffle_history) && snapshot.raffle_history[0] ? String(snapshot.raffle_history[0].draw_id || "") : "",
+      history: Array.isArray(snapshot.raffle_history) ? snapshot.raffle_history.map((record) => ({
         drawId: record.draw_id || "",
         targetMonthKey: record.target_month_key,
         threshold: Number(record.threshold || 0),
@@ -606,7 +590,7 @@ async function loadAdminSnapshot() {
         createdAt: record.created_at || new Date().toISOString()
       })) : []
     },
-    attendanceLogs: Array.isArray(attendanceResult.data) ? attendanceResult.data.map((log) => ({
+    attendanceLogs: Array.isArray(snapshot.attendance_logs) ? snapshot.attendance_logs.map((log) => ({
       id: log.id || makeId(),
       source: String(log.source || "bulk"),
       eventType: String(log.event_type || "???"),
@@ -617,7 +601,7 @@ async function loadAdminSnapshot() {
       ambiguous: Array.isArray(log.ambiguous) ? log.ambiguous : [],
       createdAt: log.created_at || new Date().toISOString()
     })) : [],
-    auditLogs: Array.isArray(auditResult.data) ? auditResult.data.map((entry) => ({
+    auditLogs: Array.isArray(snapshot.operation_logs) ? snapshot.operation_logs.map((entry) => ({
       id: entry.id || makeId(),
       actorName: String(entry.actor_name || "???"),
       action: String(entry.action || "??"),
@@ -637,7 +621,7 @@ async function loadAdminSnapshot() {
     members: preservedMembers
   };
 
-  hydrateMemberProfileSummary(profilesResult.error ? [] : profilesResult.data);
+  hydrateMemberProfileSummary(Array.isArray(snapshot.member_profiles) ? snapshot.member_profiles : []);
 
   migrateLegacyData();
   saveDb();
@@ -2220,16 +2204,8 @@ function getMeaningfulMemberPayloadCount(members) {
 }
 
 async function loadRemoteMemberCount() {
-  const client = getAdminAuthClient();
-  const result = await client
-    .from("members")
-    .select("id", { count: "exact", head: true });
-
-  if (result.error) {
-    throw result.error;
-  }
-
-  return Number(result.count || 0);
+  const result = await fetchAdminSnapshot();
+  return Number(result.counts?.members || 0);
 }
 
 async function refreshSyncOverview() {
@@ -2242,11 +2218,39 @@ async function refreshSyncOverview() {
       ? db.members.filter((member) => String(member?.name || "").trim() && String(member?.name || "").trim() !== "샘플회원").length
       : 0;
     const remoteCount = await loadRemoteMemberCount();
-    const baseText = String(syncMeta.textContent || "마지막 동기화: 기록 없음").split(" · 로컬 ")[0];
-    syncMeta.textContent = `${baseText} · 로컬 ${localCount}명 / 원격 ${remoteCount}명`;
+    updateSyncOverviewWithRemoteCount(remoteCount, localCount);
   } catch (_error) {
     // Keep current sync meta if count fetch fails.
   }
+}
+
+function updateSyncOverviewWithRemoteCount(remoteCount, localCount = null) {
+  if (!syncMeta) {
+    return;
+  }
+
+  const resolvedLocalCount = localCount == null
+    ? (Array.isArray(db.members)
+      ? db.members.filter((member) => String(member?.name || "").trim() && String(member?.name || "").trim() !== "샘플회원").length
+      : 0)
+    : localCount;
+  const baseText = String(syncMeta.textContent || "마지막 동기화: 기록 없음").split(" · 로컬 ")[0];
+  syncMeta.textContent = `${baseText} · 로컬 ${resolvedLocalCount}명 / 원격 ${remoteCount}명`;
+}
+
+async function fetchAdminSnapshot() {
+  const response = await fetch("/.netlify/functions/admin-snapshot", {
+    headers: {
+      Authorization: `Bearer ${currentAdminToken}`
+    }
+  });
+
+  const result = await response.json();
+  if (!response.ok || !result.ok) {
+    throw new Error(result.error || "unknown");
+  }
+
+  return result;
 }
 
 async function syncDataToSupabase() {
