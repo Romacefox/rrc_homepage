@@ -133,6 +133,7 @@ function init() {
   renderAll();
   checkScheduledDraw(false);
   loadPublicRaffleData();
+  attachAdminSessionListeners();
   void restoreAdminSession();
 
   guestForm.addEventListener("submit", handleGuestSubmit);
@@ -185,6 +186,32 @@ function init() {
   setInterval(() => {
     loadPublicRaffleData();
   }, 10 * 60 * 1000);
+}
+
+function attachAdminSessionListeners() {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    return;
+  }
+
+  try {
+    const client = getAdminAuthClient();
+    client.auth.onAuthStateChange((_event, session) => {
+      if (session?.user && session?.access_token) {
+        void restoreAdminSession();
+        return;
+      }
+      resetAdminSessionState();
+    });
+  } catch (_error) {
+    // Ignore auth listener failures.
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible") {
+      return;
+    }
+    void restoreAdminSession();
+  });
 }
 
 function markCurrentNavigation() {
@@ -259,6 +286,56 @@ function configureSyncActions() {
   restoreBackupButton.textContent = "마지막 백업 복원";
   recoverMembersButton.insertAdjacentElement("afterend", restoreBackupButton);
   restoreBackupButton.addEventListener("click", restoreLastSyncBackup);
+}
+
+function setAdminPanelVisibility(isVisible) {
+  adminNavLinks.forEach((node) => setNodeVisibility(node, isVisible));
+  if (adminLock) {
+    adminLock.classList.toggle("hidden", isVisible);
+  }
+  if (adminPanel) {
+    adminPanel.classList.toggle("hidden", !isVisible);
+  }
+}
+
+function resetAdminSessionState() {
+  currentAdminToken = "";
+  currentAdminUserId = "";
+  currentAdminCanManageRoles = false;
+  setAdminPanelVisibility(false);
+}
+
+async function loadAdminAccessProfile(client, userId) {
+  const profileResult = await client
+    .from("member_profiles")
+    .select("role,approval_status")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (profileResult.error) {
+    throw profileResult.error;
+  }
+
+  return profileResult.data || null;
+}
+
+async function openAdminSession({ client, user, accessToken, profile }) {
+  currentAdminToken = accessToken;
+  currentAdminCanManageRoles = Boolean(user?.email && String(user.email).toLowerCase() === "chlgusgn11@gmail.com");
+  currentAdminUserId = user.id;
+  setAdminPanelVisibility(true);
+  if (syncStatus) {
+    syncStatus.textContent = "동기화 준비 완료";
+  }
+  if (roleStatus) {
+    roleStatus.textContent = buildAdminRoleStatusText(profile?.role, profile?.approval_status, currentAdminCanManageRoles);
+  }
+
+  await loadAdminSnapshot();
+  loadSyncMetadata();
+  loadApprovalQueue();
+  loadRoleList();
+  renderAll();
 }
 
 function migrateLegacyData() {
@@ -865,27 +942,24 @@ async function handleAdminLogin() {
       return;
     }
 
-    const profileResult = await client
-      .from("member_profiles")
-      .select("role,approval_status")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (profileResult.error) {
-      alert(`권한 확인 실패: ${profileResult.error.message}`);
+    let profile = null;
+    try {
+      profile = await loadAdminAccessProfile(client, user.id);
+    } catch (error) {
+      alert(`권한 확인 실패: ${String(error?.message || error)}`);
       await client.auth.signOut();
+      resetAdminSessionState();
       return;
     }
 
-    const profile = profileResult.data;
     const isAdmin = profile?.role === "admin" && profile?.approval_status === "approved";
     if (!isAdmin) {
       alert("운영진 권한이 없습니다. 운영진 승인 상태를 확인해 주세요.");
       await client.auth.signOut();
+      resetAdminSessionState();
       return;
     }
 
-    currentAdminToken = accessToken;
     try {
       localStorage.setItem(ADMIN_SNAPSHOT_META_KEY, JSON.stringify({
         active: true,
@@ -895,23 +969,9 @@ async function handleAdminLogin() {
     } catch (_error) {
       // Ignore local snapshot marker failures.
     }
-    currentAdminCanManageRoles = Boolean(user?.email && String(user.email).toLowerCase() === "chlgusgn11@gmail.com");
-    currentAdminUserId = user.id;
-    adminNavLinks.forEach((node) => setNodeVisibility(node, true));
-    if (syncStatus) {
-      syncStatus.textContent = "동기화 준비 완료";
-    }
-    if (roleStatus) {
-      roleStatus.textContent = buildAdminRoleStatusText(profile?.role, profile?.approval_status, currentAdminCanManageRoles);
-    }
-    adminLock.classList.add("hidden");
-    adminPanel.classList.remove("hidden");
-    await loadAdminSnapshot();
-    loadSyncMetadata();
-    loadApprovalQueue();
-    loadRoleList();
-    renderAll();
+    await openAdminSession({ client, user, accessToken, profile });
   } catch (error) {
+    resetAdminSessionState();
     alert(`운영진 로그인 실패: ${String(error?.message || error)}`);
   }
 }
@@ -924,43 +984,26 @@ async function restoreAdminSession() {
     const user = session?.user || null;
     const accessToken = session?.access_token || "";
     if (!user || !accessToken) {
+      resetAdminSessionState();
       return;
     }
 
-    const profileResult = await client
-      .from("member_profiles")
-      .select("role,approval_status")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (profileResult.error) {
+    let profile = null;
+    try {
+      profile = await loadAdminAccessProfile(client, user.id);
+    } catch (_error) {
+      resetAdminSessionState();
       return;
     }
 
-    const profile = profileResult.data;
     if (!(profile?.role === "admin" && profile?.approval_status === "approved")) {
+      resetAdminSessionState();
       return;
     }
 
-    currentAdminToken = accessToken;
-    currentAdminCanManageRoles = Boolean(user?.email && String(user.email).toLowerCase() === "chlgusgn11@gmail.com");
-    currentAdminUserId = user.id;
-    adminNavLinks.forEach((node) => setNodeVisibility(node, true));
-    adminLock.classList.add("hidden");
-    adminPanel.classList.remove("hidden");
-    if (syncStatus) {
-      syncStatus.textContent = "동기화 준비 완료";
-    }
-    if (roleStatus) {
-      roleStatus.textContent = buildAdminRoleStatusText(profile?.role, profile?.approval_status, currentAdminCanManageRoles);
-    }
-    await loadAdminSnapshot();
-    loadSyncMetadata();
-    loadApprovalQueue();
-    loadRoleList();
-    renderAll();
+    await openAdminSession({ client, user, accessToken, profile });
   } catch (_error) {
-    // Ignore restore failures and keep the admin panel locked.
+    resetAdminSessionState();
   }
 }
 

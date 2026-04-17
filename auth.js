@@ -393,16 +393,13 @@ async function ensurePendingProfile() {
     const existingProfile = existingProfileResult.data || null;
     const hasExistingProfile = Boolean(existingProfile?.user_id);
     const profilePayload = hasExistingProfile
-      ? {
-          user_id: authUser.id,
-          email: authUser.email,
-          name: String(existingProfile.name || payload.name || "").trim(),
-          birth_year: Number(existingProfile.birth_year || payload.birth_year || 0),
-          intro: String(existingProfile.intro || payload.intro || "").trim(),
-          role: existingProfile.role || "member",
-          approval_status: existingProfile.approval_status || "pending"
-        }
+      ? buildSafeProfilePatch(existingProfile, payload)
       : payload;
+
+    if (hasExistingProfile && !profilePayload) {
+      localStorage.removeItem(key);
+      return;
+    }
 
     const profileInsert = await supabaseClient
       .from("member_profiles")
@@ -422,6 +419,38 @@ async function ensurePendingProfile() {
   } catch (_error) {
     // Keep pending payload for the next login attempt.
   }
+}
+
+function buildSafeProfilePatch(existingProfile, pendingPayload) {
+  if (!existingProfile || !pendingPayload) {
+    return null;
+  }
+
+  const nextName = String(existingProfile.name || "").trim() || String(pendingPayload.name || "").trim();
+  const nextBirthYear = Number(existingProfile.birth_year || 0) || Number(pendingPayload.birth_year || 0);
+  const nextIntro = String(existingProfile.intro || "").trim() || String(pendingPayload.intro || "").trim();
+  const nextEmail = String(existingProfile.email || "").trim() || String(pendingPayload.email || "").trim();
+
+  const needsPatch = (
+    nextEmail !== String(existingProfile.email || "").trim()
+    || nextName !== String(existingProfile.name || "").trim()
+    || nextBirthYear !== Number(existingProfile.birth_year || 0)
+    || nextIntro !== String(existingProfile.intro || "").trim()
+  );
+
+  if (!needsPatch) {
+    return null;
+  }
+
+  return {
+    user_id: existingProfile.user_id,
+    email: nextEmail,
+    name: nextName,
+    birth_year: nextBirthYear,
+    intro: nextIntro,
+    role: existingProfile.role || "member",
+    approval_status: existingProfile.approval_status || "pending"
+  };
 }
 
 async function loadMyProfile() {
