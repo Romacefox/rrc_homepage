@@ -20,6 +20,7 @@ export default async (request) => {
       return json(400, { ok: false, error: "invalid birth_year" });
     }
 
+    await removeStaleProfilesByEmail(email, userId);
     const existing = await loadExistingProfile(userId);
     const payload = existing
       ? {
@@ -51,6 +52,21 @@ export default async (request) => {
 async function loadExistingProfile(userId) {
   const rows = await supabaseSelect(`${TABLE}?user_id=eq.${encodeURIComponent(userId)}&select=user_id,email,name,birth_year,intro,approval_status,role&limit=1`);
   return Array.isArray(rows) ? rows[0] || null : null;
+}
+
+async function removeStaleProfilesByEmail(email, currentUserId) {
+  const rows = await supabaseSelect(`${TABLE}?email=eq.${encodeURIComponent(email)}&select=user_id,approval_status,role&limit=20`);
+  const duplicates = (Array.isArray(rows) ? rows : []).filter((row) => String(row?.user_id || "") !== currentUserId);
+
+  for (const row of duplicates) {
+    const approvalStatus = String(row?.approval_status || "pending");
+    const role = String(row?.role || "member");
+    const isProtected = approvalStatus === "approved" || role === "admin";
+    if (isProtected) {
+      throw new Error("email already linked to an approved profile");
+    }
+    await supabaseDelete(`${TABLE}?user_id=eq.${encodeURIComponent(String(row.user_id || ""))}`);
+  }
 }
 
 async function supabaseSelect(path) {
@@ -86,6 +102,20 @@ async function supabaseUpsert(table, payload, onConflict) {
   }
 
   return response.json();
+}
+
+async function supabaseDelete(path) {
+  const response = await fetch(`${env("SUPABASE_URL")}/rest/v1/${path}`, {
+    method: "DELETE",
+    headers: {
+      apikey: env("SUPABASE_SERVICE_ROLE_KEY"),
+      Authorization: `Bearer ${env("SUPABASE_SERVICE_ROLE_KEY")}`
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
 }
 
 function env(name) {

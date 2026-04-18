@@ -285,7 +285,7 @@ async function handleSignup(event) {
   const createdUserId = String(signUpResult.data?.user?.id || "").trim();
   if (createdUserId) {
     try {
-      await fetch("/.netlify/functions/create-pending-profile", {
+      const profileResponse = await fetch("/.netlify/functions/create-pending-profile", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -298,14 +298,19 @@ async function handleSignup(event) {
           intro: payload.intro
         })
       });
+      const profileResult = await profileResponse.json().catch(() => ({ ok: false, error: "unknown" }));
+      if (!profileResponse.ok || !profileResult.ok) {
+        throw new Error(profileResult.error || "pending profile creation failed");
+      }
       await notifySignupRequest({
         email: payload.email,
         name: payload.name,
         birthYear: payload.birthYear,
         intro: payload.intro
       });
-    } catch (_error) {
-      // Fallback remains: the first login after email verification can still create the profile.
+    } catch (error) {
+      setStatus(signupStatus, `가입은 되었지만 승인 대기 등록에 실패했습니다: ${String(error?.message || error)}. 운영진에 문의해 주세요.`);
+      return;
     }
   }
 

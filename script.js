@@ -2505,6 +2505,7 @@ async function loadApprovalQueue() {
       actions.className = "item-actions";
       const approveButton = buildTinyButton("승인", () => updateApprovalStatus(item.user_id, "approved"));
       const rejectButton = buildTinyButton("반려", () => updateApprovalStatus(item.user_id, "rejected"));
+      const resetButton = buildTinyButton("대기", () => updateApprovalStatus(item.user_id, "pending"));
       const adminButton = buildTinyButton("운영진", () => updateApprovalStatus(item.user_id, "approved", "admin"));
       if (!currentAdminCanManageRoles) {
         adminButton.disabled = true;
@@ -2512,6 +2513,7 @@ async function loadApprovalQueue() {
       }
       actions.appendChild(approveButton);
       actions.appendChild(rejectButton);
+      actions.appendChild(resetButton);
       actions.appendChild(adminButton);
       row.appendChild(actions);
 
@@ -2567,14 +2569,22 @@ async function loadRoleList() {
       actions.className = "item-actions";
       const promoteButton = buildTinyButton("운영진 승격", () => updateMemberRole(item.user_id, "admin", item.name || "회원"));
       const demoteButton = buildTinyButton("일반회원", () => updateMemberRole(item.user_id, "member", item.name || "회원"));
+      const pendingButton = buildTinyButton("승인 대기", () => updateApprovalStatus(item.user_id, "pending"));
+      const deleteButton = buildTinyButton("삭제", () => deleteMemberProfile(item.user_id, item.name || item.email || "회원"));
       if (!currentAdminCanManageRoles) {
         promoteButton.disabled = true;
         demoteButton.disabled = true;
+        pendingButton.disabled = true;
+        deleteButton.disabled = true;
         promoteButton.title = "오너만 권한을 변경할 수 있습니다.";
         demoteButton.title = "오너만 권한을 변경할 수 있습니다.";
+        pendingButton.title = "오너만 승인 상태를 되돌릴 수 있습니다.";
+        deleteButton.title = "오너만 테스트 프로필을 삭제할 수 있습니다.";
       }
       actions.appendChild(promoteButton);
       actions.appendChild(demoteButton);
+      actions.appendChild(pendingButton);
+      actions.appendChild(deleteButton);
       row.appendChild(actions);
 
       roleList.appendChild(row);
@@ -2662,6 +2672,41 @@ async function updateApprovalStatus(userId, status, role = null) {
   const result = await response.json();
   if (!response.ok || !result.ok) {
     alert(`승인 상태 변경 실패: ${result.error || "unknown"}`);
+    return;
+  }
+
+  await loadAdminSnapshot();
+  loadApprovalQueue();
+  loadRoleList();
+  renderAll();
+}
+
+async function deleteMemberProfile(userId, displayName = "회원") {
+  if (!currentAdminToken) {
+    return;
+  }
+  if (!currentAdminCanManageRoles) {
+    alert("오너 권한이 필요합니다.");
+    return;
+  }
+
+  const confirmed = confirm(`${displayName} 프로필을 삭제할까요?\n\n테스트용 중복 계정 정리용으로만 사용하세요.`);
+  if (!confirmed) {
+    return;
+  }
+
+  const response = await fetch("/.netlify/functions/member-approval", {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${currentAdminToken}`
+    },
+    body: JSON.stringify({ user_id: userId })
+  });
+
+  const result = await response.json();
+  if (!response.ok || !result.ok) {
+    alert(`프로필 삭제 실패: ${result.error || "unknown"}`);
     return;
   }
 

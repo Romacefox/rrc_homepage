@@ -59,6 +59,24 @@ export default async (request) => {
       return json(200, { ok: true });
     }
 
+    if (request.method === "DELETE") {
+      if (!auth.isOwner) {
+        return json(403, { ok: false, error: "owner only" });
+      }
+
+      const body = await request.json();
+      const userId = body?.user_id;
+      if (!userId) {
+        return json(400, { ok: false, error: "missing user_id" });
+      }
+      if (auth.user?.id === userId) {
+        return json(400, { ok: false, error: "cannot delete self" });
+      }
+
+      await supabaseDelete(`${TABLE}?user_id=eq.${encodeURIComponent(userId)}`);
+      return json(200, { ok: true });
+    }
+
     return json(405, { ok: false, error: "method not allowed" });
   } catch (error) {
     return json(500, { ok: false, error: String(error?.message || error) });
@@ -203,6 +221,20 @@ async function supabaseInsert(table, payload) {
       Authorization: `Bearer ${env("SUPABASE_SERVICE_ROLE_KEY")}`
     },
     body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+}
+
+async function supabaseDelete(path) {
+  const response = await fetch(`${env("SUPABASE_URL")}/rest/v1/${path}`, {
+    method: "DELETE",
+    headers: {
+      apikey: env("SUPABASE_SERVICE_ROLE_KEY"),
+      Authorization: `Bearer ${env("SUPABASE_SERVICE_ROLE_KEY")}`
+    }
   });
 
   if (!response.ok) {
