@@ -331,10 +331,11 @@ async function openAdminSession({ client, user, accessToken, profile }) {
     roleStatus.textContent = buildAdminRoleStatusText(profile?.role, profile?.approval_status, currentAdminCanManageRoles);
   }
 
-  renderAll();
+  prepareAdminLoadingState();
   try {
     await loadAdminSnapshot();
   } catch (error) {
+    clearAdminDataOnLoadFailure();
     if (syncStatus) {
       syncStatus.textContent = `관리 데이터 로드 실패: ${String(error?.message || error)}`;
     }
@@ -355,6 +356,30 @@ async function openAdminSession({ client, user, accessToken, profile }) {
     // Individual panels provide their own fallback state.
   }
   renderAll();
+}
+
+function prepareAdminLoadingState() {
+  if (memberList) {
+    memberList.innerHTML = '<li class="list-item"><p class="list-meta">회원 목록을 불러오는 중...</p></li>';
+  }
+  if (attendanceLogList) {
+    attendanceLogList.innerHTML = '<li class="list-item"><p class="list-meta">출석 로그를 불러오는 중...</p></li>';
+  }
+  if (approvalList) {
+    approvalList.innerHTML = '<li class="list-item"><p class="list-meta">승인 목록을 불러오는 중...</p></li>';
+  }
+  if (roleList) {
+    roleList.innerHTML = '<li class="list-item"><p class="list-meta">권한 목록을 불러오는 중...</p></li>';
+  }
+}
+
+function clearAdminDataOnLoadFailure() {
+  db = {
+    ...db,
+    members: [],
+    attendanceLogs: [],
+    auditLogs: []
+  };
 }
 
 function migrateLegacyData() {
