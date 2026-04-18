@@ -282,7 +282,34 @@ async function handleSignup(event) {
     return;
   }
 
-  setStatus(signupStatus, "가입 신청이 완료되었습니다. 이메일 인증 후 로그인하면 운영진 승인 대기 상태로 연결됩니다.");
+  const createdUserId = String(signUpResult.data?.user?.id || "").trim();
+  if (createdUserId) {
+    try {
+      await fetch("/.netlify/functions/create-pending-profile", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          user_id: createdUserId,
+          email: payload.email,
+          name: payload.name,
+          birth_year: payload.birthYear,
+          intro: payload.intro
+        })
+      });
+      await notifySignupRequest({
+        email: payload.email,
+        name: payload.name,
+        birthYear: payload.birthYear,
+        intro: payload.intro
+      });
+    } catch (_error) {
+      // Fallback remains: the first login after email verification can still create the profile.
+    }
+  }
+
+  setStatus(signupStatus, "가입 신청이 완료되었습니다. 이메일 인증 후 로그인하면 바로 승인 대기 상태로 연결됩니다.");
 }
 
 async function handleLogin(event) {
