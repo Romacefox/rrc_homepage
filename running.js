@@ -173,9 +173,9 @@ function renderRunningAuthState() {
   const isApproved = approvalStatus === "approved";
   const isAdmin = isApproved && runningProfile?.role === "admin";
 
-  updateSharedNavigation(true, isAdmin);
+  updateSharedNavigation(isApproved, isAdmin);
   setVisibility(runningGuestActions, false);
-  setVisibility(runningMemberActions, true);
+  setVisibility(runningMemberActions, isApproved);
   setVisibility(runningComposeJump, true);
 
   setRunningText(runningAuthStatus, `로그인됨: ${runningUser.email}`);

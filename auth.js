@@ -520,9 +520,9 @@ function renderAuthState() {
   }
 
   updateLoginLayout(true);
-  updateSharedNavigation(true, isAdmin);
+  updateSharedNavigation(isApproved, isAdmin);
   setVisibility(galleryGuestActions, false);
-  setVisibility(galleryMemberActions, true);
+  setVisibility(galleryMemberActions, isApproved);
   const roleSuffix = isAdmin ? " / 운영진 권한 있음" : "";
   setStatus(loginStatus, loginStatus ? `로그인됨: ${authUser.email}` : null);
   setStatus(galleryAuthStatus, galleryAuthStatus ? `로그인됨: ${authUser.email}` : null);
