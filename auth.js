@@ -65,9 +65,21 @@ const myFeeStatus = document.getElementById("my-fee-status");
 const myRaffleStatus = document.getElementById("my-raffle-status");
 const myStreakChange = document.getElementById("my-streak-change");
 const myBadges = document.getElementById("my-badges");
+const myTicketCount = document.getElementById("my-ticket-count");
+const myPointTotal = document.getElementById("my-point-total");
+const myNextReward = document.getElementById("my-next-reward");
+const myPointNote = document.getElementById("my-point-note");
 const myPhotoHistory = document.getElementById("my-photo-history");
 const myCommentHistory = document.getElementById("my-comment-history");
 const myRaffleHistory = document.getElementById("my-raffle-history");
+const suggestionForm = document.getElementById("suggestion-form");
+const suggestionTitleInput = document.getElementById("suggestion-title");
+const suggestionContentInput = document.getElementById("suggestion-content");
+const suggestionAnonymousInput = document.getElementById("suggestion-anonymous");
+const suggestionSubmitButton = document.getElementById("suggestion-submit");
+const suggestionRefreshButton = document.getElementById("suggestion-refresh");
+const suggestionStatus = document.getElementById("suggestion-status");
+const suggestionList = document.getElementById("suggestion-list");
 const memberNavLinks = document.querySelectorAll("[data-member-nav]");
 const adminNavLinks = document.querySelectorAll("[data-admin-nav]");
 const authEntryLinks = document.querySelectorAll("[data-auth-entry]");
@@ -171,6 +183,8 @@ function init() {
   photoLikeButton?.addEventListener("click", handlePhotoLikeToggle);
   activityRefreshButton?.addEventListener("click", loadActivityBoard);
   activityMonthSelect?.addEventListener("change", loadActivityBoard);
+  suggestionForm?.addEventListener("submit", handleSuggestionSubmit);
+  suggestionRefreshButton?.addEventListener("click", loadSuggestionBoard);
 
   if (activityMonthSelect) {
     populateRecentMonthOptions(activityMonthSelect);
@@ -998,7 +1012,9 @@ async function loadActivityBoard() {
     .map((member) => ({
       ...member,
       monthRuns: getMonthlyRuns(member, selectedMonth),
-      streak: getAttendanceStreakFromMonth(member, selectedMonth)
+      streak: getAttendanceStreakFromMonth(member, selectedMonth),
+      tickets: calculateMonthlyTickets(member, selectedMonth),
+      basePoints: calculateAttendancePoints(member, selectedMonth)
     }))
     .sort((a, b) => (b.monthRuns - a.monthRuns) || (Number(b.total_runs || 0) - Number(a.total_runs || 0)) || String(a.name || "").localeCompare(String(b.name || ""), "ko"));
 
@@ -1033,6 +1049,7 @@ async function loadActivityBoard() {
   renderRunnerCard(runner, selectedMonth);
   renderBoardRaffleHistory(raffleRecords.slice(0, 4));
   await renderMyActivityState(me, selectedMonth, raffleRecords);
+  await loadSuggestionBoard();
 }
 
 function renderBoardLocked(message) {
@@ -1043,6 +1060,7 @@ function renderBoardLocked(message) {
     activityBoard.classList.add("hidden");
   }
   renderPersonalBoardEmpty();
+  renderSuggestionBoardLocked("승인 회원 로그인 후 건의사항을 남길 수 있습니다.");
 }
 
 function renderAttendanceBoard(rows, monthKey) {
@@ -1063,12 +1081,13 @@ function renderAttendanceBoard(rows, monthKey) {
       : member.monthRuns >= getMonthThreshold(monthKey)
         ? '<span class="status-chip">추첨 대상</span>'
         : "";
+    const ticketChip = member.tickets > 0 ? `<span class="status-chip warn">티켓 ${member.tickets}장</span>` : "";
     item.innerHTML = `
       <div class="list-top">
-        <span class="list-title">${index + 1}. ${escapeHtml(member.name || "이름없음")}${badge}</span>
+        <span class="list-title">${index + 1}. ${escapeHtml(member.name || "이름없음")}${badge}${ticketChip}</span>
         <span class="list-meta">${monthKeyToLabel(monthKey)} ${member.monthRuns}회</span>
       </div>
-      <p class="list-meta">누적 ${Number(member.total_runs || 0)}회 / 출석 스트릭 ${member.streak}개월</p>
+      <p class="list-meta">누적 ${Number(member.total_runs || 0)}회 / 출석 스트릭 ${member.streak}개월 / 활동 포인트 ${member.basePoints}P</p>
     `;
     attendanceBoard.appendChild(item);
   });
@@ -1087,7 +1106,7 @@ function renderRunnerCard(runner, monthKey) {
     <p class="list-meta">${monthKeyToLabel(monthKey)} 최다 출석</p>
     <h3 style="margin:0.2rem 0 0.4rem;">${escapeHtml(runner.name || "이름없음")}</h3>
     <p>${runner.monthRuns}회 출석 / 누적 ${Number(runner.total_runs || 0)}회</p>
-    <p class="list-meta">출석 스트릭 ${runner.streak}개월</p>
+    <p class="list-meta">출석 스트릭 ${runner.streak}개월 / 티켓 ${runner.tickets || calculateMonthlyTickets(runner, monthKey)}장 / 활동 포인트 ${runner.basePoints || calculateAttendancePoints(runner, monthKey)}P</p>
   `;
 }
 
@@ -1152,11 +1171,20 @@ async function renderMyActivityState(me, selectedMonth, raffleRecords) {
   const previousStreak = getAttendanceStreakFromMonth(me, shiftMonthKey(selectedMonth, -1));
   const currentStreak = getAttendanceStreakFromMonth(me, selectedMonth);
   const raffleThreshold = getMonthThreshold(selectedMonth);
+  const ticketCount = calculateMonthlyTickets(me, selectedMonth);
+  const pointTotal = calculatePersonalMonthlyPoints({
+    me,
+    selectedMonth,
+    photoCount: photos.length,
+    commentCount: comments.length,
+    latestWin
+  });
   const raffleLabel = latestWin
     ? `${monthKeyToLabel(latestWin.target_month_key)} 당첨`
     : (me?.monthRuns || 0) >= raffleThreshold
-      ? `${monthKeyToLabel(selectedMonth)} 후보`
+      ? `${monthKeyToLabel(selectedMonth)} 후보 · 티켓 ${ticketCount}장`
       : "대기 중";
+  const nextReward = getNextReward(pointTotal);
 
   if (myFeeStatus) {
     myFeeStatus.textContent = feeLabel;
@@ -1167,12 +1195,28 @@ async function renderMyActivityState(me, selectedMonth, raffleRecords) {
   if (myStreakChange) {
     myStreakChange.textContent = formatStreakDelta(currentStreak, previousStreak);
   }
+  if (myTicketCount) {
+    myTicketCount.textContent = `${ticketCount}장`;
+  }
+  if (myPointTotal) {
+    myPointTotal.textContent = `${pointTotal}P`;
+  }
+  if (myNextReward) {
+    myNextReward.textContent = nextReward.label;
+  }
+  if (myPointNote) {
+    myPointNote.textContent = nextReward.remaining > 0
+      ? `${nextReward.remaining}P 더 모으면 ${nextReward.label} 신청권에 가까워집니다.`
+      : `${nextReward.label} 구간입니다. 운영진 승인 후 RRC샵 보조 신청이 가능합니다.`;
+  }
 
   renderBadgeList(buildPersonalBadges({
     me,
     selectedMonth,
     feeLabel,
     latestWin,
+    pointTotal,
+    ticketCount,
     photoCount: photos.length,
     commentCount: comments.length
   }));
@@ -1218,10 +1262,231 @@ function renderPersonalBoardEmpty() {
   if (myStreakChange) {
     myStreakChange.textContent = "확인 중";
   }
+  if (myTicketCount) {
+    myTicketCount.textContent = "0장";
+  }
+  if (myPointTotal) {
+    myPointTotal.textContent = "0P";
+  }
+  if (myNextReward) {
+    myNextReward.textContent = "준비 중";
+  }
+  if (myPointNote) {
+    myPointNote.textContent = "출석, 사진, 댓글 활동으로 포인트를 모아 RRC샵 보조 신청에 활용할 수 있도록 준비 중입니다.";
+  }
   renderBadgeList([]);
   renderSimpleHistory(myPhotoHistory, [], "로그인 후 개인 사진 기록이 표시됩니다.");
   renderSimpleHistory(myCommentHistory, [], "로그인 후 내 댓글 기록이 표시됩니다.");
   renderSimpleHistory(myRaffleHistory, [], "로그인 후 내 추첨 기록이 표시됩니다.");
+}
+
+async function handleSuggestionSubmit(event) {
+  event?.preventDefault();
+  if (!supabaseClient || !authUser || !authProfile || authProfile.approval_status !== "approved") {
+    setStatus(suggestionStatus, "승인 회원 로그인 후 건의사항을 등록할 수 있습니다.");
+    return;
+  }
+
+  const title = String(suggestionTitleInput?.value || "").trim();
+  const content = String(suggestionContentInput?.value || "").trim();
+  const isAnonymous = Boolean(suggestionAnonymousInput?.checked);
+  if (!title || !content) {
+    setStatus(suggestionStatus, "제목과 내용을 모두 입력해 주세요.");
+    return;
+  }
+
+  suggestionSubmitButton && (suggestionSubmitButton.disabled = true);
+  setStatus(suggestionStatus, "건의사항을 등록하는 중입니다...");
+
+  try {
+    const result = await callMemberSuggestions("", {
+      method: "POST",
+      body: JSON.stringify({
+        title,
+        content,
+        is_anonymous: isAnonymous
+      })
+    });
+
+    if (!result?.ok) {
+      throw new Error(result?.error || "suggestion submit failed");
+    }
+
+    if (suggestionTitleInput) {
+      suggestionTitleInput.value = "";
+    }
+    if (suggestionContentInput) {
+      suggestionContentInput.value = "";
+    }
+    if (suggestionAnonymousInput) {
+      suggestionAnonymousInput.checked = false;
+    }
+    setStatus(suggestionStatus, "건의사항이 등록되었습니다. 운영진 검토 상태를 아래에서 확인할 수 있습니다.");
+    await loadSuggestionBoard();
+  } catch (error) {
+    setStatus(suggestionStatus, `건의 등록 실패: ${String(error?.message || error)}`);
+  } finally {
+    suggestionSubmitButton && (suggestionSubmitButton.disabled = false);
+  }
+}
+
+async function loadSuggestionBoard() {
+  if (!suggestionList) {
+    return;
+  }
+  if (!supabaseClient || !authUser || !authProfile || authProfile.approval_status !== "approved") {
+    renderSuggestionBoardLocked("승인 회원 로그인 후 건의사항과 처리 상태를 볼 수 있습니다.");
+    return;
+  }
+
+  suggestionRefreshButton && (suggestionRefreshButton.disabled = true);
+  if (!suggestionList.innerHTML) {
+    suggestionList.innerHTML = '<li class="list-item"><p class="list-meta">건의함을 불러오는 중입니다.</p></li>';
+  }
+
+  try {
+    const result = await callMemberSuggestions("?limit=12");
+    const items = Array.isArray(result?.items) ? result.items : [];
+    if (result?.available === false) {
+      renderSuggestionBoardLocked("건의함 테이블 준비 중입니다. Supabase 패치를 먼저 적용해 주세요.");
+      return;
+    }
+    renderSuggestionList(items, Boolean(result?.can_manage));
+    setStatus(suggestionStatus, "회원 건의사항과 운영 상태를 확인할 수 있습니다.");
+  } catch (error) {
+    renderSuggestionBoardLocked(`건의함 로드 실패: ${String(error?.message || error)}`);
+  } finally {
+    suggestionRefreshButton && (suggestionRefreshButton.disabled = false);
+  }
+}
+
+function renderSuggestionBoardLocked(message) {
+  if (suggestionList) {
+    suggestionList.innerHTML = `<li class="list-item"><p class="list-meta">${escapeHtml(message)}</p></li>`;
+  }
+  if (suggestionStatus) {
+    suggestionStatus.textContent = message;
+  }
+}
+
+function renderSuggestionList(items, canManage) {
+  if (!suggestionList) {
+    return;
+  }
+  suggestionList.innerHTML = "";
+  if (!items.length) {
+    suggestionList.innerHTML = '<li class="list-item"><p class="list-meta">아직 등록된 건의사항이 없습니다.</p></li>';
+    return;
+  }
+
+  items.forEach((item) => {
+    const node = document.createElement("li");
+    const statusClass = getSuggestionStatusClass(item.status);
+    const authorLabel = item.is_anonymous && item.user_id !== authUser?.id
+      ? "익명 회원"
+      : (item.author_name || "회원");
+    node.className = "list-item suggestion-item";
+    node.innerHTML = `
+      <div class="list-top">
+        <span class="list-title">${escapeHtml(item.title || "제안")}</span>
+        <span class="status-chip ${statusClass}">${escapeHtml(getSuggestionStatusLabel(item.status))}</span>
+      </div>
+      <p class="list-meta">${escapeHtml(authorLabel)} · ${escapeHtml(formatDate(item.created_at))}</p>
+      <p>${escapeHtml(item.content || "")}</p>
+    `;
+
+    if (canManage) {
+      const actions = document.createElement("div");
+      actions.className = "item-actions";
+      [
+        { key: "under_review", label: "검토 중" },
+        { key: "planned", label: "반영 예정" },
+        { key: "completed", label: "완료" },
+        { key: "rejected", label: "반려" }
+      ].forEach((action) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "btn ghost tiny";
+        button.textContent = action.label;
+        button.addEventListener("click", () => {
+          void updateSuggestionStatus(item.id, action.key, action.label);
+        });
+        actions.appendChild(button);
+      });
+      node.appendChild(actions);
+    }
+
+    suggestionList.appendChild(node);
+  });
+}
+
+async function updateSuggestionStatus(suggestionId, status, label) {
+  if (!suggestionId) {
+    return;
+  }
+  try {
+    const result = await callMemberSuggestions("", {
+      method: "PATCH",
+      body: JSON.stringify({ id: suggestionId, status })
+    });
+    if (!result?.ok) {
+      throw new Error(result?.error || "suggestion update failed");
+    }
+    setStatus(suggestionStatus, `건의 상태를 '${label}'로 변경했습니다.`);
+    await loadSuggestionBoard();
+  } catch (error) {
+    setStatus(suggestionStatus, `건의 상태 변경 실패: ${String(error?.message || error)}`);
+  }
+}
+
+async function callMemberSuggestions(query = "", options = {}) {
+  const sessionResult = await supabaseClient.auth.getSession();
+  const accessToken = sessionResult.data?.session?.access_token;
+  if (!accessToken) {
+    throw new Error("로그인이 필요합니다.");
+  }
+
+  const response = await fetch(`/.netlify/functions/member-suggestions${query}`, {
+    method: options.method || "GET",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`
+    },
+    body: options.body
+  });
+  const result = await response.json().catch(() => ({ ok: false, error: "invalid response" }));
+  if (!response.ok) {
+    throw new Error(result?.error || `request failed (${response.status})`);
+  }
+  return result;
+}
+
+function getSuggestionStatusLabel(status) {
+  switch (String(status || "")) {
+    case "under_review":
+      return "검토 중";
+    case "planned":
+      return "반영 예정";
+    case "completed":
+      return "완료";
+    case "rejected":
+      return "반려";
+    default:
+      return "접수됨";
+  }
+}
+
+function getSuggestionStatusClass(status) {
+  switch (String(status || "")) {
+    case "completed":
+      return "";
+    case "planned":
+      return "warn";
+    case "rejected":
+      return "danger";
+    default:
+      return "warn";
+  }
 }
 
 async function loadMyPhotos() {
@@ -1290,7 +1555,7 @@ function renderBadgeList(badges) {
   });
 }
 
-function buildPersonalBadges({ me, selectedMonth, feeLabel, latestWin, photoCount, commentCount }) {
+function buildPersonalBadges({ me, selectedMonth, feeLabel, latestWin, photoCount, commentCount, pointTotal, ticketCount }) {
   const badges = [];
   const threshold = getMonthThreshold(selectedMonth);
   if ((me?.monthRuns || 0) >= threshold) {
@@ -1311,7 +1576,84 @@ function buildPersonalBadges({ me, selectedMonth, feeLabel, latestWin, photoCoun
   if (latestWin) {
     badges.push("추첨 당첨");
   }
+  if ((ticketCount || 0) >= threshold + 2) {
+    badges.push("황금 티켓");
+  }
+  if ((me?.streak || getAttendanceStreakFromMonth(me, selectedMonth)) >= 3) {
+    badges.push("3개월 스트릭");
+  }
+  if ((me?.streak || getAttendanceStreakFromMonth(me, selectedMonth)) >= 6) {
+    badges.push("6개월 스트릭");
+  }
+  if ((pointTotal || 0) >= 80) {
+    badges.push("포인트 러너");
+  }
   return badges;
+}
+
+function calculateMonthlyTickets(member, monthKey) {
+  const monthRuns = getMonthlyRuns(member, monthKey);
+  if (monthRuns <= 0) {
+    return 0;
+  }
+  const threshold = getMonthThreshold(monthKey);
+  const streak = getAttendanceStreakFromMonth(member, monthKey);
+  let tickets = monthRuns;
+  if (monthRuns >= threshold) {
+    tickets += 2;
+  }
+  if (monthRuns >= threshold + 2) {
+    tickets += 1;
+  }
+  if (streak >= 3) {
+    tickets += 1;
+  }
+  if (streak >= 6) {
+    tickets += 1;
+  }
+  return tickets;
+}
+
+function calculateAttendancePoints(member, monthKey) {
+  const monthRuns = getMonthlyRuns(member, monthKey);
+  const streak = getAttendanceStreakFromMonth(member, monthKey);
+  let points = monthRuns * 10;
+  if (monthRuns >= getMonthThreshold(monthKey)) {
+    points += 8;
+  }
+  if (streak >= 3) {
+    points += 12;
+  }
+  if (streak >= 6) {
+    points += 18;
+  }
+  return points;
+}
+
+function calculatePersonalMonthlyPoints({ me, selectedMonth, photoCount, commentCount, latestWin }) {
+  const attendancePoints = calculateAttendancePoints(me, selectedMonth);
+  const photoPoints = Math.min(Number(photoCount || 0), 5) * 3;
+  const commentPoints = Math.min(Number(commentCount || 0), 10);
+  const winPoints = latestWin ? 15 : 0;
+  return attendancePoints + photoPoints + commentPoints + winPoints;
+}
+
+function getNextReward(points) {
+  const tiers = [
+    { threshold: 40, label: "젤/보급 간식 보조" },
+    { threshold: 80, label: "러닝 양말/소도구 보조" },
+    { threshold: 140, label: "보틀/러닝 액세서리 보조" },
+    { threshold: 220, label: "RRC샵 메인 리워드 보조" }
+  ];
+  const currentPoints = Number(points || 0);
+  const nextTier = tiers.find((tier) => currentPoints < tier.threshold);
+  if (!nextTier) {
+    return { label: "RRC샵 프리미엄 구간", remaining: 0 };
+  }
+  return {
+    label: nextTier.label,
+    remaining: Math.max(nextTier.threshold - currentPoints, 0)
+  };
 }
 
 function getPersonalFeeLabel(member, monthKey) {

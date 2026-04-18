@@ -143,3 +143,16 @@ create table if not exists public.running_hub_likes (
   created_at timestamptz not null default now(),
   unique (post_id, user_id)
 );
+
+create table if not exists public.member_suggestions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null,
+  author_name text not null,
+  author_email text,
+  title text not null,
+  content text not null,
+  status text not null default 'submitted' check (status in ('submitted','under_review','planned','completed','rejected')),
+  is_anonymous boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);

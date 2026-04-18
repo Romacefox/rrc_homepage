@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=SUIT:wght@300;400;500;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20260321a" />
+  <link rel="stylesheet" href="styles.css?v=20260418b" />
 </head>
 <body>
   <header class="site-header">
@@ -85,6 +85,12 @@
                 <h4 style="margin-bottom:0.45rem;">내 출석 달성 배지</h4>
                 <div id="my-badges" class="raffle-winner-tags"></div>
               </div>
+              <div class="stats-grid member-reward-stats" style="margin-top:0.9rem;">
+                <div class="stat-card"><span>이번 달 티켓</span><strong id="my-ticket-count">0장</strong></div>
+                <div class="stat-card"><span>활동 포인트</span><strong id="my-point-total">0P</strong></div>
+                <div class="stat-card"><span>다음 혜택</span><strong id="my-next-reward">준비 중</strong></div>
+              </div>
+              <p id="my-point-note" class="list-meta" style="margin-top:0.75rem;">출석, 사진, 댓글 활동으로 포인트를 모아 RRC샵 보조 신청에 활용할 수 있도록 준비 중입니다.</p>
             </article>
             <div class="board-layout" style="margin-top:1rem;">
               <div>
@@ -114,6 +120,47 @@
                 <ul id="my-raffle-history" class="list small"></ul>
               </article>
             </div>
+            <div class="board-engagement-grid" style="margin-top:1rem;">
+              <article class="panel board-highlight reward-guide-panel">
+                <div class="section-head">
+                  <h3>RRC 리워드 라운지</h3>
+                  <span class="badge">포인트 안내</span>
+                </div>
+                <p class="list-meta">출석과 커뮤니티 활동으로 포인트를 모으고, 운영진 승인 후 RRC샵 러닝 용품 보조 신청에 활용하는 흐름입니다.</p>
+                <div id="reward-preview-list" class="reward-preview-list">
+                  <div class="reward-preview-card">
+                    <strong>40P</strong>
+                    <p class="list-meta">젤/보급 간식 보조</p>
+                  </div>
+                  <div class="reward-preview-card">
+                    <strong>80P</strong>
+                    <p class="list-meta">러닝 양말/소도구 보조</p>
+                  </div>
+                  <div class="reward-preview-card">
+                    <strong>140P</strong>
+                    <p class="list-meta">보틀/러닝 액세서리 보조</p>
+                  </div>
+                </div>
+                <p class="list-meta" style="margin-top:0.8rem;">정기런 1회 10P, 3개월 스트릭 보너스, 사진 업로드와 응원 댓글도 포인트에 반영됩니다.</p>
+              </article>
+              <article class="panel suggestion-panel">
+                <div class="section-head">
+                  <h3>회원 건의함</h3>
+                  <span class="badge">의견 제안</span>
+                </div>
+                <form id="suggestion-form" class="form compact" style="margin-top:0.8rem;">
+                  <input id="suggestion-title" type="text" maxlength="80" placeholder="건의 제목" />
+                  <textarea id="suggestion-content" rows="4" maxlength="600" placeholder="예: 정기런 뒤 10분 스트레칭 루틴을 공지해 주세요"></textarea>
+                  <label class="list-meta"><input id="suggestion-anonymous" type="checkbox" style="width:auto; margin-right:0.35rem;" />다른 회원에게는 익명으로 표시</label>
+                  <div class="inline-form">
+                    <button id="suggestion-submit" class="btn primary" type="submit">건의 등록</button>
+                    <button id="suggestion-refresh" class="btn ghost" type="button">목록 새로고침</button>
+                  </div>
+                </form>
+                <p id="suggestion-status" class="list-meta" style="margin-top:0.7rem;">승인 회원은 건의사항을 등록하고 처리 상태를 볼 수 있습니다.</p>
+                <ul id="suggestion-list" class="list small" style="margin-top:0.8rem;"></ul>
+              </article>
+            </div>
           </div>
         </article>
       </div>
@@ -128,6 +175,6 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="auth.js?v=20260418a"></script>
+  <script src="auth.js?v=20260418b"></script>
 </body>
 </html>

@@ -42,10 +42,24 @@ create table if not exists public.running_hub_likes (
   unique (post_id, user_id)
 );
 
+create table if not exists public.member_suggestions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null,
+  author_name text not null,
+  author_email text,
+  title text not null,
+  content text not null,
+  status text not null default 'submitted' check (status in ('submitted','under_review','planned','completed','rejected')),
+  is_anonymous boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 alter table public.running_hub_posts enable row level security;
 alter table public.photo_comments enable row level security;
 alter table public.photo_likes enable row level security;
 alter table public.running_hub_likes enable row level security;
+alter table public.member_suggestions enable row level security;
 
 drop policy if exists "public read approved running hub posts" on public.running_hub_posts;
 create policy "public read approved running hub posts" on public.running_hub_posts
@@ -129,3 +143,27 @@ drop policy if exists "member delete own running hub likes" on public.running_hu
 create policy "member delete own running hub likes" on public.running_hub_likes
 for delete to authenticated
 using (auth.uid() = user_id or public.is_admin());
+
+drop policy if exists "approved member read suggestions" on public.member_suggestions;
+create policy "approved member read suggestions" on public.member_suggestions
+for select to authenticated
+using (
+  public.is_admin()
+  or auth.uid() = user_id
+  or (public.is_approved_member() and is_anonymous = false and status in ('submitted','under_review','planned','completed'))
+);
+
+drop policy if exists "approved member insert own suggestions" on public.member_suggestions;
+create policy "approved member insert own suggestions" on public.member_suggestions
+for insert to authenticated
+with check (
+  public.is_approved_member()
+  and auth.uid() = user_id
+  and status = 'submitted'
+);
+
+drop policy if exists "admin manage suggestions" on public.member_suggestions;
+create policy "admin manage suggestions" on public.member_suggestions
+for all to authenticated
+using (public.is_admin())
+with check (public.is_admin());

@@ -620,6 +620,10 @@ body.modal-open {
   grid-template-columns: repeat(3, minmax(120px, 1fr));
 }
 
+.member-reward-stats {
+  grid-template-columns: repeat(3, minmax(120px, 1fr));
+}
+
 .member-focus-panel {
   border-color: rgba(255, 140, 66, 0.22);
 }
@@ -630,12 +634,58 @@ body.modal-open {
   gap: 1rem;
 }
 
+.board-engagement-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.95fr) minmax(320px, 1.05fr);
+  gap: 1rem;
+}
+
+.reward-guide-panel {
+  border-color: rgba(255, 157, 95, 0.24);
+}
+
+.reward-preview-list {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 0.9rem;
+}
+
+.reward-preview-card {
+  border: 1px solid rgba(255, 150, 86, 0.22);
+  border-radius: 14px;
+  padding: 0.85rem 0.95rem;
+  background: linear-gradient(180deg, rgba(34, 22, 13, 0.96) 0%, rgba(18, 18, 18, 0.98) 100%);
+}
+
+.reward-preview-card strong {
+  display: block;
+  margin-bottom: 0.2rem;
+  font-size: 1.05rem;
+  color: #fff0e3;
+}
+
+.suggestion-panel {
+  border-color: rgba(255, 152, 88, 0.2);
+}
+
+.suggestion-item p {
+  margin: 0.45rem 0 0;
+}
+
 @media (max-width: 960px) {
   .member-personal-stats {
     grid-template-columns: 1fr;
   }
 
+  .member-reward-stats {
+    grid-template-columns: 1fr;
+  }
+
   .board-record-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .board-engagement-grid {
     grid-template-columns: 1fr;
   }
 }

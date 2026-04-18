@@ -655,14 +655,67 @@ async function loadAdminSnapshot() {
   };
 
   const localMembers = Array.isArray(db.members) ? db.members : [];
+  const localNotices = Array.isArray(db.notices) ? db.notices : [];
+  const localGuests = Array.isArray(db.guests) ? db.guests : [];
+  const localAttendanceLogs = Array.isArray(db.attendanceLogs) ? db.attendanceLogs : [];
+  const localAuditLogs = Array.isArray(db.auditLogs) ? db.auditLogs : [];
   const preserveLocalMembers = shouldPreserveLocalMembers(localMembers, remoteSnapshot.members);
+  const preserveLocalNotices = shouldPreserveLocalCollection(localNotices, remoteSnapshot.notices);
+  const preserveLocalGuests = shouldPreserveLocalCollection(localGuests, remoteSnapshot.guests);
+  const preserveLocalAttendanceLogs = shouldPreserveLocalCollection(localAttendanceLogs, remoteSnapshot.attendanceLogs);
+  const preserveLocalAuditLogs = shouldPreserveLocalCollection(localAuditLogs, remoteSnapshot.auditLogs);
   const preservedMembers = preserveLocalMembers
     ? mergeMemberCollections(localMembers, remoteSnapshot.members)
     : remoteSnapshot.members;
+  const preservedNotices = preserveLocalNotices
+    ? mergeRecordsById(localNotices, remoteSnapshot.notices, (notice) => ({
+        id: notice?.id || makeId(),
+        title: String(notice?.title || "공지"),
+        content: String(notice?.content || ""),
+        createdAt: notice?.createdAt || notice?.created_at || new Date().toISOString()
+      })).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    : remoteSnapshot.notices;
+  const preservedGuests = preserveLocalGuests
+    ? mergeRecordsById(localGuests, remoteSnapshot.guests, (guest) => ({
+        id: guest?.id || makeId(),
+        name: String(guest?.name || "이름없음"),
+        birthYear: Number(guest?.birthYear || guest?.birth_year || 1994),
+        phone: String(guest?.phone || ""),
+        message: String(guest?.message || ""),
+        status: String(guest?.status || "대기"),
+        createdAt: guest?.createdAt || guest?.created_at || new Date().toISOString()
+      })).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    : remoteSnapshot.guests;
+  const preservedAttendanceLogs = preserveLocalAttendanceLogs
+    ? mergeRecordsById(localAttendanceLogs, remoteSnapshot.attendanceLogs, (log) => ({
+        id: log?.id || makeId(),
+        source: String(log?.source || "bulk"),
+        eventType: String(log?.eventType || log?.event_type || "정기런"),
+        date: String(log?.date || log?.attendance_date || toIsoDate(new Date())),
+        rawCount: Number(log?.rawCount || log?.raw_count || 0),
+        matched: Array.isArray(log?.matched) ? log.matched : [],
+        unmatched: Array.isArray(log?.unmatched) ? log.unmatched : [],
+        ambiguous: Array.isArray(log?.ambiguous) ? log.ambiguous : [],
+        createdAt: log?.createdAt || log?.created_at || new Date().toISOString()
+      })).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 50)
+    : remoteSnapshot.attendanceLogs;
+  const preservedAuditLogs = preserveLocalAuditLogs
+    ? mergeRecordsById(localAuditLogs, remoteSnapshot.auditLogs, (entry) => ({
+        id: entry?.id || makeId(),
+        actorName: String(entry?.actorName || entry?.actor_name || "운영진"),
+        action: String(entry?.action || "운영 변경"),
+        detail: String(entry?.detail || ""),
+        createdAt: entry?.createdAt || entry?.created_at || new Date().toISOString()
+      })).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 50)
+    : remoteSnapshot.auditLogs;
 
   db = {
     ...remoteSnapshot,
-    members: preservedMembers
+    notices: preservedNotices,
+    guests: preservedGuests,
+    members: preservedMembers,
+    attendanceLogs: preservedAttendanceLogs,
+    auditLogs: preservedAuditLogs
   };
 
   hydrateMemberProfileSummary(Array.isArray(snapshot.member_profiles) ? snapshot.member_profiles : []);
@@ -671,9 +724,25 @@ async function loadAdminSnapshot() {
   saveDb();
 
   if (syncStatus) {
-    if (preserveLocalMembers) {
-      const localOnlyCount = Math.max(0, preservedMembers.length - remoteSnapshot.members.length);
-      syncStatus.textContent = `Supabase 회원 목록이 비어 있거나 오래된 상태라 로컬 회원 ${localOnlyCount || preservedMembers.length}명을 유지했습니다. 필요하면 지금 동기화를 눌러 주세요.`;
+    if (preserveLocalMembers || preserveLocalNotices || preserveLocalGuests || preserveLocalAttendanceLogs || preserveLocalAuditLogs) {
+      const parts = [];
+      if (preserveLocalMembers) {
+        const localOnlyCount = Math.max(0, preservedMembers.length - remoteSnapshot.members.length);
+        parts.push(`회원 ${localOnlyCount || preservedMembers.length}건`);
+      }
+      if (preserveLocalNotices) {
+        parts.push(`공지 ${Math.max(0, preservedNotices.length - remoteSnapshot.notices.length) || preservedNotices.length}건`);
+      }
+      if (preserveLocalGuests) {
+        parts.push(`게스트 ${Math.max(0, preservedGuests.length - remoteSnapshot.guests.length) || preservedGuests.length}건`);
+      }
+      if (preserveLocalAttendanceLogs) {
+        parts.push(`출석 로그 ${Math.max(0, preservedAttendanceLogs.length - remoteSnapshot.attendanceLogs.length) || preservedAttendanceLogs.length}건`);
+      }
+      if (preserveLocalAuditLogs) {
+        parts.push(`운영 로그 ${Math.max(0, preservedAuditLogs.length - remoteSnapshot.auditLogs.length) || preservedAuditLogs.length}건`);
+      }
+      syncStatus.textContent = `원격보다 최신 로컬 데이터(${parts.join(", ")})를 유지했습니다. 필요하면 지금 동기화를 눌러 주세요.`;
     } else {
       syncStatus.textContent = "동기화 준비 완료";
     }
@@ -790,6 +859,12 @@ function shouldPreserveLocalMembers(localMembers, remoteMembers) {
   return localMeaningfulCount > remoteMeaningfulCount;
 }
 
+function shouldPreserveLocalCollection(localItems, remoteItems) {
+  const localCount = Array.isArray(localItems) ? localItems.length : 0;
+  const remoteCount = Array.isArray(remoteItems) ? remoteItems.length : 0;
+  return localCount > remoteCount;
+}
+
 function countMeaningfulMembers(members) {
   if (!Array.isArray(members)) {
     return 0;
@@ -818,6 +893,23 @@ function mergeMemberCollections(localMembers, remoteMembers) {
   });
 
   return Array.from(merged.values()).sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "ko"));
+}
+
+function mergeRecordsById(localItems, remoteItems, normalize) {
+  const merged = new Map();
+
+  (Array.isArray(remoteItems) ? remoteItems : []).forEach((item) => {
+    const normalized = normalize(item);
+    merged.set(String(normalized.id || makeId()), normalized);
+  });
+
+  (Array.isArray(localItems) ? localItems : []).forEach((item) => {
+    const normalized = normalize(item);
+    const key = String(normalized.id || makeId());
+    merged.set(key, { ...(merged.get(key) || {}), ...normalized });
+  });
+
+  return Array.from(merged.values());
 }
 
 function normalizeMemberRecord(member) {

@@ -11,6 +11,7 @@ alter table public.running_hub_posts enable row level security;
 alter table public.photo_comments enable row level security;
 alter table public.photo_likes enable row level security;
 alter table public.running_hub_likes enable row level security;
+alter table public.member_suggestions enable row level security;
 
 create or replace function public.is_admin()
 returns boolean
@@ -266,4 +267,30 @@ drop policy if exists "member delete own running hub likes" on public.running_hu
 create policy "member delete own running hub likes" on public.running_hub_likes
 for delete to authenticated
 using (auth.uid() = user_id or public.is_admin());
+
+-- Member suggestions
+
+drop policy if exists "approved member read suggestions" on public.member_suggestions;
+create policy "approved member read suggestions" on public.member_suggestions
+for select to authenticated
+using (
+  public.is_admin()
+  or auth.uid() = user_id
+  or (public.is_approved_member() and is_anonymous = false and status in ('submitted','under_review','planned','completed'))
+);
+
+drop policy if exists "approved member insert own suggestions" on public.member_suggestions;
+create policy "approved member insert own suggestions" on public.member_suggestions
+for insert to authenticated
+with check (
+  public.is_approved_member()
+  and auth.uid() = user_id
+  and status = 'submitted'
+);
+
+drop policy if exists "admin manage suggestions" on public.member_suggestions;
+create policy "admin manage suggestions" on public.member_suggestions
+for all to authenticated
+using (public.is_admin())
+with check (public.is_admin());
 
