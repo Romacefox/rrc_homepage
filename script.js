@@ -331,10 +331,29 @@ async function openAdminSession({ client, user, accessToken, profile }) {
     roleStatus.textContent = buildAdminRoleStatusText(profile?.role, profile?.approval_status, currentAdminCanManageRoles);
   }
 
-  await loadAdminSnapshot();
-  loadSyncMetadata();
-  loadApprovalQueue();
-  loadRoleList();
+  renderAll();
+  try {
+    await loadAdminSnapshot();
+  } catch (error) {
+    if (syncStatus) {
+      syncStatus.textContent = `관리 데이터 로드 실패: ${String(error?.message || error)}`;
+    }
+  }
+  try {
+    await loadSyncMetadata();
+  } catch (_error) {
+    // Keep the admin panel open even if sync metadata fails.
+  }
+  try {
+    await loadApprovalQueue();
+  } catch (_error) {
+    // Individual panels provide their own fallback state.
+  }
+  try {
+    await loadRoleList();
+  } catch (_error) {
+    // Individual panels provide their own fallback state.
+  }
   renderAll();
 }
 
@@ -1081,6 +1100,12 @@ function applyAttendanceByNames(names, options) {
     return { message: "반영할 이름이 없습니다." };
   }
 
+  const existingLog = findAttendanceLogByScope(options.date, options.eventType, options.source);
+  if (existingLog) {
+    revertAttendanceMatches(existingLog);
+    db.attendanceLogs = db.attendanceLogs.filter((entry) => entry.id !== existingLog.id);
+  }
+
   const matched = [];
   const unmatched = [];
   const ambiguous = [];
@@ -1125,6 +1150,9 @@ function applyAttendanceByNames(names, options) {
   }
   if (ambiguous.length) {
     parts.push(`중복 후보 ${ambiguous.length}명`);
+  }
+  if (existingLog) {
+    parts.push("기존 같은 날짜 로그 교체");
   }
 
   return { message: parts.join(" | ") };
@@ -1516,6 +1544,18 @@ function revertAttendanceLog(logId) {
     return;
   }
 
+  revertAttendanceMatches(log);
+  db.attendanceLogs = db.attendanceLogs.filter((entry) => entry.id !== logId);
+  saveDb();
+  logAdminAction("출석 되돌리기", `${log.date} ${log.eventType} / ${log.matched.join(", ")}`);
+  renderAll();
+}
+
+function revertAttendanceMatches(log) {
+  if (!log || !Array.isArray(log.matched) || !log.matched.length) {
+    return;
+  }
+
   const monthKey = monthKeyFromDate(log.date);
   log.matched.forEach((name) => {
     const result = findMemberByName(name);
@@ -1523,11 +1563,14 @@ function revertAttendanceLog(logId) {
       updateMemberRuns(result.member.id, -1, monthKey);
     }
   });
+}
 
-  db.attendanceLogs = db.attendanceLogs.filter((entry) => entry.id !== logId);
-  saveDb();
-  logAdminAction("출석 되돌리기", `${log.date} ${log.eventType} / ${log.matched.join(", ")}`);
-  renderAll();
+function findAttendanceLogByScope(date, eventType, source = "bulk") {
+  return (Array.isArray(db.attendanceLogs) ? db.attendanceLogs : []).find((entry) => (
+    String(entry?.date || "") === String(date || "")
+    && String(entry?.eventType || "") === String(eventType || "")
+    && String(entry?.source || "bulk") === String(source || "bulk")
+  )) || null;
 }
 
 function renderAuditLogs() {
