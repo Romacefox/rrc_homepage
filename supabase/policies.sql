@@ -12,6 +12,7 @@ alter table public.photo_comments enable row level security;
 alter table public.photo_likes enable row level security;
 alter table public.running_hub_likes enable row level security;
 alter table public.member_suggestions enable row level security;
+alter table public.reward_requests enable row level security;
 
 create or replace function public.is_admin()
 returns boolean
@@ -290,6 +291,28 @@ with check (
 
 drop policy if exists "admin manage suggestions" on public.member_suggestions;
 create policy "admin manage suggestions" on public.member_suggestions
+for all to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
+-- Reward requests
+
+drop policy if exists "approved member read own reward requests" on public.reward_requests;
+create policy "approved member read own reward requests" on public.reward_requests
+for select to authenticated
+using (public.is_admin() or auth.uid() = user_id);
+
+drop policy if exists "approved member insert own reward requests" on public.reward_requests;
+create policy "approved member insert own reward requests" on public.reward_requests
+for insert to authenticated
+with check (
+  public.is_approved_member()
+  and auth.uid() = user_id
+  and status = 'submitted'
+);
+
+drop policy if exists "admin manage reward requests" on public.reward_requests;
+create policy "admin manage reward requests" on public.reward_requests
 for all to authenticated
 using (public.is_admin())
 with check (public.is_admin());

@@ -55,11 +55,26 @@ create table if not exists public.member_suggestions (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.reward_requests (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null,
+  requester_name text not null,
+  requester_email text,
+  reward_code text not null,
+  reward_name text not null,
+  point_cost int not null default 0,
+  note text,
+  status text not null default 'submitted' check (status in ('submitted','approved','fulfilled','rejected')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 alter table public.running_hub_posts enable row level security;
 alter table public.photo_comments enable row level security;
 alter table public.photo_likes enable row level security;
 alter table public.running_hub_likes enable row level security;
 alter table public.member_suggestions enable row level security;
+alter table public.reward_requests enable row level security;
 
 drop policy if exists "public read approved running hub posts" on public.running_hub_posts;
 create policy "public read approved running hub posts" on public.running_hub_posts
@@ -164,6 +179,26 @@ with check (
 
 drop policy if exists "admin manage suggestions" on public.member_suggestions;
 create policy "admin manage suggestions" on public.member_suggestions
+for all to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
+drop policy if exists "approved member read own reward requests" on public.reward_requests;
+create policy "approved member read own reward requests" on public.reward_requests
+for select to authenticated
+using (public.is_admin() or auth.uid() = user_id);
+
+drop policy if exists "approved member insert own reward requests" on public.reward_requests;
+create policy "approved member insert own reward requests" on public.reward_requests
+for insert to authenticated
+with check (
+  public.is_approved_member()
+  and auth.uid() = user_id
+  and status = 'submitted'
+);
+
+drop policy if exists "admin manage reward requests" on public.reward_requests;
+create policy "admin manage reward requests" on public.reward_requests
 for all to authenticated
 using (public.is_admin())
 with check (public.is_admin());

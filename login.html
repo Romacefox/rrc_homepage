@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=SUIT:wght@300;400;500;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20260418b" />
+  <link rel="stylesheet" href="styles.css?v=20260418c" />
 </head>
 <body>
   <header class="site-header">
@@ -60,7 +60,7 @@
             <h2>활동 보드</h2>
             <span id="runner-month-label" class="badge">이번 달 기준</span>
           </div>
-          <p id="activity-lock" class="list-meta">승인 회원 로그인 후 월별 출석, 출석 스트릭, 이달의 러너를 볼 수 있습니다.</p>
+          <p id="activity-lock" class="list-meta">승인 회원 로그인 후 월별 출석, 연속 출석, 이달의 러너를 볼 수 있습니다.</p>
           <div id="activity-board" class="hidden">
             <div class="inline-form" style="margin-top:0.8rem;">
               <select id="activity-month"></select>
@@ -69,7 +69,7 @@
             <div class="stats-grid member-board-stats" style="margin-top:0.8rem;">
               <div class="stat-card"><span>이번 달 출석</span><strong id="my-month-runs">0회</strong></div>
               <div class="stat-card"><span>누적 출석</span><strong id="my-total-runs">0회</strong></div>
-              <div class="stat-card"><span>출석 스트릭</span><strong id="my-streak">0개월</strong></div>
+              <div class="stat-card"><span>연속 출석</span><strong id="my-streak">0개월</strong></div>
             </div>
             <article class="panel board-highlight member-focus-panel" style="margin-top:1rem;">
               <div class="section-head">
@@ -79,14 +79,14 @@
               <div class="stats-grid member-personal-stats" style="margin-top:0.8rem;">
                 <div class="stat-card"><span>이번 달 회비</span><strong id="my-fee-status">확인 중</strong></div>
                 <div class="stat-card"><span>최근 추첨 결과</span><strong id="my-raffle-status">확인 중</strong></div>
-                <div class="stat-card"><span>스트릭 변화</span><strong id="my-streak-change">확인 중</strong></div>
+                <div class="stat-card"><span>연속 출석 변화</span><strong id="my-streak-change">확인 중</strong></div>
               </div>
               <div style="margin-top:0.9rem;">
                 <h4 style="margin-bottom:0.45rem;">내 출석 달성 배지</h4>
                 <div id="my-badges" class="raffle-winner-tags"></div>
               </div>
               <div class="stats-grid member-reward-stats" style="margin-top:0.9rem;">
-                <div class="stat-card"><span>이번 달 티켓</span><strong id="my-ticket-count">0장</strong></div>
+                <div class="stat-card"><span>이번 달 추첨권</span><strong id="my-ticket-count">0장</strong></div>
                 <div class="stat-card"><span>활동 포인트</span><strong id="my-point-total">0P</strong></div>
                 <div class="stat-card"><span>다음 혜택</span><strong id="my-next-reward">준비 중</strong></div>
               </div>
@@ -105,6 +105,29 @@
                 <h3 style="margin-top:1rem;">최근 추첨 기록</h3>
                 <ul id="board-raffle-history" class="list small"></ul>
               </div>
+            </div>
+            <div class="board-public-grid" style="margin-top:1rem;">
+              <article class="panel board-highlight">
+                <div class="section-head">
+                  <h3>공개 추첨권 랭킹</h3>
+                  <span class="badge">이번 달 경쟁</span>
+                </div>
+                <ul id="public-ticket-board" class="list small" style="margin-top:0.8rem;"></ul>
+              </article>
+              <article class="panel">
+                <div class="section-head">
+                  <h3>이번 달 미션</h3>
+                  <span class="badge">미션 보드</span>
+                </div>
+                <ul id="mission-board" class="list small" style="margin-top:0.8rem;"></ul>
+              </article>
+              <article class="panel">
+                <div class="section-head">
+                  <h3>공개 배지 쇼케이스</h3>
+                  <span class="badge">칭호 공개</span>
+                </div>
+                <ul id="badge-showcase-board" class="list small" style="margin-top:0.8rem;"></ul>
+              </article>
             </div>
             <div class="board-record-grid" style="margin-top:1rem;">
               <article class="panel">
@@ -141,7 +164,22 @@
                     <p class="list-meta">보틀/러닝 액세서리 보조</p>
                   </div>
                 </div>
-                <p class="list-meta" style="margin-top:0.8rem;">정기런 1회 10P, 3개월 스트릭 보너스, 사진 업로드와 응원 댓글도 포인트에 반영됩니다.</p>
+                <p class="list-meta" style="margin-top:0.8rem;">정기런 1회 10P, 3개월 연속 출석 보너스, 사진 업로드와 응원 댓글도 포인트에 반영됩니다.</p>
+                <form id="reward-request-form" class="form compact" style="margin-top:0.9rem;">
+                  <select id="reward-request-item">
+                    <option value="fuel_support">젤/보급 간식 보조 · 40P</option>
+                    <option value="gear_support">러닝 양말/소도구 보조 · 80P</option>
+                    <option value="bottle_support">보틀/액세서리 보조 · 140P</option>
+                    <option value="premium_support">RRC샵 메인 리워드 보조 · 220P</option>
+                  </select>
+                  <textarea id="reward-request-note" rows="3" maxlength="300" placeholder="신청 이유나 원하는 품목을 간단히 적어 주세요"></textarea>
+                  <div class="inline-form">
+                    <button id="reward-request-submit" class="btn primary" type="submit">RRC샵 보조 신청</button>
+                    <button id="reward-request-refresh" class="btn ghost" type="button">신청 내역 새로고침</button>
+                  </div>
+                </form>
+                <p id="reward-request-status" class="list-meta" style="margin-top:0.7rem;">포인트는 신청 기준 안내용이며, 실제 보조는 운영진 승인 후 진행됩니다.</p>
+                <ul id="reward-request-list" class="list small" style="margin-top:0.8rem;"></ul>
               </article>
               <article class="panel suggestion-panel">
                 <div class="section-head">
@@ -175,6 +213,6 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="auth.js?v=20260418b"></script>
+  <script src="auth.js?v=20260418e"></script>
 </body>
 </html>

@@ -156,3 +156,17 @@ create table if not exists public.member_suggestions (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+create table if not exists public.reward_requests (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null,
+  requester_name text not null,
+  requester_email text,
+  reward_code text not null,
+  reward_name text not null,
+  point_cost int not null default 0,
+  note text,
+  status text not null default 'submitted' check (status in ('submitted','approved','fulfilled','rejected')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);

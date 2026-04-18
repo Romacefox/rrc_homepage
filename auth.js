@@ -60,6 +60,9 @@ const myStreak = document.getElementById("my-streak");
 const runnerMonthLabel = document.getElementById("runner-month-label");
 const runnerCard = document.getElementById("runner-card");
 const attendanceBoard = document.getElementById("attendance-board");
+const publicTicketBoard = document.getElementById("public-ticket-board");
+const missionBoard = document.getElementById("mission-board");
+const badgeShowcaseBoard = document.getElementById("badge-showcase-board");
 const boardRaffleHistory = document.getElementById("board-raffle-history");
 const myFeeStatus = document.getElementById("my-fee-status");
 const myRaffleStatus = document.getElementById("my-raffle-status");
@@ -80,6 +83,13 @@ const suggestionSubmitButton = document.getElementById("suggestion-submit");
 const suggestionRefreshButton = document.getElementById("suggestion-refresh");
 const suggestionStatus = document.getElementById("suggestion-status");
 const suggestionList = document.getElementById("suggestion-list");
+const rewardRequestForm = document.getElementById("reward-request-form");
+const rewardRequestItem = document.getElementById("reward-request-item");
+const rewardRequestNote = document.getElementById("reward-request-note");
+const rewardRequestSubmitButton = document.getElementById("reward-request-submit");
+const rewardRequestRefreshButton = document.getElementById("reward-request-refresh");
+const rewardRequestStatus = document.getElementById("reward-request-status");
+const rewardRequestList = document.getElementById("reward-request-list");
 const memberNavLinks = document.querySelectorAll("[data-member-nav]");
 const adminNavLinks = document.querySelectorAll("[data-admin-nav]");
 const authEntryLinks = document.querySelectorAll("[data-auth-entry]");
@@ -185,6 +195,8 @@ function init() {
   activityMonthSelect?.addEventListener("change", loadActivityBoard);
   suggestionForm?.addEventListener("submit", handleSuggestionSubmit);
   suggestionRefreshButton?.addEventListener("click", loadSuggestionBoard);
+  rewardRequestForm?.addEventListener("submit", handleRewardRequestSubmit);
+  rewardRequestRefreshButton?.addEventListener("click", loadRewardRequests);
 
   if (activityMonthSelect) {
     populateRecentMonthOptions(activityMonthSelect);
@@ -382,7 +394,7 @@ async function handleLogout() {
   }
   renderAuthState();
   publishAuthState();
-  renderBoardLocked("승인 회원 로그인 후 월별 출석, 출석 스트릭, 이달의 러너를 볼 수 있습니다.");
+    renderBoardLocked("승인 회원 로그인 후 월별 출석, 연속 출석, 이달의 러너를 볼 수 있습니다.");
   setStatus(loginStatus, loginStatus ? "로그아웃 완료" : null);
 }
 
@@ -964,7 +976,7 @@ async function loadActivityBoard() {
   }
 
   if (!authUser || !authProfile || authProfile.approval_status !== "approved") {
-    renderBoardLocked("승인 회원 로그인 후 월별 출석, 출석 스트릭, 이달의 러너를 볼 수 있습니다.");
+    renderBoardLocked("승인 회원 로그인 후 월별 출석, 연속 출석, 이달의 러너를 볼 수 있습니다.");
     return;
   }
 
@@ -1017,6 +1029,7 @@ async function loadActivityBoard() {
       basePoints: calculateAttendancePoints(member, selectedMonth)
     }))
     .sort((a, b) => (b.monthRuns - a.monthRuns) || (Number(b.total_runs || 0) - Number(a.total_runs || 0)) || String(a.name || "").localeCompare(String(b.name || ""), "ko"));
+  window.__RRC_ACTIVITY_ROWS = rows;
 
   const profileBirthYear = Number(authProfile.birth_year || 0);
   const me = rows.find((member) => {
@@ -1046,10 +1059,13 @@ async function loadActivityBoard() {
   }
 
   renderAttendanceBoard(rows, selectedMonth);
+  renderPublicTicketBoard(rows, selectedMonth);
+  renderBadgeShowcase(rows, selectedMonth);
   renderRunnerCard(runner, selectedMonth);
   renderBoardRaffleHistory(raffleRecords.slice(0, 4));
   await renderMyActivityState(me, selectedMonth, raffleRecords);
   await loadSuggestionBoard();
+  await loadRewardRequests();
 }
 
 function renderBoardLocked(message) {
@@ -1061,6 +1077,10 @@ function renderBoardLocked(message) {
   }
   renderPersonalBoardEmpty();
   renderSuggestionBoardLocked("승인 회원 로그인 후 건의사항을 남길 수 있습니다.");
+  renderRewardRequestLocked("승인 회원 로그인 후 RRC샵 보조 신청을 할 수 있습니다.");
+  renderPublicTicketBoard([], currentMonthKey());
+  renderMissionBoard([], null, currentMonthKey(), 0, 0);
+  renderBadgeShowcase([], currentMonthKey());
 }
 
 function renderAttendanceBoard(rows, monthKey) {
@@ -1081,13 +1101,13 @@ function renderAttendanceBoard(rows, monthKey) {
       : member.monthRuns >= getMonthThreshold(monthKey)
         ? '<span class="status-chip">추첨 대상</span>'
         : "";
-    const ticketChip = member.tickets > 0 ? `<span class="status-chip warn">티켓 ${member.tickets}장</span>` : "";
+    const ticketChip = member.tickets > 0 ? `<span class="status-chip warn">추첨권 ${member.tickets}장</span>` : "";
     item.innerHTML = `
       <div class="list-top">
         <span class="list-title">${index + 1}. ${escapeHtml(member.name || "이름없음")}${badge}${ticketChip}</span>
         <span class="list-meta">${monthKeyToLabel(monthKey)} ${member.monthRuns}회</span>
       </div>
-      <p class="list-meta">누적 ${Number(member.total_runs || 0)}회 / 출석 스트릭 ${member.streak}개월 / 활동 포인트 ${member.basePoints}P</p>
+      <p class="list-meta">누적 ${Number(member.total_runs || 0)}회 / 연속 출석 ${member.streak}개월 / 활동 포인트 ${member.basePoints}P</p>
     `;
     attendanceBoard.appendChild(item);
   });
@@ -1106,8 +1126,140 @@ function renderRunnerCard(runner, monthKey) {
     <p class="list-meta">${monthKeyToLabel(monthKey)} 최다 출석</p>
     <h3 style="margin:0.2rem 0 0.4rem;">${escapeHtml(runner.name || "이름없음")}</h3>
     <p>${runner.monthRuns}회 출석 / 누적 ${Number(runner.total_runs || 0)}회</p>
-    <p class="list-meta">출석 스트릭 ${runner.streak}개월 / 티켓 ${runner.tickets || calculateMonthlyTickets(runner, monthKey)}장 / 활동 포인트 ${runner.basePoints || calculateAttendancePoints(runner, monthKey)}P</p>
+    <p class="list-meta">연속 출석 ${runner.streak}개월 / 추첨권 ${runner.tickets || calculateMonthlyTickets(runner, monthKey)}장 / 활동 포인트 ${runner.basePoints || calculateAttendancePoints(runner, monthKey)}P</p>
   `;
+}
+
+function renderPublicTicketBoard(rows, monthKey) {
+  if (!publicTicketBoard) {
+    return;
+  }
+  publicTicketBoard.innerHTML = "";
+  if (!rows.length) {
+    publicTicketBoard.innerHTML = '<li class="list-item"><p class="list-meta">공개 추첨권 랭킹 준비 중입니다.</p></li>';
+    return;
+  }
+
+  const visibleRows = rows
+    .filter((member) => member.monthRuns > 0 || member.tickets > 0 || member.basePoints > 0)
+    .sort((a, b) => (b.tickets - a.tickets) || (b.basePoints - a.basePoints) || (b.monthRuns - a.monthRuns))
+    .slice(0, 6);
+
+  visibleRows.forEach((member, index) => {
+    const item = document.createElement("li");
+    item.className = "list-item";
+    const titleChip = index === 0
+      ? '<span class="status-chip">1위</span>'
+      : member.monthRuns >= getMonthThreshold(monthKey)
+        ? '<span class="status-chip warn">추첨 후보</span>'
+        : "";
+    item.innerHTML = `
+      <div class="list-top">
+        <span class="list-title">${index + 1}. ${escapeHtml(member.name || "이름없음")}${titleChip}</span>
+        <span class="list-meta">추첨권 ${member.tickets}장</span>
+      </div>
+      <p class="list-meta">이번 달 출석 ${member.monthRuns}회 / 활동 포인트 ${member.basePoints}P / 연속 출석 ${member.streak}개월</p>
+    `;
+    publicTicketBoard.appendChild(item);
+  });
+}
+
+function renderMissionBoard(rows, me, selectedMonth, photoCount, commentCount) {
+  if (!missionBoard) {
+    return;
+  }
+  missionBoard.innerHTML = "";
+  const threshold = getMonthThreshold(selectedMonth);
+  const missionItems = [
+    {
+      title: "이번 달 출석 미션",
+      progress: `${me?.monthRuns || 0}/${threshold}회`,
+      status: (me?.monthRuns || 0) >= threshold ? "완료" : "진행 중",
+      body: `${monthKeyToLabel(selectedMonth)} 기준 추첨 후보까지 출석 ${threshold}회 달성`
+    },
+    {
+      title: "사진 공유 미션",
+      progress: `${Math.min(photoCount || 0, 1)}/1장`,
+      status: (photoCount || 0) >= 1 ? "완료" : "진행 중",
+      body: "사진첩에 이번 달 사진 1장 이상 업로드"
+    },
+    {
+      title: "응원 댓글 미션",
+      progress: `${Math.min(commentCount || 0, 2)}/2개`,
+      status: (commentCount || 0) >= 2 ? "완료" : "진행 중",
+      body: "다른 회원 러닝 기록에 댓글 2개 남기기"
+    }
+  ];
+
+  const participants = rows.filter((member) => member.monthRuns >= threshold).length;
+  missionItems.forEach((mission) => {
+    const item = document.createElement("li");
+    item.className = "list-item";
+    item.innerHTML = `
+      <div class="list-top">
+        <span class="list-title">${escapeHtml(mission.title)}</span>
+        <span class="status-chip ${mission.status === "완료" ? "" : "warn"}">${mission.status}</span>
+      </div>
+      <p class="list-meta">${escapeHtml(mission.body)}</p>
+      <p class="list-meta">내 진행률 ${escapeHtml(mission.progress)}${mission.title === "이번 달 출석 미션" ? ` · 현재 달성자 ${participants}명` : ""}</p>
+    `;
+    missionBoard.appendChild(item);
+  });
+}
+
+function renderBadgeShowcase(rows, monthKey) {
+  if (!badgeShowcaseBoard) {
+    return;
+  }
+  badgeShowcaseBoard.innerHTML = "";
+  if (!rows.length) {
+    badgeShowcaseBoard.innerHTML = '<li class="list-item"><p class="list-meta">공개 배지 준비 중입니다.</p></li>';
+    return;
+  }
+
+  const showcase = [];
+  const topRunner = rows.find((member) => member.monthRuns > 0);
+  if (topRunner) {
+    showcase.push({
+      label: "월간 출석왕",
+      owner: topRunner.name,
+      body: `${monthKeyToLabel(monthKey)} 출석 ${topRunner.monthRuns}회 / 추첨권 ${topRunner.tickets}장`
+    });
+  }
+  const streakRunner = rows.find((member) => member.streak >= 6) || rows.find((member) => member.streak >= 3);
+  if (streakRunner) {
+    showcase.push({
+      label: streakRunner.streak >= 6 ? "6개월 연속 출석" : "3개월 연속 출석",
+      owner: streakRunner.name,
+      body: `연속 출석 ${streakRunner.streak}개월 달성`
+    });
+  }
+  const pointRunner = [...rows].sort((a, b) => (b.basePoints - a.basePoints))[0];
+  if (pointRunner && pointRunner.basePoints > 0) {
+    showcase.push({
+      label: "포인트 러너",
+      owner: pointRunner.name,
+      body: `이번 달 활동 포인트 ${pointRunner.basePoints}P`
+    });
+  }
+
+  if (!showcase.length) {
+    badgeShowcaseBoard.innerHTML = '<li class="list-item"><p class="list-meta">이번 달 공개 배지 후보가 아직 없습니다.</p></li>';
+    return;
+  }
+
+  showcase.forEach((badge) => {
+    const item = document.createElement("li");
+    item.className = "list-item";
+    item.innerHTML = `
+      <div class="list-top">
+        <span class="list-title">${escapeHtml(badge.label)}</span>
+        <span class="status-chip">${escapeHtml(badge.owner)}</span>
+      </div>
+      <p class="list-meta">${escapeHtml(badge.body)}</p>
+    `;
+    badgeShowcaseBoard.appendChild(item);
+  });
 }
 
 function renderBoardRaffleHistory(records) {
@@ -1182,7 +1334,7 @@ async function renderMyActivityState(me, selectedMonth, raffleRecords) {
   const raffleLabel = latestWin
     ? `${monthKeyToLabel(latestWin.target_month_key)} 당첨`
     : (me?.monthRuns || 0) >= raffleThreshold
-      ? `${monthKeyToLabel(selectedMonth)} 후보 · 티켓 ${ticketCount}장`
+      ? `${monthKeyToLabel(selectedMonth)} 후보 · 추첨권 ${ticketCount}장`
       : "대기 중";
   const nextReward = getNextReward(pointTotal);
 
@@ -1220,6 +1372,7 @@ async function renderMyActivityState(me, selectedMonth, raffleRecords) {
     photoCount: photos.length,
     commentCount: comments.length
   }));
+  renderMissionBoardCache(me, selectedMonth, photos.length, comments.length);
 
   renderSimpleHistory(
     myPhotoHistory,
@@ -1275,9 +1428,18 @@ function renderPersonalBoardEmpty() {
     myPointNote.textContent = "출석, 사진, 댓글 활동으로 포인트를 모아 RRC샵 보조 신청에 활용할 수 있도록 준비 중입니다.";
   }
   renderBadgeList([]);
+  renderMissionBoard([], null, currentMonthKey(), 0, 0);
   renderSimpleHistory(myPhotoHistory, [], "로그인 후 개인 사진 기록이 표시됩니다.");
   renderSimpleHistory(myCommentHistory, [], "로그인 후 내 댓글 기록이 표시됩니다.");
   renderSimpleHistory(myRaffleHistory, [], "로그인 후 내 추첨 기록이 표시됩니다.");
+}
+
+function renderMissionBoardCache(me, selectedMonth, photoCount, commentCount) {
+  if (!missionBoard) {
+    return;
+  }
+  const existingRows = window.__RRC_ACTIVITY_ROWS || [];
+  renderMissionBoard(existingRows, me, selectedMonth, photoCount, commentCount);
 }
 
 async function handleSuggestionSubmit(event) {
@@ -1357,6 +1519,211 @@ async function loadSuggestionBoard() {
     renderSuggestionBoardLocked(`건의함 로드 실패: ${String(error?.message || error)}`);
   } finally {
     suggestionRefreshButton && (suggestionRefreshButton.disabled = false);
+  }
+}
+
+async function handleRewardRequestSubmit(event) {
+  event?.preventDefault();
+  if (!supabaseClient || !authUser || !authProfile || authProfile.approval_status !== "approved") {
+    setStatus(rewardRequestStatus, "승인 회원 로그인 후 RRC샵 보조 신청을 할 수 있습니다.");
+    return;
+  }
+
+  const itemCode = String(rewardRequestItem?.value || "").trim();
+  const note = String(rewardRequestNote?.value || "").trim();
+  const rewardInfo = getRewardItemMeta(itemCode);
+  if (!rewardInfo) {
+    setStatus(rewardRequestStatus, "신청할 보조 항목을 선택해 주세요.");
+    return;
+  }
+
+  rewardRequestSubmitButton && (rewardRequestSubmitButton.disabled = true);
+  setStatus(rewardRequestStatus, "RRC샵 보조 신청을 등록하는 중입니다...");
+  try {
+    const result = await callMemberRewards("", {
+      method: "POST",
+      body: JSON.stringify({
+        reward_code: rewardInfo.code,
+        reward_name: rewardInfo.name,
+        point_cost: rewardInfo.points,
+        note
+      })
+    });
+    if (!result?.ok) {
+      throw new Error(result?.error || "reward request failed");
+    }
+    if (rewardRequestNote) {
+      rewardRequestNote.value = "";
+    }
+    setStatus(rewardRequestStatus, "RRC샵 보조 신청이 접수되었습니다. 운영진 승인 후 진행됩니다.");
+    await loadRewardRequests();
+  } catch (error) {
+    setStatus(rewardRequestStatus, `보조 신청 실패: ${String(error?.message || error)}`);
+  } finally {
+    rewardRequestSubmitButton && (rewardRequestSubmitButton.disabled = false);
+  }
+}
+
+async function loadRewardRequests() {
+  if (!rewardRequestList) {
+    return;
+  }
+  if (!supabaseClient || !authUser || !authProfile || authProfile.approval_status !== "approved") {
+    renderRewardRequestLocked("승인 회원 로그인 후 RRC샵 보조 신청을 할 수 있습니다.");
+    return;
+  }
+
+  rewardRequestRefreshButton && (rewardRequestRefreshButton.disabled = true);
+  if (!rewardRequestList.innerHTML) {
+    rewardRequestList.innerHTML = '<li class="list-item"><p class="list-meta">신청 내역을 불러오는 중입니다.</p></li>';
+  }
+
+  try {
+    const result = await callMemberRewards("?limit=10");
+    const items = Array.isArray(result?.items) ? result.items : [];
+    if (result?.available === false) {
+      renderRewardRequestLocked("reward_requests 테이블 준비 중입니다. Supabase 패치를 먼저 적용해 주세요.");
+      return;
+    }
+    renderRewardRequestList(items, Boolean(result?.can_manage));
+    setStatus(rewardRequestStatus, "신청 내역과 운영 상태를 확인할 수 있습니다.");
+  } catch (error) {
+    renderRewardRequestLocked(`신청 내역 로드 실패: ${String(error?.message || error)}`);
+  } finally {
+    rewardRequestRefreshButton && (rewardRequestRefreshButton.disabled = false);
+  }
+}
+
+function renderRewardRequestLocked(message) {
+  if (rewardRequestList) {
+    rewardRequestList.innerHTML = `<li class="list-item"><p class="list-meta">${escapeHtml(message)}</p></li>`;
+  }
+  if (rewardRequestStatus) {
+    rewardRequestStatus.textContent = message;
+  }
+}
+
+function renderRewardRequestList(items, canManage) {
+  if (!rewardRequestList) {
+    return;
+  }
+  rewardRequestList.innerHTML = "";
+  if (!items.length) {
+    rewardRequestList.innerHTML = '<li class="list-item"><p class="list-meta">아직 RRC샵 보조 신청 내역이 없습니다.</p></li>';
+    return;
+  }
+
+  items.forEach((item) => {
+    const node = document.createElement("li");
+    const statusClass = getRewardRequestStatusClass(item.status);
+    node.className = "list-item";
+    node.innerHTML = `
+      <div class="list-top">
+        <span class="list-title">${escapeHtml(item.reward_name || "RRC샵 보조 신청")}</span>
+        <span class="status-chip ${statusClass}">${escapeHtml(getRewardRequestStatusLabel(item.status))}</span>
+      </div>
+      <p class="list-meta">${escapeHtml(item.requester_name || "회원")} · ${escapeHtml(formatDate(item.created_at))} · ${Number(item.point_cost || 0)}P 기준</p>
+      <p>${escapeHtml(item.note || "사유 없음")}</p>
+    `;
+
+    if (canManage) {
+      const actions = document.createElement("div");
+      actions.className = "item-actions";
+      [
+        { key: "approved", label: "승인" },
+        { key: "fulfilled", label: "지급 완료" },
+        { key: "rejected", label: "반려" }
+      ].forEach((action) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "btn ghost tiny";
+        button.textContent = action.label;
+        button.addEventListener("click", () => {
+          void updateRewardRequestStatus(item.id, action.key, action.label);
+        });
+        actions.appendChild(button);
+      });
+      node.appendChild(actions);
+    }
+
+    rewardRequestList.appendChild(node);
+  });
+}
+
+async function updateRewardRequestStatus(requestId, status, label) {
+  if (!requestId) {
+    return;
+  }
+  try {
+    const result = await callMemberRewards("", {
+      method: "PATCH",
+      body: JSON.stringify({ id: requestId, status })
+    });
+    if (!result?.ok) {
+      throw new Error(result?.error || "reward request update failed");
+    }
+    setStatus(rewardRequestStatus, `신청 상태를 '${label}'로 변경했습니다.`);
+    await loadRewardRequests();
+  } catch (error) {
+    setStatus(rewardRequestStatus, `신청 상태 변경 실패: ${String(error?.message || error)}`);
+  }
+}
+
+async function callMemberRewards(query = "", options = {}) {
+  const sessionResult = await supabaseClient.auth.getSession();
+  const accessToken = sessionResult.data?.session?.access_token;
+  if (!accessToken) {
+    throw new Error("로그인이 필요합니다.");
+  }
+
+  const response = await fetch(`/.netlify/functions/member-rewards${query}`, {
+    method: options.method || "GET",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`
+    },
+    body: options.body
+  });
+  const result = await response.json().catch(() => ({ ok: false, error: "invalid response" }));
+  if (!response.ok) {
+    throw new Error(result?.error || `request failed (${response.status})`);
+  }
+  return result;
+}
+
+function getRewardItemMeta(code) {
+  const items = [
+    { code: "fuel_support", name: "젤/보급 간식 보조", points: 40 },
+    { code: "gear_support", name: "러닝 양말/소도구 보조", points: 80 },
+    { code: "bottle_support", name: "보틀/액세서리 보조", points: 140 },
+    { code: "premium_support", name: "RRC샵 메인 리워드 보조", points: 220 }
+  ];
+  return items.find((item) => item.code === code) || null;
+}
+
+function getRewardRequestStatusLabel(status) {
+  switch (String(status || "")) {
+    case "approved":
+      return "승인";
+    case "fulfilled":
+      return "지급 완료";
+    case "rejected":
+      return "반려";
+    default:
+      return "접수";
+  }
+}
+
+function getRewardRequestStatusClass(status) {
+  switch (String(status || "")) {
+    case "fulfilled":
+      return "";
+    case "approved":
+      return "warn";
+    case "rejected":
+      return "danger";
+    default:
+      return "warn";
   }
 }
 
@@ -1577,13 +1944,13 @@ function buildPersonalBadges({ me, selectedMonth, feeLabel, latestWin, photoCoun
     badges.push("추첨 당첨");
   }
   if ((ticketCount || 0) >= threshold + 2) {
-    badges.push("황금 티켓");
+    badges.push("황금 추첨권");
   }
   if ((me?.streak || getAttendanceStreakFromMonth(me, selectedMonth)) >= 3) {
-    badges.push("3개월 스트릭");
+    badges.push("3개월 연속 출석");
   }
   if ((me?.streak || getAttendanceStreakFromMonth(me, selectedMonth)) >= 6) {
-    badges.push("6개월 스트릭");
+    badges.push("6개월 연속 출석");
   }
   if ((pointTotal || 0) >= 80) {
     badges.push("포인트 러너");
@@ -1714,7 +2081,7 @@ function formatStreakDelta(currentStreak, previousStreak) {
   if (delta === 0) {
     return `${currentStreak}개월 유지 중`;
   }
-  return "스트릭 재시작";
+    return "연속 출석 다시 시작";
 }
 
 function hasRaffleWinner(record, name) {

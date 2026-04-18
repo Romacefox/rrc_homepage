@@ -640,6 +640,12 @@ body.modal-open {
   gap: 1rem;
 }
 
+.board-public-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
 .reward-guide-panel {
   border-color: rgba(255, 157, 95, 0.24);
 }
@@ -672,6 +678,10 @@ body.modal-open {
   margin: 0.45rem 0 0;
 }
 
+.reward-request-list-empty {
+  color: var(--muted);
+}
+
 @media (max-width: 960px) {
   .member-personal-stats {
     grid-template-columns: 1fr;
@@ -686,6 +696,10 @@ body.modal-open {
   }
 
   .board-engagement-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .board-public-grid {
     grid-template-columns: 1fr;
   }
 }
