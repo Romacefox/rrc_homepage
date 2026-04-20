@@ -119,6 +119,8 @@ let memberFilterMetaNode = null;
 let restoreBackupButton = null;
 let autoSyncTimer = null;
 let autoSyncPending = false;
+let autoSyncInFlight = false;
+let isApplyingRemoteSnapshot = false;
 
 init();
 
@@ -302,6 +304,12 @@ function resetAdminSessionState() {
   currentAdminToken = "";
   currentAdminUserId = "";
   currentAdminCanManageRoles = false;
+  autoSyncPending = false;
+  autoSyncInFlight = false;
+  if (autoSyncTimer) {
+    clearTimeout(autoSyncTimer);
+    autoSyncTimer = null;
+  }
   setAdminPanelVisibility(false);
 }
 
@@ -374,12 +382,15 @@ function prepareAdminLoadingState() {
 }
 
 function clearAdminDataOnLoadFailure() {
-  db = {
-    ...db,
-    members: [],
-    attendanceLogs: [],
-    auditLogs: []
-  };
+  if (memberList) {
+    memberList.innerHTML = '<li class="list-item"><p class="list-meta">회원 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</p></li>';
+  }
+  if (attendanceLogList) {
+    attendanceLogList.innerHTML = '<li class="list-item"><p class="list-meta">출석 로그를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</p></li>';
+  }
+  if (auditLogList) {
+    auditLogList.innerHTML = '<li class="list-item"><p class="list-meta">운영 로그를 불러오지 못했습니다.</p></li>';
+  }
 }
 
 function migrateLegacyData() {
@@ -593,80 +604,82 @@ async function loadAdminSnapshot() {
     return;
   }
 
-  const result = await fetchAdminSnapshot();
-  const snapshot = result.snapshot || {};
+  isApplyingRemoteSnapshot = true;
+  try {
+    const result = await fetchAdminSnapshot();
+    const snapshot = result.snapshot || {};
 
-  const remoteSnapshot = {
-    notices: Array.isArray(snapshot.notices) ? snapshot.notices.map((notice) => ({
-      id: notice.id || makeId(),
-      title: String(notice.title || "??"),
-      content: String(notice.content || ""),
-      createdAt: notice.created_at || new Date().toISOString()
-    })) : [],
-    guests: Array.isArray(snapshot.guests) ? snapshot.guests.map((guest) => ({
-      id: guest.id || makeId(),
-      name: String(guest.name || "???"),
-      birthYear: Number(guest.birth_year || 1994),
-      phone: String(guest.phone || ""),
-      message: String(guest.message || ""),
-      status: String(guest.status || "??"),
-      createdAt: guest.created_at || new Date().toISOString()
-    })) : [],
-    members: Array.isArray(snapshot.members) ? snapshot.members.map((member) => ({
-      id: member.id || makeId(),
-      name: String(member.name || "이름없음"),
-      birthYear: Number(member.birth_year || 1994),
-      totalRuns: Number(member.total_runs || 0),
-      monthlyRuns: member.monthly_runs && typeof member.monthly_runs === "object" ? member.monthly_runs : {},
-      feeStatus: member.fee_status && typeof member.fee_status === "object" ? member.fee_status : {},
-      isActive: member.is_active !== false,
-      aliases: Array.isArray(member.aliases) ? member.aliases : [],
-      createdAt: member.created_at || new Date().toISOString()
-    })) : [],
-    raffle: {
-      lastDrawId: Array.isArray(snapshot.raffle_history) && snapshot.raffle_history[0] ? String(snapshot.raffle_history[0].draw_id || "") : "",
-      history: Array.isArray(snapshot.raffle_history) ? snapshot.raffle_history.map((record) => ({
-        drawId: record.draw_id || "",
-        targetMonthKey: record.target_month_key,
-        threshold: Number(record.threshold || 0),
-        winnerCount: Number(record.winner_count || 0),
-        winners: Array.isArray(record.winners) ? record.winners : [],
-        createdAt: record.created_at || new Date().toISOString()
+    const remoteSnapshot = {
+      notices: Array.isArray(snapshot.notices) ? snapshot.notices.map((notice) => ({
+        id: notice.id || makeId(),
+        title: String(notice.title || "??"),
+        content: String(notice.content || ""),
+        createdAt: notice.created_at || new Date().toISOString()
+      })) : [],
+      guests: Array.isArray(snapshot.guests) ? snapshot.guests.map((guest) => ({
+        id: guest.id || makeId(),
+        name: String(guest.name || "???"),
+        birthYear: Number(guest.birth_year || 1994),
+        phone: String(guest.phone || ""),
+        message: String(guest.message || ""),
+        status: String(guest.status || "??"),
+        createdAt: guest.created_at || new Date().toISOString()
+      })) : [],
+      members: Array.isArray(snapshot.members) ? snapshot.members.map((member) => ({
+        id: member.id || makeId(),
+        name: String(member.name || "이름없음"),
+        birthYear: Number(member.birth_year || 1994),
+        totalRuns: Number(member.total_runs || 0),
+        monthlyRuns: member.monthly_runs && typeof member.monthly_runs === "object" ? member.monthly_runs : {},
+        feeStatus: member.fee_status && typeof member.fee_status === "object" ? member.fee_status : {},
+        isActive: member.is_active !== false,
+        aliases: Array.isArray(member.aliases) ? member.aliases : [],
+        createdAt: member.created_at || new Date().toISOString()
+      })) : [],
+      raffle: {
+        lastDrawId: Array.isArray(snapshot.raffle_history) && snapshot.raffle_history[0] ? String(snapshot.raffle_history[0].draw_id || "") : "",
+        history: Array.isArray(snapshot.raffle_history) ? snapshot.raffle_history.map((record) => ({
+          drawId: record.draw_id || "",
+          targetMonthKey: record.target_month_key,
+          threshold: Number(record.threshold || 0),
+          winnerCount: Number(record.winner_count || 0),
+          winners: Array.isArray(record.winners) ? record.winners : [],
+          createdAt: record.created_at || new Date().toISOString()
+        })) : []
+      },
+      attendanceLogs: Array.isArray(snapshot.attendance_logs) ? snapshot.attendance_logs.map((log) => ({
+        id: log.id || makeId(),
+        source: String(log.source || "bulk"),
+        eventType: String(log.event_type || "???"),
+        date: String(log.attendance_date || toIsoDate(new Date())),
+        rawCount: Number(log.raw_count || 0),
+        matched: Array.isArray(log.matched) ? log.matched : [],
+        unmatched: Array.isArray(log.unmatched) ? log.unmatched : [],
+        ambiguous: Array.isArray(log.ambiguous) ? log.ambiguous : [],
+        createdAt: log.created_at || new Date().toISOString()
+      })) : [],
+      auditLogs: Array.isArray(snapshot.operation_logs) ? snapshot.operation_logs.map((entry) => ({
+        id: entry.id || makeId(),
+        actorName: String(entry.actor_name || "???"),
+        action: String(entry.action || "??"),
+        detail: String(entry.detail || ""),
+        createdAt: entry.created_at || new Date().toISOString()
       })) : []
-    },
-    attendanceLogs: Array.isArray(snapshot.attendance_logs) ? snapshot.attendance_logs.map((log) => ({
-      id: log.id || makeId(),
-      source: String(log.source || "bulk"),
-      eventType: String(log.event_type || "???"),
-      date: String(log.attendance_date || toIsoDate(new Date())),
-      rawCount: Number(log.raw_count || 0),
-      matched: Array.isArray(log.matched) ? log.matched : [],
-      unmatched: Array.isArray(log.unmatched) ? log.unmatched : [],
-      ambiguous: Array.isArray(log.ambiguous) ? log.ambiguous : [],
-      createdAt: log.created_at || new Date().toISOString()
-    })) : [],
-    auditLogs: Array.isArray(snapshot.operation_logs) ? snapshot.operation_logs.map((entry) => ({
-      id: entry.id || makeId(),
-      actorName: String(entry.actor_name || "???"),
-      action: String(entry.action || "??"),
-      detail: String(entry.detail || ""),
-      createdAt: entry.created_at || new Date().toISOString()
-    })) : []
-  };
+    };
 
-  const localMembers = Array.isArray(db.members) ? db.members : [];
-  const localNotices = Array.isArray(db.notices) ? db.notices : [];
-  const localGuests = Array.isArray(db.guests) ? db.guests : [];
-  const localAttendanceLogs = Array.isArray(db.attendanceLogs) ? db.attendanceLogs : [];
-  const localAuditLogs = Array.isArray(db.auditLogs) ? db.auditLogs : [];
-  const preserveLocalMembers = shouldPreserveLocalMembers(localMembers, remoteSnapshot.members);
-  const preserveLocalNotices = shouldPreserveLocalCollection(localNotices, remoteSnapshot.notices);
-  const preserveLocalGuests = shouldPreserveLocalCollection(localGuests, remoteSnapshot.guests);
-  const preserveLocalAttendanceLogs = shouldPreserveLocalCollection(localAttendanceLogs, remoteSnapshot.attendanceLogs);
-  const preserveLocalAuditLogs = shouldPreserveLocalCollection(localAuditLogs, remoteSnapshot.auditLogs);
-  const preservedMembers = preserveLocalMembers
-    ? mergeMemberCollections(localMembers, remoteSnapshot.members)
-    : remoteSnapshot.members;
+    const localMembers = Array.isArray(db.members) ? db.members : [];
+    const localNotices = Array.isArray(db.notices) ? db.notices : [];
+    const localGuests = Array.isArray(db.guests) ? db.guests : [];
+    const localAttendanceLogs = Array.isArray(db.attendanceLogs) ? db.attendanceLogs : [];
+    const localAuditLogs = Array.isArray(db.auditLogs) ? db.auditLogs : [];
+    const preserveLocalMembers = shouldPreserveLocalMembers(localMembers, remoteSnapshot.members);
+    const preserveLocalNotices = shouldPreserveLocalCollection(localNotices, remoteSnapshot.notices);
+    const preserveLocalGuests = shouldPreserveLocalCollection(localGuests, remoteSnapshot.guests);
+    const preserveLocalAttendanceLogs = shouldPreserveLocalCollection(localAttendanceLogs, remoteSnapshot.attendanceLogs);
+    const preserveLocalAuditLogs = shouldPreserveLocalCollection(localAuditLogs, remoteSnapshot.auditLogs);
+    const preservedMembers = preserveLocalMembers
+      ? mergeMemberCollections(localMembers, remoteSnapshot.members)
+      : remoteSnapshot.members;
   const preservedNotices = preserveLocalNotices
     ? mergeRecordsById(localNotices, remoteSnapshot.notices, (notice) => ({
         id: notice?.id || makeId(),
@@ -699,43 +712,46 @@ async function loadAdminSnapshot() {
       })).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 50)
     : remoteSnapshot.auditLogs;
 
-  db = {
-    ...remoteSnapshot,
-    notices: preservedNotices,
-    guests: preservedGuests,
-    members: preservedMembers,
-    attendanceLogs: preservedAttendanceLogs,
-    auditLogs: preservedAuditLogs
-  };
+    db = {
+      ...remoteSnapshot,
+      notices: preservedNotices,
+      guests: preservedGuests,
+      members: preservedMembers,
+      attendanceLogs: preservedAttendanceLogs,
+      auditLogs: preservedAuditLogs
+    };
 
-  hydrateMemberProfileSummary(Array.isArray(snapshot.member_profiles) ? snapshot.member_profiles : []);
+    hydrateMemberProfileSummary(Array.isArray(snapshot.member_profiles) ? snapshot.member_profiles : []);
 
-  migrateLegacyData();
-  saveDb();
+    migrateLegacyData();
+    saveDb({ skipAutoSync: true, reason: "remote_snapshot" });
 
-  if (syncStatus) {
-    if (preserveLocalMembers || preserveLocalNotices || preserveLocalGuests || preserveLocalAttendanceLogs || preserveLocalAuditLogs) {
-      const parts = [];
-      if (preserveLocalMembers) {
-        const localOnlyCount = Math.max(0, preservedMembers.length - remoteSnapshot.members.length);
-        parts.push(`회원 ${localOnlyCount || preservedMembers.length}건`);
+    if (syncStatus) {
+      if (preserveLocalMembers || preserveLocalNotices || preserveLocalGuests || preserveLocalAttendanceLogs || preserveLocalAuditLogs) {
+        const parts = [];
+        if (preserveLocalMembers) {
+          const localOnlyCount = Math.max(0, preservedMembers.length - remoteSnapshot.members.length);
+          parts.push(`회원 ${localOnlyCount || preservedMembers.length}건`);
+        }
+        if (preserveLocalNotices) {
+          parts.push(`공지 ${Math.max(0, preservedNotices.length - remoteSnapshot.notices.length) || preservedNotices.length}건`);
+        }
+        if (preserveLocalGuests) {
+          parts.push(`게스트 ${Math.max(0, preservedGuests.length - remoteSnapshot.guests.length) || preservedGuests.length}건`);
+        }
+        if (preserveLocalAttendanceLogs) {
+          parts.push(`출석 로그 ${Math.max(0, preservedAttendanceLogs.length - remoteSnapshot.attendanceLogs.length) || preservedAttendanceLogs.length}건`);
+        }
+        if (preserveLocalAuditLogs) {
+          parts.push(`운영 로그 ${Math.max(0, preservedAuditLogs.length - remoteSnapshot.auditLogs.length) || preservedAuditLogs.length}건`);
+        }
+        syncStatus.textContent = `원격보다 최신 로컬 데이터(${parts.join(", ")})를 유지했습니다. 자동 동기화도 함께 준비됩니다.`;
+      } else {
+        syncStatus.textContent = "동기화 준비 완료";
       }
-      if (preserveLocalNotices) {
-        parts.push(`공지 ${Math.max(0, preservedNotices.length - remoteSnapshot.notices.length) || preservedNotices.length}건`);
-      }
-      if (preserveLocalGuests) {
-        parts.push(`게스트 ${Math.max(0, preservedGuests.length - remoteSnapshot.guests.length) || preservedGuests.length}건`);
-      }
-      if (preserveLocalAttendanceLogs) {
-        parts.push(`출석 로그 ${Math.max(0, preservedAttendanceLogs.length - remoteSnapshot.attendanceLogs.length) || preservedAttendanceLogs.length}건`);
-      }
-      if (preserveLocalAuditLogs) {
-        parts.push(`운영 로그 ${Math.max(0, preservedAuditLogs.length - remoteSnapshot.auditLogs.length) || preservedAuditLogs.length}건`);
-      }
-      syncStatus.textContent = `원격보다 최신 로컬 데이터(${parts.join(", ")})를 유지했습니다. 필요하면 지금 동기화를 눌러 주세요.`;
-    } else {
-      syncStatus.textContent = "동기화 준비 완료";
     }
+  } finally {
+    isApplyingRemoteSnapshot = false;
   }
 }
 
@@ -846,7 +862,11 @@ function shouldPreserveLocalMembers(localMembers, remoteMembers) {
     return true;
   }
 
-  return localMeaningfulCount > remoteMeaningfulCount;
+  if (localMeaningfulCount > remoteMeaningfulCount) {
+    return true;
+  }
+
+  return localMembersContainNewerRuns(localMembers, remoteMembers);
 }
 
 function shouldPreserveLocalCollection(localItems, remoteItems) {
@@ -882,6 +902,55 @@ function countMeaningfulMembers(members) {
 function isPlaceholderMember(member) {
   const name = String(member?.name || "").trim();
   return name === "샘플회원";
+}
+
+function localMembersContainNewerRuns(localMembers, remoteMembers) {
+  const localList = Array.isArray(localMembers) ? localMembers : [];
+  const remoteList = Array.isArray(remoteMembers) ? remoteMembers : [];
+  if (!localList.length || !remoteList.length) {
+    return false;
+  }
+
+  const remoteByKey = new Map();
+  remoteList.forEach((member) => {
+    const normalized = normalizeMemberRecord(member);
+    remoteByKey.set(memberMergeKey(normalized), normalized);
+  });
+
+  let localRunTotal = 0;
+  let remoteRunTotal = 0;
+  let hasLocalLead = false;
+
+  localList.forEach((member) => {
+    const normalized = normalizeMemberRecord(member);
+    const key = memberMergeKey(normalized);
+    const remote = remoteByKey.get(key);
+    localRunTotal += Number(normalized.totalRuns || 0);
+    if (!remote) {
+      hasLocalLead = true;
+      return;
+    }
+
+    remoteRunTotal += Number(remote.totalRuns || 0);
+    if (Number(normalized.totalRuns || 0) > Number(remote.totalRuns || 0)) {
+      hasLocalLead = true;
+      return;
+    }
+
+    const localMonths = normalized.monthlyRuns || {};
+    const remoteMonths = remote.monthlyRuns || {};
+    Object.keys(localMonths).forEach((monthKey) => {
+      if (Number(localMonths[monthKey] || 0) > Number(remoteMonths[monthKey] || 0)) {
+        hasLocalLead = true;
+      }
+    });
+  });
+
+  if (hasLocalLead) {
+    return true;
+  }
+
+  return localRunTotal > remoteRunTotal;
 }
 
 function mergeMemberCollections(localMembers, remoteMembers) {
@@ -1179,13 +1248,29 @@ async function restoreAdminSession() {
   }
 }
 
-function handleNoticeAdd(event) {
+async function handleNoticeAdd(event) {
   event.preventDefault();
   const title = noticeTitleInput.value.trim();
   const content = noticeContentInput.value.trim();
 
   if (!title || !content) {
     return;
+  }
+
+  if (currentAdminToken) {
+    try {
+      await callAdminWrite("add_notice", { title, content });
+      await loadAdminSnapshot();
+      renderAll();
+      noticeForm.reset();
+      if (syncStatus) {
+        syncStatus.textContent = "공지 등록 완료: 서버에 바로 반영했습니다.";
+      }
+      return;
+    } catch (error) {
+      alert(`공지 등록 실패: ${String(error?.message || error)}`);
+      return;
+    }
   }
 
   db.notices.unshift({
@@ -1201,7 +1286,7 @@ function handleNoticeAdd(event) {
   logAdminAction("공지 등록", title);
 }
 
-function handleMemberAdd(event) {
+async function handleMemberAdd(event) {
   event.preventDefault();
   const name = memberNameInput.value.trim();
   const birthYear = Number(memberBirthInput.value);
@@ -1212,6 +1297,23 @@ function handleMemberAdd(event) {
   if (birthYear < 1989 || birthYear > 2000) {
     alert("회원 출생연도는 1989~2000만 가능합니다.");
     return;
+  }
+
+  if (currentAdminToken) {
+    try {
+      await callAdminWrite("add_member", { name, birth_year: birthYear });
+      await loadAdminSnapshot();
+      renderAll();
+      memberForm.reset();
+      if (syncStatus) {
+        syncStatus.textContent = "회원 추가 완료: 서버에 바로 반영했습니다.";
+      }
+      return;
+    } catch (error) {
+      const message = String(error?.message || error);
+      alert(`회원 추가 실패: ${message.includes("already exists") ? "이미 등록된 회원입니다." : message}`);
+      return;
+    }
   }
 
   db.members.unshift({
@@ -1232,7 +1334,7 @@ function handleMemberAdd(event) {
   logAdminAction("회원 추가", `${name} (${birthYear})`);
 }
 
-function handleAttendanceByName() {
+async function handleAttendanceByName() {
   const rawInput = String(attendanceNameInput.value || "").trim();
   if (!rawInput) {
     attendanceResult.textContent = "이름을 입력해 주세요.";
@@ -1241,13 +1343,36 @@ function handleAttendanceByName() {
 
   const names = parseNames(rawInput);
   const date = toIsoDate(new Date());
+
+  if (currentAdminToken) {
+    try {
+      const result = await callAdminWrite("apply_attendance", {
+        names,
+        date,
+        event_type: "정기런",
+        source: "quick"
+      });
+      await loadAdminSnapshot();
+      renderAll();
+      attendanceNameInput.value = "";
+      attendanceResult.textContent = buildAttendanceSummaryMessage(result?.summary);
+      if (syncStatus) {
+        syncStatus.textContent = "이름 출석 반영 완료: 서버에 바로 반영했습니다.";
+      }
+      return;
+    } catch (error) {
+      attendanceResult.textContent = `출석 반영 실패: ${String(error?.message || error)}`;
+      return;
+    }
+  }
+
   const summary = applyAttendanceByNames(names, { date, eventType: "정기런", source: "quick" });
 
   attendanceNameInput.value = "";
   attendanceResult.textContent = summary.message;
 }
 
-function handleBulkAttendanceApply() {
+async function handleBulkAttendanceApply() {
   const raw = String(bulkAttendanceInput.value || "").trim();
   if (!raw) {
     bulkAttendanceResult.textContent = "명단을 입력해 주세요.";
@@ -1257,8 +1382,268 @@ function handleBulkAttendanceApply() {
   const names = parseNames(raw);
   const date = bulkAttendanceDateInput.value || toIsoDate(new Date());
   const eventType = bulkAttendanceTypeInput.value || "정기런";
+
+  if (currentAdminToken) {
+    try {
+      const result = await callAdminWrite("apply_attendance", {
+        names,
+        date,
+        event_type: eventType,
+        source: "bulk"
+      });
+      await loadAdminSnapshot();
+      renderAll();
+      bulkAttendanceResult.textContent = buildAttendanceSummaryMessage(result?.summary);
+      if (syncStatus) {
+        syncStatus.textContent = "명단 출석 반영 완료: 서버에 바로 반영했습니다.";
+      }
+      return;
+    } catch (error) {
+      bulkAttendanceResult.textContent = `출석 반영 실패: ${String(error?.message || error)}`;
+      return;
+    }
+  }
+
   const summary = applyAttendanceByNames(names, { date, eventType, source: "bulk" });
 
+  bulkAttendanceResult.textContent = summary.message;
+}
+
+function buildAttendanceSummaryMessage(summary) {
+  if (!summary) {
+    return "출석 반영 완료";
+  }
+  const parts = [];
+  parts.push(`반영 ${Array.isArray(summary.matched) ? summary.matched.length : 0}명`);
+  if (Array.isArray(summary.unmatched) && summary.unmatched.length) {
+    parts.push(`미일치 ${summary.unmatched.length}명`);
+  }
+  if (Array.isArray(summary.ambiguous) && summary.ambiguous.length) {
+    parts.push(`중복 후보 ${summary.ambiguous.length}명`);
+  }
+  if (summary.replaced_existing) {
+    parts.push("기존 같은 날짜 로그 교체");
+  }
+  return parts.join(" | ");
+}
+
+function getAttendanceLogNames(log) {
+  return [
+    ...(Array.isArray(log?.matched) ? log.matched : []),
+    ...(Array.isArray(log?.unmatched) ? log.unmatched : []),
+    ...(Array.isArray(log?.ambiguous) ? log.ambiguous : [])
+  ];
+}
+
+async function handleNoticeEdit(notice) {
+  const nextTitle = prompt("공지 제목을 수정해 주세요.", String(notice?.title || "").trim());
+  if (nextTitle === null) {
+    return;
+  }
+  const title = String(nextTitle || "").trim();
+  if (!title) {
+    alert("공지 제목을 입력해 주세요.");
+    return;
+  }
+
+  const nextContent = prompt("공지 내용을 수정해 주세요.", String(notice?.content || "").trim());
+  if (nextContent === null) {
+    return;
+  }
+  const content = String(nextContent || "").trim();
+  if (!content) {
+    alert("공지 내용을 입력해 주세요.");
+    return;
+  }
+
+  if (currentAdminToken) {
+    try {
+      await callAdminWrite("update_notice", {
+        notice_id: notice.id,
+        title,
+        content
+      });
+      await loadAdminSnapshot();
+      renderAll();
+      if (syncStatus) {
+        syncStatus.textContent = "공지 수정 완료: 서버에 바로 반영했습니다.";
+      }
+      return;
+    } catch (error) {
+      alert(`공지 수정 실패: ${String(error?.message || error)}`);
+      return;
+    }
+  }
+
+  db.notices = db.notices.map((entry) => (
+    entry.id === notice.id
+      ? { ...entry, title, content }
+      : entry
+  ));
+  saveDb();
+  renderNotices();
+}
+
+async function handleNoticeDelete(notice) {
+  if (!confirm(`"${notice?.title || "공지"}" 공지를 삭제할까요?`)) {
+    return;
+  }
+
+  if (currentAdminToken) {
+    try {
+      await callAdminWrite("delete_notice", { notice_id: notice.id });
+      await loadAdminSnapshot();
+      renderAll();
+      if (syncStatus) {
+        syncStatus.textContent = "공지 삭제 완료: 서버에 바로 반영했습니다.";
+      }
+      return;
+    } catch (error) {
+      alert(`공지 삭제 실패: ${String(error?.message || error)}`);
+      return;
+    }
+  }
+
+  db.notices = db.notices.filter((entry) => entry.id !== notice.id);
+  saveDb();
+  renderNotices();
+}
+
+async function handleMemberEdit(member) {
+  const nextName = prompt("회원 이름을 수정해 주세요.", String(member?.name || "").trim());
+  if (nextName === null) {
+    return;
+  }
+  const name = String(nextName || "").trim();
+  if (!name) {
+    alert("회원 이름을 입력해 주세요.");
+    return;
+  }
+
+  const nextBirthYear = prompt("출생연도를 입력해 주세요. (1989~2000)", String(member?.birthYear || ""));
+  if (nextBirthYear === null) {
+    return;
+  }
+  const birthYear = Number(nextBirthYear);
+  if (!Number.isFinite(birthYear) || birthYear < 1989 || birthYear > 2000) {
+    alert("회원 출생연도는 1989~2000만 가능합니다.");
+    return;
+  }
+
+  if (currentAdminToken) {
+    try {
+      await callAdminWrite("update_member", {
+        member_id: member.id,
+        name,
+        birth_year: birthYear
+      });
+      await loadAdminSnapshot();
+      renderAll();
+      if (syncStatus) {
+        syncStatus.textContent = "회원 정보 수정 완료: 서버에 바로 반영했습니다.";
+      }
+      return;
+    } catch (error) {
+      const message = String(error?.message || error);
+      alert(`회원 정보 수정 실패: ${message.includes("already exists") ? "이미 등록된 회원입니다." : message}`);
+      return;
+    }
+  }
+
+  db.members = db.members.map((entry) => (
+    entry.id === member.id
+      ? { ...entry, name, birthYear }
+      : entry
+  ));
+  saveDb();
+  renderAll();
+}
+
+async function handleMemberActiveToggle(member, nextActive) {
+  if (!confirmMemberToggleActive(member, nextActive)) {
+    return;
+  }
+
+  if (currentAdminToken) {
+    try {
+      await callAdminWrite("toggle_member_active", {
+        member_id: member.id,
+        is_active: nextActive
+      });
+      await loadAdminSnapshot();
+      renderAll();
+      if (syncStatus) {
+        syncStatus.textContent = `${member.name} ${nextActive ? "활성화" : "휴면 전환"} 완료: 서버에 바로 반영했습니다.`;
+      }
+      return;
+    } catch (error) {
+      alert(`회원 상태 변경 실패: ${String(error?.message || error)}`);
+      return;
+    }
+  }
+
+  db.members = db.members.map((entry) => entry.id === member.id ? { ...entry, isActive: nextActive } : entry);
+  saveDb();
+  logAdminAction(nextActive ? "회원 활성화" : "회원 휴면 전환", member.name);
+  renderAll();
+}
+
+async function handleAttendanceLogEdit(log) {
+  const nextDate = prompt("출석일을 수정해 주세요. (YYYY-MM-DD)", String(log?.date || ""));
+  if (nextDate === null) {
+    return;
+  }
+  const date = String(nextDate || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    alert("출석일 형식은 YYYY-MM-DD여야 합니다.");
+    return;
+  }
+
+  const nextType = prompt("출석 유형을 수정해 주세요.", String(log?.eventType || "정기런"));
+  if (nextType === null) {
+    return;
+  }
+  const eventType = String(nextType || "").trim() || "정기런";
+
+  const nextNames = prompt("참석자 명단을 쉼표나 줄바꿈으로 입력해 주세요.", getAttendanceLogNames(log).join(", "));
+  if (nextNames === null) {
+    return;
+  }
+  const names = parseNames(String(nextNames || ""));
+  if (!names.length) {
+    alert("참석자 명단을 입력해 주세요.");
+    return;
+  }
+
+  if (currentAdminToken) {
+    try {
+      const result = await callAdminWrite("replace_attendance_log", {
+        log_id: log.id,
+        date,
+        event_type: eventType,
+        source: log.source || "bulk",
+        names
+      });
+      await loadAdminSnapshot();
+      renderAll();
+      bulkAttendanceResult.textContent = buildAttendanceSummaryMessage(result?.summary);
+      if (syncStatus) {
+        syncStatus.textContent = "출석 로그 수정 완료: 서버에 바로 반영했습니다.";
+      }
+      return;
+    } catch (error) {
+      alert(`출석 로그 수정 실패: ${String(error?.message || error)}`);
+      return;
+    }
+  }
+
+  const targetLog = db.attendanceLogs.find((entry) => entry.id === log.id);
+  if (!targetLog) {
+    return;
+  }
+  revertAttendanceMatches(targetLog);
+  db.attendanceLogs = db.attendanceLogs.filter((entry) => entry.id !== log.id);
+  const summary = applyAttendanceByNames(names, { date, eventType, source: log.source || "bulk" });
   bulkAttendanceResult.textContent = summary.message;
 }
 
@@ -1528,10 +1913,11 @@ function renderNotices() {
     if (isAdminView) {
       const actions = document.createElement("div");
       actions.className = "item-actions";
+      actions.appendChild(buildTinyButton("수정", () => {
+        handleNoticeEdit(notice);
+      }));
       actions.appendChild(buildTinyButton("삭제", () => {
-        db.notices = db.notices.filter((entry) => entry.id !== notice.id);
-        saveDb();
-        renderNotices();
+        handleNoticeDelete(notice);
       }));
       item.appendChild(actions);
     }
@@ -1555,26 +1941,70 @@ function renderGuests() {
     actions.className = "item-actions";
     actions.appendChild(buildTinyButton("승인", () => updateGuestStatus(guest.id, "승인")));
     actions.appendChild(buildTinyButton("보류", () => updateGuestStatus(guest.id, "보류")));
-    actions.appendChild(buildTinyButton("삭제", () => {
-      db.guests = db.guests.filter((entry) => entry.id !== guest.id);
-      saveDb();
-      renderGuests();
-      logAdminAction("게스트 삭제", `${guest.name} (${guest.phone})`);
-    }));
+    actions.appendChild(buildTinyButton("삭제", () => deleteGuest(guest)));
 
     item.appendChild(actions);
     guestList.appendChild(item);
   });
 }
 
-function updateGuestStatus(id, status) {
+async function updateGuestStatus(id, status) {
   const target = db.guests.find((guest) => guest.id === id);
+  if (!target) {
+    return;
+  }
+
+  if (currentAdminToken) {
+    try {
+      await callAdminWrite("update_guest_status", {
+        guest_id: id,
+        status
+      });
+      await loadAdminSnapshot();
+      renderAll();
+      if (syncStatus) {
+        syncStatus.textContent = `게스트 상태 변경 완료: ${target.name} → ${status}`;
+      }
+      return;
+    } catch (error) {
+      alert(`게스트 상태 변경 실패: ${String(error?.message || error)}`);
+      return;
+    }
+  }
+
   db.guests = db.guests.map((guest) => (guest.id === id ? { ...guest, status } : guest));
   saveDb();
   renderGuests();
-  if (target) {
-    logAdminAction("게스트 상태 변경", `${target.name}: ${status}`);
+  logAdminAction("게스트 상태 변경", `${target.name}: ${status}`);
+}
+
+async function deleteGuest(guest) {
+  if (!guest) {
+    return;
   }
+  if (!confirm(`${guest.name} 게스트 신청을 삭제할까요?`)) {
+    return;
+  }
+
+  if (currentAdminToken) {
+    try {
+      await callAdminWrite("delete_guest", { guest_id: guest.id });
+      await loadAdminSnapshot();
+      renderAll();
+      if (syncStatus) {
+        syncStatus.textContent = `게스트 삭제 완료: ${guest.name}`;
+      }
+      return;
+    } catch (error) {
+      alert(`게스트 삭제 실패: ${String(error?.message || error)}`);
+      return;
+    }
+  }
+
+  db.guests = db.guests.filter((entry) => entry.id !== guest.id);
+  saveDb();
+  renderGuests();
+  logAdminAction("게스트 삭제", `${guest.name} (${guest.phone})`);
 }
 
 function renderMembers() {
@@ -1642,29 +2072,61 @@ function renderMembers() {
 
     const actions = document.createElement("div");
     actions.className = "item-actions";
-    actions.appendChild(buildTinyButton("+1 출석", () => {
+    actions.appendChild(buildTinyButton("수정", () => {
+      handleMemberEdit(member);
+    }));
+    actions.appendChild(buildTinyButton("+1 출석", async () => {
       const attendanceDate = getSelectedAttendanceDate();
+      if (currentAdminToken) {
+        try {
+          await callAdminWrite("adjust_member_attendance", {
+            member_id: member.id,
+            date: attendanceDate,
+            delta: 1
+          });
+          await loadAdminSnapshot();
+          renderAll();
+          if (syncStatus) {
+            syncStatus.textContent = `${member.name} 출석 +1 완료: 서버에 바로 반영했습니다.`;
+          }
+          return;
+        } catch (error) {
+          alert(`출석 추가 실패: ${String(error?.message || error)}`);
+          return;
+        }
+      }
       updateMemberRuns(member.id, 1, monthKeyFromDate(attendanceDate));
       saveDb();
       logAdminAction("회원 출석 추가", `${member.name} +1 (${attendanceDate})`);
       renderAll();
     }));
-    actions.appendChild(buildTinyButton("-1 출석", () => {
+    actions.appendChild(buildTinyButton("-1 출석", async () => {
       const attendanceDate = getSelectedAttendanceDate();
+      if (currentAdminToken) {
+        try {
+          await callAdminWrite("adjust_member_attendance", {
+            member_id: member.id,
+            date: attendanceDate,
+            delta: -1
+          });
+          await loadAdminSnapshot();
+          renderAll();
+          if (syncStatus) {
+            syncStatus.textContent = `${member.name} 출석 -1 완료: 서버에 바로 반영했습니다.`;
+          }
+          return;
+        } catch (error) {
+          alert(`출석 차감 실패: ${String(error?.message || error)}`);
+          return;
+        }
+      }
       updateMemberRuns(member.id, -1, monthKeyFromDate(attendanceDate));
       saveDb();
       logAdminAction("회원 출석 차감", `${member.name} -1 (${attendanceDate})`);
       renderAll();
     }));
     actions.appendChild(buildTinyButton(member.isActive === false ? "활성화" : "휴면", () => {
-      const nextActive = member.isActive === false;
-      if (!confirmMemberToggleActive(member, nextActive)) {
-        return;
-      }
-      db.members = db.members.map((entry) => entry.id === member.id ? { ...entry, isActive: nextActive } : entry);
-      saveDb();
-      logAdminAction(nextActive ? "회원 활성화" : "회원 휴면 전환", member.name);
-      renderAll();
+      handleMemberActiveToggle(member, member.isActive === false);
     }));
 
     item.appendChild(actions);
@@ -1698,8 +2160,13 @@ function renderAttendanceLogs() {
 
     const actions = document.createElement("div");
     actions.className = "item-actions";
+    actions.appendChild(buildTinyButton("수정", () => {
+      handleAttendanceLogEdit(log);
+    }));
     if (Array.isArray(log.matched) && log.matched.length) {
-      actions.appendChild(buildTinyButton("되돌리기", () => revertAttendanceLog(log.id)));
+      actions.appendChild(buildTinyButton("되돌리기", () => {
+        revertAttendanceLog(log.id);
+      }));
     }
     item.appendChild(actions);
     attendanceLogList.appendChild(item);
@@ -1707,10 +2174,29 @@ function renderAttendanceLogs() {
 }
 
 
-function revertAttendanceLog(logId) {
+async function revertAttendanceLog(logId) {
   const log = db.attendanceLogs.find((entry) => entry.id === logId);
   if (!log || !Array.isArray(log.matched) || !log.matched.length) {
     return;
+  }
+
+  if (!confirm(`${log.date} ${log.eventType} 출석 반영을 되돌릴까요?`)) {
+    return;
+  }
+
+  if (currentAdminToken) {
+    try {
+      await callAdminWrite("revert_attendance_log", { log_id: logId });
+      await loadAdminSnapshot();
+      renderAll();
+      if (syncStatus) {
+        syncStatus.textContent = "출석 되돌리기 완료: 서버에 바로 반영했습니다.";
+      }
+      return;
+    } catch (error) {
+      alert(`출석 되돌리기 실패: ${String(error?.message || error)}`);
+      return;
+    }
   }
 
   revertAttendanceMatches(log);
@@ -1856,7 +2342,26 @@ function renderFees() {
   const totalPaid = paidCount * MONTHLY_FEE;
   feeSummary.textContent = `${monthKeyToLabel(monthKey)} | 납부 ${paidCount}명 (${formatWon(totalPaid)}) / 미납 ${unpaidCount}명 | 총 회비 ${formatWon(totalDue)} | 미납자: ${unpaidNames.length ? unpaidNames.join(", ") : "없음"} | 경고 ${warningMembers.length}명`;
 }
-function updateMemberFeeStatus(id, monthKey, status) {
+async function updateMemberFeeStatus(id, monthKey, status) {
+  if (currentAdminToken) {
+    try {
+      await callAdminWrite("update_member_fee_status", {
+        member_id: id,
+        month_key: monthKey,
+        status
+      });
+      await loadAdminSnapshot();
+      renderAll();
+      if (syncStatus) {
+        syncStatus.textContent = `회비 상태 변경 완료: ${monthKeyToLabel(monthKey)} ${status === "paid" ? "납부" : "미납"}`;
+      }
+      return;
+    } catch (error) {
+      alert(`회비 상태 변경 실패: ${String(error?.message || error)}`);
+      return;
+    }
+  }
+
   db.members = db.members.map((member) => {
     if (member.id !== id) {
       return member;
@@ -1870,8 +2375,30 @@ function updateMemberFeeStatus(id, monthKey, status) {
   renderDashboard();
 }
 
-function resetCurrentMonthFees() {
+async function resetCurrentMonthFees() {
   const monthKey = feeMonthSelect.value || currentMonthKey();
+
+  if (!confirm(`${monthKeyToLabel(monthKey)} 회비 상태를 전체 미납으로 초기화할까요?`)) {
+    return;
+  }
+
+  if (currentAdminToken) {
+    try {
+      await callAdminWrite("reset_month_fees", {
+        month_key: monthKey
+      });
+      await loadAdminSnapshot();
+      renderAll();
+      if (syncStatus) {
+        syncStatus.textContent = `${monthKeyToLabel(monthKey)} 회비 상태를 전체 미납으로 초기화했습니다.`;
+      }
+      return;
+    } catch (error) {
+      alert(`회비 초기화 실패: ${String(error?.message || error)}`);
+      return;
+    }
+  }
+
   db.members = db.members.map((member) => ({
     ...member,
     feeStatus: { ...(member.feeStatus || {}), [monthKey]: "unpaid" }
@@ -2286,9 +2813,12 @@ function loadDb() {
   }
 }
 
-function saveDb() {
+function saveDb(options = {}) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
   touchAdminSnapshotMeta();
+  if (!options.skipAutoSync) {
+    scheduleAutoSync(options.reason || "change");
+  }
 }
 
 function touchAdminSnapshotMeta() {
@@ -2308,8 +2838,32 @@ function touchAdminSnapshotMeta() {
 }
 
 function scheduleAutoSync() {
-  // Disabled intentionally.
-  // 운영 데이터는 명시적으로 "지금 동기화"를 눌렀을 때만 Supabase에 반영합니다.
+  if (!currentAdminToken || isApplyingRemoteSnapshot) {
+    return;
+  }
+
+  autoSyncPending = true;
+  if (autoSyncTimer) {
+    clearTimeout(autoSyncTimer);
+  }
+
+  autoSyncTimer = setTimeout(async () => {
+    autoSyncTimer = null;
+    if (!autoSyncPending || autoSyncInFlight || !currentAdminToken || isApplyingRemoteSnapshot) {
+      return;
+    }
+
+    autoSyncPending = false;
+    autoSyncInFlight = true;
+
+    try {
+      await syncDataToSupabaseInternal({ interactive: false });
+    } catch (_error) {
+      // syncDataToSupabaseInternal updates syncStatus itself.
+    } finally {
+      autoSyncInFlight = false;
+    }
+  }, 1200);
 }
 
 function formatDate(iso) {
@@ -2465,16 +3019,46 @@ async function fetchAdminSnapshot() {
   return result;
 }
 
+async function callAdminWrite(action, payload = {}) {
+  const response = await fetch("/.netlify/functions/admin-write", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${currentAdminToken}`
+    },
+    body: JSON.stringify({
+      action,
+      ...payload
+    })
+  });
+
+  const result = await response.json().catch(() => ({ ok: false, error: "invalid response" }));
+  if (!response.ok || !result.ok) {
+    throw new Error(result.error || "unknown");
+  }
+  return result;
+}
+
 async function syncDataToSupabase() {
+  try {
+    return await syncDataToSupabaseInternal({ interactive: true });
+  } catch (_error) {
+    return null;
+  }
+}
+
+async function syncDataToSupabaseInternal({ interactive = true } = {}) {
   if (!currentAdminToken) {
-    alert("운영진 로그인 후 이용해 주세요.");
+    if (interactive) {
+      alert("운영진 로그인 후 이용해 주세요.");
+    }
     return;
   }
-  if (syncSupabaseButton) {
+  if (syncSupabaseButton && interactive) {
     syncSupabaseButton.disabled = true;
   }
   if (syncStatus) {
-    syncStatus.textContent = "동기화 중...";
+    syncStatus.textContent = interactive ? "동기화 중..." : "변경사항을 자동 동기화하는 중...";
   }
 
   try {
@@ -2491,12 +3075,14 @@ async function syncDataToSupabase() {
       throw new Error(`원격 회원 ${remoteMemberCount}명 대비 현재 브라우저 회원이 ${localMemberCount}명뿐이라 덮어쓰기를 차단했습니다. 다른 브라우저 데이터 또는 회원 목록 복구를 먼저 확인해 주세요.`);
     }
 
-    const confirmed = confirm(`지금 동기화할까요?\n\n로컬 회원 ${localMemberCount}명 / 원격 회원 ${remoteMemberCount}명\n이 작업은 Supabase 운영 데이터를 현재 브라우저 상태로 덮어씁니다.`);
-    if (!confirmed) {
-      if (syncStatus) {
-        syncStatus.textContent = "동기화를 취소했습니다.";
+    if (interactive) {
+      const confirmed = confirm(`지금 동기화할까요?\n\n로컬 회원 ${localMemberCount}명 / 원격 회원 ${remoteMemberCount}명\n이 작업은 Supabase 운영 데이터를 현재 브라우저 상태로 덮어씁니다.`);
+      if (!confirmed) {
+        if (syncStatus) {
+          syncStatus.textContent = "동기화를 취소했습니다.";
+        }
+        return;
       }
-      return;
     }
 
     const response = await fetch("/.netlify/functions/admin-sync", {
@@ -2514,17 +3100,21 @@ async function syncDataToSupabase() {
     }
 
     if (syncStatus) {
-      syncStatus.textContent = `동기화 완료: members ${result.counts?.members || 0}, notices ${result.counts?.notices || 0}, guests ${result.counts?.guests || 0}, raffle ${result.counts?.raffle_history || 0}`;
+      syncStatus.textContent = interactive
+        ? `동기화 완료: members ${result.counts?.members || 0}, notices ${result.counts?.notices || 0}, guests ${result.counts?.guests || 0}, raffle ${result.counts?.raffle_history || 0}`
+        : `자동 동기화 완료: members ${result.counts?.members || 0}, notices ${result.counts?.notices || 0}, guests ${result.counts?.guests || 0}, attendance ${result.counts?.attendance_logs || 0}`;
     }
     loadSyncMetadata();
     loadPublicNoticeData();
     loadPublicRaffleData();
+    return result;
   } catch (error) {
     if (syncStatus) {
-      syncStatus.textContent = `동기화 실패: ${String(error.message || error)}`;
+      syncStatus.textContent = `${interactive ? "동기화" : "자동 동기화"} 실패: ${String(error.message || error)}`;
     }
+    throw error;
   } finally {
-    if (syncSupabaseButton) {
+    if (syncSupabaseButton && interactive) {
       syncSupabaseButton.disabled = false;
     }
   }
