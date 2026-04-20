@@ -687,17 +687,7 @@ async function loadAdminSnapshot() {
       })).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
     : remoteSnapshot.guests;
   const preservedAttendanceLogs = preserveLocalAttendanceLogs
-    ? mergeRecordsById(localAttendanceLogs, remoteSnapshot.attendanceLogs, (log) => ({
-        id: log?.id || makeId(),
-        source: String(log?.source || "bulk"),
-        eventType: String(log?.eventType || log?.event_type || "정기런"),
-        date: String(log?.date || log?.attendance_date || toIsoDate(new Date())),
-        rawCount: Number(log?.rawCount || log?.raw_count || 0),
-        matched: Array.isArray(log?.matched) ? log.matched : [],
-        unmatched: Array.isArray(log?.unmatched) ? log.unmatched : [],
-        ambiguous: Array.isArray(log?.ambiguous) ? log.ambiguous : [],
-        createdAt: log?.createdAt || log?.created_at || new Date().toISOString()
-      })).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 50)
+    ? mergeAttendanceLogs(localAttendanceLogs, remoteSnapshot.attendanceLogs)
     : remoteSnapshot.attendanceLogs;
   const preservedAuditLogs = preserveLocalAuditLogs
     ? mergeRecordsById(localAuditLogs, remoteSnapshot.auditLogs, (entry) => ({
@@ -862,7 +852,24 @@ function shouldPreserveLocalMembers(localMembers, remoteMembers) {
 function shouldPreserveLocalCollection(localItems, remoteItems) {
   const localCount = Array.isArray(localItems) ? localItems.length : 0;
   const remoteCount = Array.isArray(remoteItems) ? remoteItems.length : 0;
-  return localCount > remoteCount;
+  if (localCount > remoteCount) {
+    return true;
+  }
+  if (localCount === 0) {
+    return false;
+  }
+  return getLatestCollectionTimestamp(localItems) > getLatestCollectionTimestamp(remoteItems);
+}
+
+function getLatestCollectionTimestamp(items) {
+  if (!Array.isArray(items) || !items.length) {
+    return 0;
+  }
+  return items.reduce((latest, item) => {
+    const raw = item?.createdAt || item?.created_at || item?.updatedAt || item?.updated_at || "";
+    const time = new Date(raw).getTime();
+    return Number.isFinite(time) && time > latest ? time : latest;
+  }, 0);
 }
 
 function countMeaningfulMembers(members) {
@@ -910,6 +917,51 @@ function mergeRecordsById(localItems, remoteItems, normalize) {
   });
 
   return Array.from(merged.values());
+}
+
+function mergeAttendanceLogs(localItems, remoteItems) {
+  const merged = new Map();
+
+  [...(Array.isArray(remoteItems) ? remoteItems : []), ...(Array.isArray(localItems) ? localItems : [])].forEach((log) => {
+    const normalized = normalizeAttendanceLogRecord(log);
+    const scopeKey = attendanceLogScopeKey(normalized);
+    const existing = merged.get(scopeKey);
+    if (!existing || getRecordTimestamp(normalized) >= getRecordTimestamp(existing)) {
+      merged.set(scopeKey, normalized);
+    }
+  });
+
+  return Array.from(merged.values())
+    .sort((a, b) => getRecordTimestamp(b) - getRecordTimestamp(a))
+    .slice(0, 50);
+}
+
+function normalizeAttendanceLogRecord(log) {
+  return {
+    id: log?.id || makeId(),
+    source: String(log?.source || "bulk"),
+    eventType: String(log?.eventType || log?.event_type || "정기런"),
+    date: String(log?.date || log?.attendance_date || toIsoDate(new Date())),
+    rawCount: Number(log?.rawCount || log?.raw_count || 0),
+    matched: Array.isArray(log?.matched) ? log.matched : [],
+    unmatched: Array.isArray(log?.unmatched) ? log.unmatched : [],
+    ambiguous: Array.isArray(log?.ambiguous) ? log.ambiguous : [],
+    createdAt: log?.createdAt || log?.created_at || new Date().toISOString()
+  };
+}
+
+function attendanceLogScopeKey(log) {
+  return [
+    String(log?.date || ""),
+    String(log?.eventType || ""),
+    String(log?.source || "bulk")
+  ].join("|");
+}
+
+function getRecordTimestamp(record) {
+  const raw = record?.createdAt || record?.created_at || record?.updatedAt || record?.updated_at || "";
+  const time = new Date(raw).getTime();
+  return Number.isFinite(time) ? time : 0;
 }
 
 function normalizeMemberRecord(member) {
