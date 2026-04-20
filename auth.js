@@ -61,6 +61,7 @@ const runnerMonthLabel = document.getElementById("runner-month-label");
 const runnerCard = document.getElementById("runner-card");
 const attendanceBoard = document.getElementById("attendance-board");
 const publicTicketBoard = document.getElementById("public-ticket-board");
+const candidatePreviewBoard = document.getElementById("candidate-preview-board");
 const missionBoard = document.getElementById("mission-board");
 const badgeShowcaseBoard = document.getElementById("badge-showcase-board");
 const boardRaffleHistory = document.getElementById("board-raffle-history");
@@ -72,6 +73,14 @@ const myTicketCount = document.getElementById("my-ticket-count");
 const myPointTotal = document.getElementById("my-point-total");
 const myNextReward = document.getElementById("my-next-reward");
 const myPointNote = document.getElementById("my-point-note");
+const boardCandidateCount = document.getElementById("board-candidate-count");
+const boardCandidateNote = document.getElementById("board-candidate-note");
+const boardTopRunner = document.getElementById("board-top-runner");
+const boardTopRunnerNote = document.getElementById("board-top-runner-note");
+const boardPointLeader = document.getElementById("board-point-leader");
+const boardPointLeaderNote = document.getElementById("board-point-leader-note");
+const boardMissionProgress = document.getElementById("board-mission-progress");
+const boardMissionNote = document.getElementById("board-mission-note");
 const myPhotoHistory = document.getElementById("my-photo-history");
 const myCommentHistory = document.getElementById("my-comment-history");
 const myRaffleHistory = document.getElementById("my-raffle-history");
@@ -1060,8 +1069,10 @@ async function loadActivityBoard() {
 
   renderAttendanceBoard(rows, selectedMonth);
   renderPublicTicketBoard(rows, selectedMonth);
+  renderCandidatePreviewBoard(rows, selectedMonth);
   renderBadgeShowcase(rows, selectedMonth);
   renderRunnerCard(runner, selectedMonth);
+  renderBoardPulseSummary(rows, runner, selectedMonth);
   renderBoardRaffleHistory(raffleRecords.slice(0, 4));
   await renderMyActivityState(me, selectedMonth, raffleRecords);
   await loadSuggestionBoard();
@@ -1079,6 +1090,7 @@ function renderBoardLocked(message) {
   renderSuggestionBoardLocked("승인 회원 로그인 후 건의사항을 남길 수 있습니다.");
   renderRewardRequestLocked("승인 회원 로그인 후 RRC샵 보조 신청을 할 수 있습니다.");
   renderPublicTicketBoard([], currentMonthKey());
+  renderCandidatePreviewBoard([], currentMonthKey());
   renderMissionBoard([], null, currentMonthKey(), 0, 0);
   renderBadgeShowcase([], currentMonthKey());
 }
@@ -1095,7 +1107,7 @@ function renderAttendanceBoard(rows, monthKey) {
 
   rows.forEach((member, index) => {
     const item = document.createElement("li");
-    item.className = "list-item";
+    item.className = "list-item board-ranking-item";
     const badge = index === 0 && member.monthRuns > 0
       ? '<span class="status-chip">선두</span>'
       : member.monthRuns >= getMonthThreshold(monthKey)
@@ -1111,6 +1123,45 @@ function renderAttendanceBoard(rows, monthKey) {
     `;
     attendanceBoard.appendChild(item);
   });
+}
+
+function renderBoardPulseSummary(rows, runner, monthKey) {
+  const threshold = getMonthThreshold(monthKey);
+  const eligibleCount = rows.filter((member) => member.monthRuns >= threshold).length;
+  const pointLeader = [...rows]
+    .filter((member) => member.basePoints > 0 || member.monthRuns > 0)
+    .sort((a, b) => (b.basePoints - a.basePoints) || (b.monthRuns - a.monthRuns))[0] || null;
+  const missionAchievers = rows.filter((member) => member.monthRuns >= threshold).length;
+  const missionRate = rows.length ? Math.round((missionAchievers / rows.length) * 100) : 0;
+
+  if (boardCandidateCount) {
+    boardCandidateCount.textContent = `${eligibleCount}명`;
+  }
+  if (boardCandidateNote) {
+    boardCandidateNote.textContent = `${monthKeyToLabel(monthKey)} 추첨 기준 ${threshold}회 이상 출석 회원입니다.`;
+  }
+  if (boardTopRunner) {
+    boardTopRunner.textContent = runner && runner.monthRuns > 0 ? `${runner.name}` : "아직 없음";
+  }
+  if (boardTopRunnerNote) {
+    boardTopRunnerNote.textContent = runner && runner.monthRuns > 0
+      ? `${runner.monthRuns}회 출석 · 추첨권 ${runner.tickets || calculateMonthlyTickets(runner, monthKey)}장`
+      : `${monthKeyToLabel(monthKey)} 출석 기록이 아직 없습니다.`;
+  }
+  if (boardPointLeader) {
+    boardPointLeader.textContent = pointLeader ? `${pointLeader.name}` : "집계 중";
+  }
+  if (boardPointLeaderNote) {
+    boardPointLeaderNote.textContent = pointLeader
+      ? `활동 포인트 ${pointLeader.basePoints}P · 연속 출석 ${pointLeader.streak}개월`
+      : "포인트 집계 대상이 아직 없습니다.";
+  }
+  if (boardMissionProgress) {
+    boardMissionProgress.textContent = `${missionRate}%`;
+  }
+  if (boardMissionNote) {
+    boardMissionNote.textContent = `${monthKeyToLabel(monthKey)} 출석 미션 달성 회원 ${missionAchievers}명 / 전체 ${rows.length}명`;
+  }
 }
 
 function renderRunnerCard(runner, monthKey) {
@@ -1147,7 +1198,7 @@ function renderPublicTicketBoard(rows, monthKey) {
 
   visibleRows.forEach((member, index) => {
     const item = document.createElement("li");
-    item.className = "list-item";
+    item.className = "list-item board-ranking-item";
     const titleChip = index === 0
       ? '<span class="status-chip">1위</span>'
       : member.monthRuns >= getMonthThreshold(monthKey)
@@ -1161,6 +1212,35 @@ function renderPublicTicketBoard(rows, monthKey) {
       <p class="list-meta">이번 달 출석 ${member.monthRuns}회 / 활동 포인트 ${member.basePoints}P / 연속 출석 ${member.streak}개월</p>
     `;
     publicTicketBoard.appendChild(item);
+  });
+}
+
+function renderCandidatePreviewBoard(rows, monthKey) {
+  if (!candidatePreviewBoard) {
+    return;
+  }
+  candidatePreviewBoard.innerHTML = "";
+
+  const threshold = getMonthThreshold(monthKey);
+  const candidates = rows
+    .filter((member) => member.monthRuns >= threshold)
+    .sort((a, b) => (b.tickets - a.tickets) || (b.monthRuns - a.monthRuns) || (b.basePoints - a.basePoints))
+    .slice(0, 8);
+
+  if (!candidates.length) {
+    candidatePreviewBoard.innerHTML = '<div class="raffle-candidate-card"><strong>후보 없음</strong><p class="list-meta">이번 달 추첨 기준을 아직 넘은 회원이 없습니다.</p></div>';
+    return;
+  }
+
+  candidates.forEach((member, index) => {
+    const card = document.createElement("div");
+    card.className = `raffle-candidate-card${index === 0 ? " is-winner" : ""}`;
+    card.innerHTML = `
+      <strong>${escapeHtml(member.name || "이름없음")}</strong>
+      <p class="list-meta">추첨권 ${member.tickets}장 · 출석 ${member.monthRuns}회</p>
+      <p class="list-meta">연속 출석 ${member.streak}개월 · 활동 포인트 ${member.basePoints}P</p>
+    `;
+    candidatePreviewBoard.appendChild(card);
   });
 }
 
@@ -1194,7 +1274,7 @@ function renderMissionBoard(rows, me, selectedMonth, photoCount, commentCount) {
   const participants = rows.filter((member) => member.monthRuns >= threshold).length;
   missionItems.forEach((mission) => {
     const item = document.createElement("li");
-    item.className = "list-item";
+    item.className = "list-item board-mission-item";
     item.innerHTML = `
       <div class="list-top">
         <span class="list-title">${escapeHtml(mission.title)}</span>
@@ -1250,7 +1330,7 @@ function renderBadgeShowcase(rows, monthKey) {
 
   showcase.forEach((badge) => {
     const item = document.createElement("li");
-    item.className = "list-item";
+    item.className = "list-item board-badge-item";
     item.innerHTML = `
       <div class="list-top">
         <span class="list-title">${escapeHtml(badge.label)}</span>
@@ -1749,9 +1829,9 @@ function renderSuggestionList(items, canManage) {
   items.forEach((item) => {
     const node = document.createElement("li");
     const statusClass = getSuggestionStatusClass(item.status);
-    const authorLabel = item.is_anonymous && item.user_id !== authUser?.id
-      ? "익명 회원"
-      : (item.author_name || "회원");
+    const authorLabel = item.user_id === authUser?.id
+      ? (item.is_anonymous ? "나 · 익명 제출" : "나")
+      : (item.is_anonymous ? "익명 회원" : (item.author_name || "회원"));
     node.className = "list-item suggestion-item";
     node.innerHTML = `
       <div class="list-top">
@@ -1761,6 +1841,10 @@ function renderSuggestionList(items, canManage) {
       <p class="list-meta">${escapeHtml(authorLabel)} · ${escapeHtml(formatDate(item.created_at))}</p>
       <p>${escapeHtml(item.content || "")}</p>
     `;
+
+    if (item.status === "planned" || item.status === "under_review") {
+      node.classList.add("suggestion-item-emphasis");
+    }
 
     if (canManage) {
       const actions = document.createElement("div");

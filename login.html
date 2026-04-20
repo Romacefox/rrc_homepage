@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=SUIT:wght@300;400;500;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20260418d" />
+  <link rel="stylesheet" href="styles.css?v=20260420a" />
 </head>
 <body>
   <header class="site-header">
@@ -92,17 +92,48 @@
               </div>
               <p id="my-point-note" class="list-meta" style="margin-top:0.75rem;">출석, 사진, 댓글 활동으로 포인트를 모아 RRC샵 보조 신청에 활용할 수 있도록 준비 중입니다.</p>
             </article>
+            <div class="board-pulse-grid" style="margin-top:1rem;">
+              <article class="panel board-highlight board-pulse-card">
+                <span class="board-pulse-label">이번 달 후보</span>
+                <strong id="board-candidate-count">0명</strong>
+                <p id="board-candidate-note" class="list-meta">추첨 후보 집계 중입니다.</p>
+              </article>
+              <article class="panel board-pulse-card">
+                <span class="board-pulse-label">선두 러너</span>
+                <strong id="board-top-runner">확인 중</strong>
+                <p id="board-top-runner-note" class="list-meta">출석 순위를 계산하고 있습니다.</p>
+              </article>
+              <article class="panel board-pulse-card">
+                <span class="board-pulse-label">포인트 선두</span>
+                <strong id="board-point-leader">확인 중</strong>
+                <p id="board-point-leader-note" class="list-meta">활동 포인트를 집계하고 있습니다.</p>
+              </article>
+              <article class="panel board-pulse-card">
+                <span class="board-pulse-label">미션 달성률</span>
+                <strong id="board-mission-progress">0%</strong>
+                <p id="board-mission-note" class="list-meta">이번 달 출석 미션 달성률입니다.</p>
+              </article>
+            </div>
             <div class="board-layout" style="margin-top:1rem;">
               <div>
-                <h3>월별 출석 순위</h3>
+                <div class="section-head">
+                  <h3>월별 출석 순위</h3>
+                  <span class="badge">공개 경쟁</span>
+                </div>
                 <ul id="attendance-board" class="list small"></ul>
               </div>
               <div>
-                <h3>이달의 러너</h3>
+                <div class="section-head">
+                  <h3>이달의 러너</h3>
+                  <span class="badge">리더 카드</span>
+                </div>
                 <div id="runner-card" class="panel board-highlight">
                   <p class="list-meta">데이터를 불러오는 중입니다.</p>
                 </div>
-                <h3 style="margin-top:1rem;">최근 추첨 기록</h3>
+                <div class="section-head" style="margin-top:1rem;">
+                  <h3>최근 추첨 기록</h3>
+                  <span class="badge">룰렛 기록</span>
+                </div>
                 <ul id="board-raffle-history" class="list small"></ul>
               </div>
             </div>
@@ -113,6 +144,13 @@
                   <span class="badge">이번 달 경쟁</span>
                 </div>
                 <ul id="public-ticket-board" class="list small" style="margin-top:0.8rem;"></ul>
+              </article>
+              <article class="panel board-highlight">
+                <div class="section-head">
+                  <h3>이번 달 후보 보드</h3>
+                  <span class="badge">룰렛 프리뷰</span>
+                </div>
+                <div id="candidate-preview-board" class="raffle-candidate-grid" style="margin-top:0.8rem;"></div>
               </article>
               <article class="panel">
                 <div class="section-head">
@@ -213,6 +251,6 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="auth.js?v=20260418e"></script>
+  <script src="auth.js?v=20260420b"></script>
 </body>
 </html>
