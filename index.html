@@ -237,6 +237,11 @@
                 <label style="margin:0; display:flex; gap:0.35rem; align-items:center;"><input id="fee-only-unpaid" type="checkbox" style="width:auto;" />미납만 보기</label>
                 <button id="fee-download-csv" class="btn ghost" type="button">CSV 다운로드</button>
               </div>
+              <div class="inline-form" style="margin-top:0.5rem; align-items:center;">
+                <input id="fee-import-file" type="file" accept=".csv,.txt,text/csv,text/plain" />
+                <button id="fee-import-apply" class="btn ghost" type="button">토스 거래내역 반영</button>
+              </div>
+              <p id="fee-import-result" class="list-meta">토스 거래내역은 CSV/TXT 파일을 올리면 이름과 5,000원 입금 내역을 찾아 납부 처리합니다.</p>
               <p id="fee-summary" class="list-meta"></p>
               <p class="list-meta" style="margin:0.3rem 0 0.4rem;">2개월 이상 연속 미납 경고</p>
               <ul id="fee-warning-list" class="list small"></ul>
@@ -326,7 +331,7 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="script.js?v=20260423a"></script>
+    <script src="script.js?v=20260423b"></script>
 </body>
 </html>
 

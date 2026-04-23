@@ -72,6 +72,9 @@ const feeSummary = document.getElementById("fee-summary");
 const feeMarkAllUnpaidButton = document.getElementById("fee-mark-all-unpaid");
 const feeOnlyUnpaidInput = document.getElementById("fee-only-unpaid");
 const feeDownloadCsvButton = document.getElementById("fee-download-csv");
+const feeImportFileInput = document.getElementById("fee-import-file");
+const feeImportApplyButton = document.getElementById("fee-import-apply");
+const feeImportResult = document.getElementById("fee-import-result");
 const feeWarningList = document.getElementById("fee-warning-list");
 
 const riskList = document.getElementById("risk-list");
@@ -163,6 +166,7 @@ function init() {
   feeMarkAllUnpaidButton.addEventListener("click", resetCurrentMonthFees);
   feeOnlyUnpaidInput.addEventListener("change", renderFees);
   feeDownloadCsvButton.addEventListener("click", downloadFeeCsv);
+  feeImportApplyButton?.addEventListener("click", handleFeeImportApply);
 
   runRouletteButton.addEventListener("click", runManualRafflePreview);
 
@@ -2447,6 +2451,153 @@ function downloadFeeCsv() {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+async function handleFeeImportApply() {
+  const file = feeImportFileInput?.files?.[0];
+  const monthKey = feeMonthSelect.value || currentMonthKey();
+  if (!file) {
+    alert("토스 거래내역 CSV/TXT 파일을 선택해 주세요.");
+    return;
+  }
+
+  if (/\.xlsx?$/i.test(file.name)) {
+    alert("엑셀 파일은 아직 직접 처리하지 않습니다. 토스 거래내역을 CSV로 저장해서 올려 주세요.");
+    return;
+  }
+
+  let text = "";
+  try {
+    text = await file.text();
+  } catch (error) {
+    alert(`파일을 읽지 못했습니다: ${String(error?.message || error)}`);
+    return;
+  }
+
+  const preview = buildFeeImportPreview(text, monthKey);
+  if (!preview.matches.length) {
+    if (feeImportResult) {
+      feeImportResult.textContent = `반영할 납부 내역이 없습니다. 선택 월(${monthKeyToLabel(monthKey)}), 이름, ${formatWon(MONTHLY_FEE)} 입금 내역을 확인해 주세요.`;
+    }
+    alert("반영할 납부 내역을 찾지 못했습니다.");
+    return;
+  }
+
+  const names = preview.matches.map((entry) => entry.member.name).join(", ");
+  const skippedText = [
+    preview.alreadyPaid.length ? `이미 납부 ${preview.alreadyPaid.length}명` : "",
+    preview.ambiguous.length ? `동명이인/중복 후보 ${preview.ambiguous.length}건` : "",
+    preview.outOfMonth.length ? `다른 월로 보이는 내역 ${preview.outOfMonth.length}건` : ""
+  ].filter(Boolean).join(" · ");
+  const message = `${monthKeyToLabel(monthKey)} 회비 납부로 ${preview.matches.length}명을 반영할까요?\n\n${names}${skippedText ? `\n\n참고: ${skippedText}` : ""}`;
+  if (!confirm(message)) {
+    return;
+  }
+
+  const memberIds = preview.matches.map((entry) => entry.member.id);
+  if (currentAdminToken) {
+    try {
+      await callAdminWrite("bulk_update_member_fee_status", {
+        member_ids: memberIds,
+        month_key: monthKey,
+        status: "paid"
+      });
+      await loadAdminSnapshot();
+      renderAll();
+      if (feeImportResult) {
+        feeImportResult.textContent = `토스 거래내역 반영 완료: ${preview.matches.length}명 납부 처리 (${names})`;
+      }
+      return;
+    } catch (error) {
+      alert(`토스 거래내역 반영 실패: ${String(error?.message || error)}`);
+      return;
+    }
+  }
+
+  const memberIdSet = new Set(memberIds);
+  db.members = db.members.map((member) => memberIdSet.has(member.id)
+    ? { ...member, feeStatus: { ...(member.feeStatus || {}), [monthKey]: "paid" } }
+    : member);
+  saveDb();
+  renderFees();
+  renderRisks();
+  renderDashboard();
+  if (feeImportResult) {
+    feeImportResult.textContent = `토스 거래내역 반영 완료: ${preview.matches.length}명 납부 처리 (${names})`;
+  }
+}
+
+function buildFeeImportPreview(text, monthKey) {
+  const lines = String(text || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const activeMembers = db.members
+    .filter((member) => member.isActive !== false)
+    .sort((a, b) => normalizeName(b.name).length - normalizeName(a.name).length);
+  const matchedIds = new Set();
+  const preview = {
+    matches: [],
+    alreadyPaid: [],
+    ambiguous: [],
+    outOfMonth: []
+  };
+
+  lines.forEach((line) => {
+    if (!lineHasFeeAmount(line)) {
+      return;
+    }
+    if (!lineLooksLikeMonth(line, monthKey)) {
+      preview.outOfMonth.push(line);
+      return;
+    }
+
+    const normalizedLine = normalizeName(line);
+    const candidates = activeMembers.filter((member) => normalizedLine.includes(normalizeName(member.name)));
+    if (candidates.length !== 1) {
+      if (candidates.length > 1) {
+        preview.ambiguous.push({ line, names: candidates.map((member) => member.name) });
+      }
+      return;
+    }
+
+    const member = candidates[0];
+    if (matchedIds.has(member.id)) {
+      return;
+    }
+    if (getFeeStatus(member, monthKey) === "paid") {
+      preview.alreadyPaid.push(member);
+      return;
+    }
+    matchedIds.add(member.id);
+    preview.matches.push({ member, line });
+  });
+
+  return preview;
+}
+
+function lineHasFeeAmount(line) {
+  const numbers = String(line || "").match(/[-+]?\d[\d,]*/g) || [];
+  return numbers.some((raw) => {
+    const value = Math.abs(Number(raw.replaceAll(",", "")));
+    return value >= MONTHLY_FEE && value < 200000;
+  });
+}
+
+function lineLooksLikeMonth(line, monthKey) {
+  const [year, month] = String(monthKey || "").split("-");
+  if (!year || !month) {
+    return true;
+  }
+  const monthNumber = String(Number(month));
+  const text = String(line || "");
+  const compact = text.replace(/\s/g, "");
+  const hasDateLikeValue = /\d{4}[-./년]\s?\d{1,2}|\d{8}/.test(text);
+  if (!hasDateLikeValue) {
+    return true;
+  }
+  return compact.includes(`${year}-${month}`)
+    || compact.includes(`${year}.${month}`)
+    || compact.includes(`${year}/${month}`)
+    || compact.includes(`${year}년${monthNumber}월`)
+    || compact.includes(`${year}${month}`);
 }
 
 function renderRisks() {

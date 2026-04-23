@@ -188,6 +188,34 @@ export default async (request) => {
       return json(200, { ok: true, message: "member fee updated" });
     }
 
+    if (action === "bulk_update_member_fee_status") {
+      const memberIds = Array.isArray(body?.member_ids) ? body.member_ids.map((id) => String(id || "").trim()).filter(Boolean) : [];
+      const monthKey = String(body?.month_key || "").trim();
+      const status = String(body?.status || "").trim();
+      if (!memberIds.length || !monthKey || !["paid", "unpaid"].includes(status)) {
+        return json(400, { ok: false, error: "invalid bulk fee payload" });
+      }
+
+      const targetIds = new Set(memberIds.slice(0, 500));
+      const members = await loadMembers();
+      let updatedCount = 0;
+      for (const member of members) {
+        if (!targetIds.has(String(member.id))) {
+          continue;
+        }
+        const feeStatus = member?.fee_status && typeof member.fee_status === "object"
+          ? member.fee_status
+          : {};
+        await supabasePatch(`members?id=eq.${encodeURIComponent(member.id)}`, {
+          fee_status: { ...feeStatus, [monthKey]: status }
+        });
+        updatedCount += 1;
+      }
+
+      await tryInsertOperationLog(auth, "fee_status_bulk_update", `${monthKey}:${status}:${updatedCount}`);
+      return json(200, { ok: true, message: "member fees updated", updated_count: updatedCount });
+    }
+
     if (action === "reset_month_fees") {
       const monthKey = String(body?.month_key || "").trim();
       if (!monthKey) {
