@@ -61,6 +61,15 @@
             <span id="runner-month-label" class="badge">이번 달 기준</span>
           </div>
           <p id="activity-lock" class="list-meta">승인 회원 로그인 후 월별 출석, 연속 출석, 이달의 러너를 볼 수 있습니다.</p>
+          <article class="panel board-highlight">
+            <h3>회원 기능 안내</h3>
+            <ul class="bullet">
+              <li>활동 보드에서 내 출석, 누적 출석, 연속 출석, 본인 회비 상태를 확인할 수 있습니다.</li>
+              <li>기본 월 5회, 겨울(12~2월)은 4회 이상 출석하면 이달의 추첨 후보가 되고 출석 추첨권 1장이 표시됩니다.</li>
+              <li>출석 순위, 이번 달 후보, 최근 추첨 기록은 승인 회원에게 공개됩니다.</li>
+              <li>건의함은 익명 표시를 선택할 수 있으며 운영진은 처리 상태를 관리합니다.</li>
+            </ul>
+          </article>
           <div id="activity-board" class="hidden">
             <div class="inline-form" style="margin-top:0.8rem;">
               <select id="activity-month"></select>
@@ -86,7 +95,7 @@
                 <div id="my-badges" class="raffle-winner-tags"></div>
               </div>
               <div class="stats-grid member-reward-stats" style="margin-top:0.9rem;">
-                <div class="stat-card"><span>이번 달 추첨권</span><strong id="my-ticket-count">0장</strong></div>
+                <div class="stat-card"><span>출석 추첨권</span><strong id="my-ticket-count">0장</strong></div>
                 <div class="stat-card"><span>활동 포인트</span><strong id="my-point-total">0P</strong></div>
                 <div class="stat-card"><span>다음 혜택</span><strong id="my-next-reward">준비 중</strong></div>
               </div>
@@ -140,8 +149,8 @@
             <div class="board-public-grid" style="margin-top:1rem;">
               <article class="panel board-highlight">
                 <div class="section-head">
-                  <h3>공개 추첨권 랭킹</h3>
-                  <span class="badge">이번 달 경쟁</span>
+                  <h3>출석 추첨권 현황</h3>
+                  <span class="badge">기준 달성</span>
                 </div>
                 <ul id="public-ticket-board" class="list small" style="margin-top:0.8rem;"></ul>
               </article>
@@ -251,6 +260,6 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="auth.js?v=20260420b"></script>
+  <script src="auth.js?v=20260423a"></script>
 </body>
 </html>

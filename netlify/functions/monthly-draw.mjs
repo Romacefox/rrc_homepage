@@ -1,4 +1,4 @@
-﻿const WINTER_MONTHS_DEFAULT = [12, 1, 2];
+const WINTER_MONTHS_DEFAULT = [12, 1, 2];
 const DEFAULT_THRESHOLD = 5;
 const WINTER_THRESHOLD = 4;
 const DEFAULT_WINNER_COUNT = 4;
@@ -72,7 +72,7 @@ async function getRaffleConfig() {
 }
 
 function thresholdFor(targetMonthKey, config) {
-  const month = Number(targetMonthKey.split("-")[1]);
+  const month = Number(String(targetMonthKey || "").split("-")[1] || 0);
   const winterMonths = Array.isArray(config.winter_months) ? config.winter_months.map(Number) : WINTER_MONTHS_DEFAULT;
   if (winterMonths.includes(month)) {
     return Number(config.winter_threshold || WINTER_THRESHOLD);

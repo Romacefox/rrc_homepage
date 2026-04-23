@@ -1187,7 +1187,7 @@ function renderPublicTicketBoard(rows, monthKey) {
   }
   publicTicketBoard.innerHTML = "";
   if (!rows.length) {
-    publicTicketBoard.innerHTML = '<li class="list-item"><p class="list-meta">공개 추첨권 랭킹 준비 중입니다.</p></li>';
+    publicTicketBoard.innerHTML = '<li class="list-item"><p class="list-meta">출석 추첨권 현황 준비 중입니다.</p></li>';
     return;
   }
 
@@ -2027,7 +2027,7 @@ function buildPersonalBadges({ me, selectedMonth, feeLabel, latestWin, photoCoun
   if (latestWin) {
     badges.push("추첨 당첨");
   }
-  if ((ticketCount || 0) >= threshold + 2) {
+  if ((me?.monthRuns || 0) >= threshold + 2) {
     badges.push("황금 추첨권");
   }
   if ((me?.streak || getAttendanceStreakFromMonth(me, selectedMonth)) >= 3) {
@@ -2044,25 +2044,8 @@ function buildPersonalBadges({ me, selectedMonth, feeLabel, latestWin, photoCoun
 
 function calculateMonthlyTickets(member, monthKey) {
   const monthRuns = getMonthlyRuns(member, monthKey);
-  if (monthRuns <= 0) {
-    return 0;
-  }
   const threshold = getMonthThreshold(monthKey);
-  const streak = getAttendanceStreakFromMonth(member, monthKey);
-  let tickets = monthRuns;
-  if (monthRuns >= threshold) {
-    tickets += 2;
-  }
-  if (monthRuns >= threshold + 2) {
-    tickets += 1;
-  }
-  if (streak >= 3) {
-    tickets += 1;
-  }
-  if (streak >= 6) {
-    tickets += 1;
-  }
-  return tickets;
+  return monthRuns >= threshold ? 1 : 0;
 }
 
 function calculateAttendancePoints(member, monthKey) {
@@ -2177,8 +2160,7 @@ function hasRaffleWinner(record, name) {
 }
 
 function getMonthThreshold(monthKey) {
-  const parts = String(monthKey || "").split("-");
-  const month = Number(parts[1] || 0);
+  const month = Number(String(monthKey || "").split("-")[1] || 0);
   return [12, 1, 2].includes(month) ? 4 : 5;
 }
 function loadLocalAdminMembers(expectedUserId) {

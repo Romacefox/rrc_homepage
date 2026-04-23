@@ -166,6 +166,16 @@
 
         <div id="admin-panel" class="hidden">
           <div class="admin-grid">
+            <article class="panel highlight">
+              <h3>운영 기능 요약</h3>
+              <ul class="bullet">
+                <li>회원 관리는 홈페이지 가입 여부와 별개로 운영진이 직접 추가한 회원까지 함께 관리합니다.</li>
+                <li>출석은 정기런, 번개런, 공식 행사로 기록하며 기본 월 5회, 겨울(12~2월)은 4회 이상이면 추첨 대상이 됩니다.</li>
+                <li>추첨권은 현재 월별 기준 달성 시 1장으로 표시하고, 보너스 추첨권은 추후 별도 규칙으로 추가합니다.</li>
+                <li>회비는 운영진이 월별 납부/미납을 관리하고, 회원은 본인 회비 상태를 활동 보드에서 확인합니다.</li>
+              </ul>
+            </article>
+
             <article class="panel">
               <h3>공지 등록</h3>
               <form id="notice-form" class="form compact">
@@ -208,7 +218,7 @@
               <select id="bulk-attendance-type">
                 <option value="정기런">정기런</option>
                 <option value="번개런">번개런</option>
-                <option value="행사">행사</option>
+                <option value="공식 행사">공식 행사(마라톤, 등산 등)</option>
               </select>
               <label for="bulk-attendance-input">참석자 명단 (쉼표/줄바꿈 구분)</label>
               <textarea id="bulk-attendance-input" rows="6" placeholder="김철수, 박민지"></textarea>
@@ -316,7 +326,7 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="script.js?v=20260420e"></script>
+    <script src="script.js?v=20260423a"></script>
 </body>
 </html>
 
