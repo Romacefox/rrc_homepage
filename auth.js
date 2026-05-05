@@ -2053,22 +2053,21 @@ function calculateAttendancePoints(member, monthKey) {
   const streak = getAttendanceStreakFromMonth(member, monthKey);
   let points = monthRuns * 10;
   if (monthRuns >= getMonthThreshold(monthKey)) {
-    points += 8;
+    points += 20;
   }
   if (streak >= 3) {
-    points += 12;
-  }
-  if (streak >= 6) {
-    points += 18;
+    points += 50;
+  } else if (streak >= 2) {
+    points += 30;
   }
   return points;
 }
 
 function calculatePersonalMonthlyPoints({ me, selectedMonth, photoCount, commentCount, latestWin }) {
   const attendancePoints = calculateAttendancePoints(me, selectedMonth);
-  const photoPoints = Math.min(Number(photoCount || 0), 5) * 3;
-  const commentPoints = Math.min(Number(commentCount || 0), 10);
-  const winPoints = latestWin ? 15 : 0;
+  const photoPoints = Math.min(Number(photoCount || 0), 5) * 5;
+  const commentPoints = Math.min(Number(commentCount || 0), 10) * 2;
+  const winPoints = latestWin ? 10 : 0;
   return attendancePoints + photoPoints + commentPoints + winPoints;
 }
 
