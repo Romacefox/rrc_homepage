@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=SUIT:wght@300;400;500;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20260505a" />
+  <link rel="stylesheet" href="styles.css?v=20260505b" />
 </head>
 <body>
   <header class="site-header">
@@ -200,30 +200,34 @@
                   <h3>RRC 리워드 라운지</h3>
                   <span class="badge">포인트 안내</span>
                 </div>
-                <p class="list-meta">출석과 커뮤니티 활동으로 월간 포인트를 모으고, 운영진 승인 후 RRC샵 러닝 용품 보조 신청에 활용하는 흐름입니다. 운영 환산 기준은 10P=100원입니다.</p>
+                <p class="list-meta">출석과 커뮤니티 활동으로 월간 포인트를 모으고, 운영진 승인 후 RRC샵 결제 보조로 사용하는 흐름입니다. 운영 환산 기준은 10P=100원입니다.</p>
                 <div id="reward-preview-list" class="reward-preview-list">
                   <div class="reward-preview-card">
-                    <strong>40P</strong>
-                    <p class="list-meta">젤/보급 간식 보조</p>
+                    <strong>50P</strong>
+                    <p class="list-meta">RRC샵 500원 보조권</p>
                   </div>
                   <div class="reward-preview-card">
-                    <strong>80P</strong>
-                    <p class="list-meta">러닝 양말/소도구 보조</p>
+                    <strong>100P</strong>
+                    <p class="list-meta">RRC샵 1,000원 보조권</p>
                   </div>
                   <div class="reward-preview-card">
-                    <strong>140P</strong>
-                    <p class="list-meta">보틀/러닝 액세서리 보조</p>
+                    <strong>200P</strong>
+                    <p class="list-meta">RRC샵 2,000원 보조권</p>
+                  </div>
+                  <div class="reward-preview-card">
+                    <strong>300P</strong>
+                    <p class="list-meta">RRC샵 3,000원 보조권</p>
                   </div>
                 </div>
                 <p class="list-meta" style="margin-top:0.8rem;">월 참여상 후보 등극 20P, 2개월 연속 후보 30P, 3개월 이상 연속 후보 50P, 매주 정기런 참여 30P, 화요일 한강 정기런 누적 10회 달성 50P, 목요일 올림픽공원 정기런 누적 10회 달성 50P, 월 사진 최대 5장(장당 5P), 월 응원 댓글 최대 10개(개당 2P)로 계산합니다.</p>
                 <form id="reward-request-form" class="form compact" style="margin-top:0.9rem;">
                   <select id="reward-request-item">
-                    <option value="fuel_support">젤/보급 간식 보조 · 40P</option>
-                    <option value="gear_support">러닝 양말/소도구 보조 · 80P</option>
-                    <option value="bottle_support">보틀/액세서리 보조 · 140P</option>
-                    <option value="premium_support">RRC샵 메인 리워드 보조 · 220P</option>
+                    <option value="rrc_shop_500">RRC샵 500원 보조권 · 50P</option>
+                    <option value="rrc_shop_1000">RRC샵 1,000원 보조권 · 100P</option>
+                    <option value="rrc_shop_2000">RRC샵 2,000원 보조권 · 200P</option>
+                    <option value="rrc_shop_3000">RRC샵 3,000원 보조권 · 300P</option>
                   </select>
-                  <textarea id="reward-request-note" rows="3" maxlength="300" placeholder="신청 이유나 원하는 품목을 간단히 적어 주세요"></textarea>
+                  <textarea id="reward-request-note" rows="3" maxlength="300" placeholder="사용하려는 RRC샵 품목이나 요청 내용을 간단히 적어 주세요"></textarea>
                   <div class="inline-form">
                     <button id="reward-request-submit" class="btn primary" type="submit">RRC샵 보조 신청</button>
                     <button id="reward-request-refresh" class="btn ghost" type="button">신청 내역 새로고침</button>
@@ -323,6 +327,6 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="auth.js?v=20260505e"></script>
+  <script src="auth.js?v=20260505f"></script>
 </body>
 </html>

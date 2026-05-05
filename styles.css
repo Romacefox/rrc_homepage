@@ -105,6 +105,17 @@ input, textarea, select {
   padding: 0.7rem 0.8rem;
 }
 
+input[type="date"] {
+  cursor: pointer;
+  color-scheme: dark;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  filter: invert(1) sepia(0.2) saturate(1.5) hue-rotate(340deg);
+  opacity: 0.78;
+}
+
 .btn { border: none; border-radius: 10px; padding: 0.68rem 1rem; text-decoration: none; cursor: pointer; font-weight: 700; width: fit-content; }
 .btn.primary { background: var(--brand); color: #fff; }
 .btn.primary:hover { background: #e35e00; }

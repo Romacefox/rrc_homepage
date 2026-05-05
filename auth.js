@@ -20,10 +20,10 @@ const POINT_POLICY = {
   commentMonthlyCap: 10
 };
 const REWARD_ITEMS = [
-  { code: "fuel_support", name: "젤/보급 간식 보조", points: 40 },
-  { code: "gear_support", name: "러닝 양말/소도구 보조", points: 80 },
-  { code: "bottle_support", name: "보틀/액세서리 보조", points: 140 },
-  { code: "premium_support", name: "RRC샵 메인 리워드 보조", points: 220 }
+  { code: "rrc_shop_500", name: "RRC샵 500원 보조권", points: 50 },
+  { code: "rrc_shop_1000", name: "RRC샵 1,000원 보조권", points: 100 },
+  { code: "rrc_shop_2000", name: "RRC샵 2,000원 보조권", points: 200 },
+  { code: "rrc_shop_3000", name: "RRC샵 3,000원 보조권", points: 300 }
 ];
 
 let supabaseClient = null;
@@ -252,6 +252,8 @@ function init() {
   rewardRequestRefreshButton?.addEventListener("click", loadRewardRequests);
   challengeForm?.addEventListener("submit", handleChallengeSubmit);
   challengeRefreshButton?.addEventListener("click", loadChallenges);
+  attachDatePickerOpen(challengeStartInput);
+  attachDatePickerOpen(challengeEndInput);
   pointAwardForm?.addEventListener("submit", handlePointAwardSubmit);
   pointAwardRefreshButton?.addEventListener("click", loadPointAwards);
   pointAwardCodeInput?.addEventListener("change", syncPointAwardDefaults);
@@ -292,6 +294,29 @@ function markCurrentNavigation() {
       link.setAttribute("aria-current", "page");
     } else {
       link.removeAttribute("aria-current");
+    }
+  });
+}
+
+function attachDatePickerOpen(input) {
+  if (!input || input.type !== "date") {
+    return;
+  }
+  const openPicker = () => {
+    try {
+      input.focus();
+      if (typeof input.showPicker === "function") {
+        input.showPicker();
+      }
+    } catch (_error) {
+      input.focus();
+    }
+  };
+  input.addEventListener("click", openPicker);
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      openPicker();
     }
   });
 }
