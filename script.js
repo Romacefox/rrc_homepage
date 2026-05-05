@@ -8,6 +8,8 @@ const MONTHLY_DRAW_THRESHOLD = 5;
 const WINTER_DRAW_THRESHOLD = 4;
 const DRAW_WINNER_COUNT = 4;
 const MONTHLY_FEE = 5000;
+const BIRTH_YEAR_MIN = 1989;
+const BIRTH_YEAR_MAX = 2004;
 const SUPABASE_URL = "https://aqpszgycsfpxtlsuaqrt.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_C20xXZZRWdjmkzGneCcpjw_mrRnXucq";
 const PHOTO_BUCKET = "rrc-photos";
@@ -138,7 +140,6 @@ function init() {
   populateFeeMonthOptions();
   setDefaultBulkDate();
   renderAll();
-  checkScheduledDraw(false);
   loadPublicRaffleData();
   attachAdminSessionListeners();
   void restoreAdminSession();
@@ -188,7 +189,6 @@ function init() {
 
   setInterval(() => {
     renderRaffle();
-    checkScheduledDraw(false);
   }, 60 * 1000);
 
   setInterval(() => {
@@ -1127,8 +1127,8 @@ async function handleGuestSubmit(event) {
     alert("이름과 연락처는 필수입니다.");
     return;
   }
-  if (birthYear < 1989 || birthYear > 2000) {
-    alert("출생연도는 1989~2000만 가능합니다.");
+  if (birthYear < BIRTH_YEAR_MIN || birthYear > BIRTH_YEAR_MAX) {
+    alert(`출생연도는 ${BIRTH_YEAR_MIN}~${BIRTH_YEAR_MAX}만 가능합니다.`);
     return;
   }
 
@@ -1300,8 +1300,8 @@ async function handleMemberAdd(event) {
   if (!name) {
     return;
   }
-  if (birthYear < 1989 || birthYear > 2000) {
-    alert("회원 출생연도는 1989~2000만 가능합니다.");
+  if (birthYear < BIRTH_YEAR_MIN || birthYear > BIRTH_YEAR_MAX) {
+    alert(`회원 출생연도는 ${BIRTH_YEAR_MIN}~${BIRTH_YEAR_MAX}만 가능합니다.`);
     return;
   }
 
@@ -1526,13 +1526,13 @@ async function handleMemberEdit(member) {
     return;
   }
 
-  const nextBirthYear = prompt("출생연도를 입력해 주세요. (1989~2000)", String(member?.birthYear || ""));
+  const nextBirthYear = prompt(`출생연도를 입력해 주세요. (${BIRTH_YEAR_MIN}~${BIRTH_YEAR_MAX})`, String(member?.birthYear || ""));
   if (nextBirthYear === null) {
     return;
   }
   const birthYear = Number(nextBirthYear);
-  if (!Number.isFinite(birthYear) || birthYear < 1989 || birthYear > 2000) {
-    alert("회원 출생연도는 1989~2000만 가능합니다.");
+  if (!Number.isFinite(birthYear) || birthYear < BIRTH_YEAR_MIN || birthYear > BIRTH_YEAR_MAX) {
+    alert(`회원 출생연도는 ${BIRTH_YEAR_MIN}~${BIRTH_YEAR_MAX}만 가능합니다.`);
     return;
   }
 
@@ -1831,13 +1831,72 @@ function checkScheduledDraw(forceRun) {
   runRouletteAnimation(candidates, winners, schedule.targetMonthKey, threshold, false);
 }
 
-function runManualRafflePreview() {
+async function runManualRafflePreview() {
   const schedule = getDrawSchedule(new Date());
   const threshold = getThresholdForMonthKey(schedule.targetMonthKey);
   const candidates = getEligibleMembers(schedule.targetMonthKey);
-  const winners = pickWinners(candidates, DRAW_WINNER_COUNT);
 
-  runRouletteAnimation(candidates, winners, schedule.targetMonthKey, threshold, true);
+  if (!currentAdminToken) {
+    alert("운영진 로그인 후 추첨을 진행해 주세요.");
+    return;
+  }
+
+  if (!candidates.length) {
+    runRouletteAnimation(candidates, [], schedule.targetMonthKey, threshold, true);
+    return;
+  }
+
+  const confirmed = confirm(`${monthKeyToLabel(schedule.targetMonthKey)} 기준 추첨을 진행할까요?\n\n후보 ${candidates.length}명 중 ${DRAW_WINNER_COUNT}명을 룰렛으로 추첨하고 기록에 저장합니다.`);
+  if (!confirmed) {
+    return;
+  }
+
+  if (runRouletteButton) {
+    runRouletteButton.disabled = true;
+  }
+  if (winnerResult) {
+    winnerResult.textContent = "추첨 기록을 준비하는 중입니다...";
+  }
+
+  try {
+    const result = await callAdminWrite("run_raffle", {
+      target_month_key: schedule.targetMonthKey,
+      threshold,
+      winner_count: DRAW_WINNER_COUNT
+    });
+    const record = normalizeRaffleRecord(result.record);
+    await loadAdminSnapshot();
+
+    const animationCandidates = candidates.length ? candidates : getEligibleMembers(record.targetMonthKey);
+    runRouletteAnimation(animationCandidates, record.winners, record.targetMonthKey, record.threshold, true);
+    renderAll();
+    loadPublicRaffleData();
+    if (syncStatus) {
+      syncStatus.textContent = `${monthKeyToLabel(record.targetMonthKey)} 수동 추첨 기록을 저장했습니다.`;
+    }
+  } catch (error) {
+    if (winnerResult) {
+      const message = String(error?.message || error);
+      winnerResult.textContent = message.includes("already drawn")
+        ? `${monthKeyToLabel(schedule.targetMonthKey)} 추첨 기록이 이미 있습니다. 최근 추첨 기록을 확인해 주세요.`
+        : `추첨 실패: ${message}`;
+    }
+  } finally {
+    if (runRouletteButton) {
+      runRouletteButton.disabled = false;
+    }
+  }
+}
+
+function normalizeRaffleRecord(record) {
+  return {
+    drawId: String(record?.draw_id || record?.drawId || makeId()),
+    targetMonthKey: String(record?.target_month_key || record?.targetMonthKey || previousMonthKey(new Date())),
+    threshold: Number(record?.threshold || 0),
+    winnerCount: Number(record?.winner_count || record?.winnerCount || 0),
+    winners: Array.isArray(record?.winners) ? record.winners : [],
+    createdAt: record?.created_at || record?.createdAt || new Date().toISOString()
+  };
 }
 
 function runRouletteAnimation(candidates, winners, monthKey, threshold, isManual) {
@@ -1885,7 +1944,7 @@ function runRouletteAnimation(candidates, winners, monthKey, threshold, isManual
 
       const names = winners.map((winner) => `${winner.name} (${Number(winner.runs || 0)}회)`).join(" / ");
       rouletteTrack.textContent = names;
-      winnerResult.textContent = `${isManual ? "테스트" : "자동"} 추첨 완료: ${names}`;
+      winnerResult.textContent = `${isManual ? "수동" : "자동"} 추첨 완료: ${names}`;
     }, 2600);
   }
 }
@@ -2717,17 +2776,17 @@ function renderTrend(target, series, suffix) {
 
 function renderRaffle() {
   const now = new Date();
-  const nextDrawAt = getNextDrawAt(now);
-  const nextSchedule = getDrawSchedule(nextDrawAt);
+  const nextSchedule = getDrawSchedule(now);
+  const nextDrawAt = nextSchedule.scheduledAt;
   const localHistory = Array.isArray(db.raffle?.history) ? db.raffle.history : [];
   const latestRecord = localHistory[0] || null;
   const publicHistory = publicRaffleHistory.length ? publicRaffleHistory : localHistory;
   const nextThreshold = getThresholdForMonthKey(nextSchedule.targetMonthKey);
   const nextEligibleCount = getEligibleMembers(nextSchedule.targetMonthKey).length;
 
-  const ruleText = `${monthKeyToLabel(nextSchedule.targetMonthKey)} 기준: ${nextThreshold}회 이상 출석 시 자동 추첨 대상 (${nextEligibleCount}명)`;
-  const publicRuleText = `${monthKeyToLabel(nextSchedule.targetMonthKey)} 기준: ${nextThreshold}회 이상 출석 시 매월 5일 자동 추첨됩니다.`;
-  const nextText = `다음 자동 추첨: ${formatDateTime(nextDrawAt)} (매월 5일 12:00)`;
+  const ruleText = `${monthKeyToLabel(nextSchedule.targetMonthKey)} 기준: ${nextThreshold}회 이상 출석 시 추첨 대상 (${nextEligibleCount}명)`;
+  const publicRuleText = `${monthKeyToLabel(nextSchedule.targetMonthKey)} 기준: ${nextThreshold}회 이상 출석 시 운영진 수동 룰렛 추첨 대상입니다.`;
+  const nextText = `운영진이 월말 출석 마감 후 추첨하기 버튼으로 진행합니다. 권장 시점: ${formatDateTime(nextDrawAt)} 이후`;
 
   if (raffleRule) {
     raffleRule.textContent = ruleText;

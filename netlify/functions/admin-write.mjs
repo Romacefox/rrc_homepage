@@ -1,6 +1,12 @@
 const PROFILE_TABLE = "member_profiles";
 const LOG_TABLE = "operation_logs";
 const ATTENDANCE_RPC_NAME = "admin_attendance_mutation";
+const DEFAULT_WINNER_COUNT = 4;
+const DEFAULT_THRESHOLD = 5;
+const WINTER_THRESHOLD = 4;
+const WINTER_MONTHS = [12, 1, 2];
+const BIRTH_YEAR_MIN = 1989;
+const BIRTH_YEAR_MAX = 2004;
 
 export default async (request) => {
   try {
@@ -89,7 +95,7 @@ export default async (request) => {
       if (!name) {
         return json(400, { ok: false, error: "missing name" });
       }
-      if (birthYear < 1989 || birthYear > 2000) {
+      if (birthYear < BIRTH_YEAR_MIN || birthYear > BIRTH_YEAR_MAX) {
         return json(400, { ok: false, error: "invalid birth_year" });
       }
 
@@ -124,7 +130,7 @@ export default async (request) => {
       if (!memberId || !name) {
         return json(400, { ok: false, error: "missing member payload" });
       }
-      if (birthYear < 1989 || birthYear > 2000) {
+      if (birthYear < BIRTH_YEAR_MIN || birthYear > BIRTH_YEAR_MAX) {
         return json(400, { ok: false, error: "invalid birth_year" });
       }
 
@@ -148,6 +154,51 @@ export default async (request) => {
       });
       await tryInsertOperationLog(auth, "member_update", `${name} (${birthYear})`);
       return json(200, { ok: true, message: "member updated" });
+    }
+
+    if (action === "run_raffle") {
+      const targetMonthKey = normalizeMonthKey(body?.target_month_key) || previousMonthKey(new Date());
+      const threshold = Math.max(1, Number(body?.threshold || thresholdForMonthKey(targetMonthKey)));
+      const winnerCount = Math.max(1, Math.min(Number(body?.winner_count || DEFAULT_WINNER_COUNT), 20));
+      const existingDraws = await supabaseSelect(`raffle_history?target_month_key=eq.${encodeURIComponent(targetMonthKey)}&select=draw_id&limit=1`);
+      if (Array.isArray(existingDraws) && existingDraws.length > 0) {
+        return json(409, { ok: false, error: "raffle already drawn for target month" });
+      }
+      const members = await loadMembers();
+      const candidates = members.filter((member) => (
+        member.is_active !== false
+        && monthlyRunsOf(member, targetMonthKey) >= threshold
+      ));
+      const winners = pickWinners(candidates, winnerCount).map((member) => ({
+        id: member.id,
+        name: member.name,
+        runs: monthlyRunsOf(member, targetMonthKey)
+      }));
+      const createdAt = new Date().toISOString();
+      const record = {
+        draw_id: `manual-${targetMonthKey}-${Date.now()}`,
+        target_month_key: targetMonthKey,
+        threshold,
+        winner_count: winnerCount,
+        winners,
+        created_at: createdAt
+      };
+
+      await supabaseInsert("raffle_history", {
+        draw_id: record.draw_id,
+        target_month_key: record.target_month_key,
+        threshold: record.threshold,
+        winner_count: record.winner_count,
+        winners: record.winners
+      });
+      await supabaseInsert("notices", {
+        title: `${labelMonth(targetMonthKey)} 참여 추첨 결과`,
+        content: winners.length
+          ? `${winners.map((winner) => winner.name).join(", ")}님 축하합니다!`
+          : `기준(${threshold}회 이상)을 충족한 회원이 없어 당첨자가 없습니다.`
+      });
+      await tryInsertOperationLog(auth, "raffle_manual_draw", `${targetMonthKey}: ${winners.map((winner) => winner.name).join(", ") || "no winner"}`);
+      return json(200, { ok: true, message: "raffle drawn", record, candidate_count: candidates.length });
     }
 
     if (action === "toggle_member_active") {
@@ -608,6 +659,42 @@ async function updateMemberRuns(member, delta, monthKey) {
   });
   member.total_runs = nextTotal;
   member.monthly_runs = { ...monthlyRuns, [monthKey]: nextMonthly };
+}
+
+function normalizeMonthKey(value) {
+  const match = String(value || "").match(/^(\d{4})-(\d{2})$/);
+  return match ? `${match[1]}-${match[2]}` : "";
+}
+
+function previousMonthKey(date) {
+  const previous = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() - 1, 1));
+  return `${previous.getUTCFullYear()}-${String(previous.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function thresholdForMonthKey(monthKey) {
+  const month = Number(String(monthKey || "").split("-")[1] || 0);
+  return WINTER_MONTHS.includes(month) ? WINTER_THRESHOLD : DEFAULT_THRESHOLD;
+}
+
+function monthlyRunsOf(member, monthKey) {
+  const monthlyRuns = member?.monthly_runs && typeof member.monthly_runs === "object"
+    ? member.monthly_runs
+    : {};
+  return Number(monthlyRuns[monthKey] || 0);
+}
+
+function pickWinners(candidates, count) {
+  const shuffled = [...candidates];
+  for (let i = shuffled.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled.slice(0, count);
+}
+
+function labelMonth(monthKey) {
+  const [year, month] = String(monthKey || "").split("-");
+  return `${year}년 ${month}월`;
 }
 
 function normalizeName(name) {

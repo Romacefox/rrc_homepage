@@ -11,6 +11,7 @@
 
 3. Supabase SQL 실행
 - `supabase/schema.sql`
+- 기존 운영 DB는 `supabase/age_2004_patch.sql`
 - `supabase/policies.sql`
 
 4. Netlify 환경변수 입력
@@ -54,7 +55,7 @@
 - 최근 6개월 추이 바 표시
 
 7. 룰렛/추첨
-- 룰렛 테스트 실행 정상
+- 운영진 `추첨하기` 버튼 실행 정상
 - 추첨 기록 표시 정상
 - 운영진 로그인 후 `Supabase 동기화` 버튼 정상 동작
 
@@ -66,9 +67,10 @@
 - 승인 후 사진 업로드 가능
 - 업로드 후 목록에 썸네일 표시
 
-## C. 자동 추첨 검수
-1. Netlify Scheduled Function 동작 확인
-- 함수 로그에서 `monthly-draw` 성공 실행 확인 (매월 5일 12:00 KST 기준)
+## C. 수동 추첨 검수
+1. 운영진 수동 추첨 확인
+- 출석 마감 후 운영진 화면에서 `추첨하기` 실행
+- 룰렛 애니메이션 후 당첨자 표시 확인
 
 2. DB 반영 확인
 - `raffle_history` 레코드 생성

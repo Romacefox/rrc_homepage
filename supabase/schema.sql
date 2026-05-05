@@ -5,7 +5,7 @@ create extension if not exists pgcrypto;
 create table if not exists public.members (
   id uuid primary key default gen_random_uuid(),
   name text not null,
-  birth_year int not null check (birth_year between 1989 and 2000),
+  birth_year int not null check (birth_year between 1989 and 2004),
   total_runs int not null default 0,
   monthly_runs jsonb not null default '{}'::jsonb,
   is_active boolean not null default true,
@@ -30,7 +30,7 @@ create table if not exists public.notices (
 create table if not exists public.guests (
   id uuid primary key default gen_random_uuid(),
   name text not null,
-  birth_year int not null check (birth_year between 1989 and 2000),
+  birth_year int not null check (birth_year between 1989 and 2004),
   phone text not null,
   message text,
   status text not null default '대기',
@@ -92,7 +92,7 @@ create table if not exists public.member_profiles (
   user_id uuid primary key,
   email text not null,
   name text not null,
-  birth_year int not null check (birth_year between 1989 and 2000),
+  birth_year int not null check (birth_year between 1989 and 2004),
   intro text,
   approval_status text not null default 'pending' check (approval_status in ('pending','approved','rejected')),
   created_at timestamptz not null default now(),

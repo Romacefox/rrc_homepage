@@ -65,7 +65,7 @@ drop policy if exists "public insert guests" on public.guests;
 create policy "public insert guests" on public.guests
 for insert to public
 with check (
-  birth_year between 1989 and 2000
+  birth_year between 1989 and 2004
   and char_length(name) between 1 and 80
   and char_length(phone) between 1 and 40
   and status = '대기'

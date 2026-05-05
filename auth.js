@@ -4,6 +4,26 @@ const PHOTO_BUCKET = "rrc-photos";
 const PENDING_SIGNUP_PREFIX = "rrc-pending-signup:";
 const ADMIN_SNAPSHOT_META_KEY = "rrc-admin-snapshot-meta-v1";
 const LOCAL_ADMIN_SNAPSHOT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+const BIRTH_YEAR_MIN = 1989;
+const BIRTH_YEAR_MAX = 2004;
+const POINT_WON_RATE = 10;
+const POINT_POLICY = {
+  attendance: 10,
+  monthlyGoal: 20,
+  streakTwoMonths: 30,
+  streakThreeMonths: 50,
+  photo: 5,
+  photoMonthlyCap: 5,
+  comment: 2,
+  commentMonthlyCap: 10,
+  raffleWin: 10
+};
+const REWARD_ITEMS = [
+  { code: "fuel_support", name: "젤/보급 간식 보조", points: 40 },
+  { code: "gear_support", name: "러닝 양말/소도구 보조", points: 80 },
+  { code: "bottle_support", name: "보틀/액세서리 보조", points: 140 },
+  { code: "premium_support", name: "RRC샵 메인 리워드 보조", points: 220 }
+];
 
 let supabaseClient = null;
 let authUser = null;
@@ -278,8 +298,8 @@ async function handleSignup(event) {
     setStatus(signupStatus, "이메일, 비밀번호, 이름, 출생연도는 필수입니다.");
     return;
   }
-  if (payload.birthYear < 1989 || payload.birthYear > 2000) {
-    setStatus(signupStatus, "출생연도는 1989~2000만 가능합니다.");
+  if (payload.birthYear < BIRTH_YEAR_MIN || payload.birthYear > BIRTH_YEAR_MAX) {
+    setStatus(signupStatus, `출생연도는 ${BIRTH_YEAR_MIN}~${BIRTH_YEAR_MAX}만 가능합니다.`);
     return;
   }
   if (!payload.agreed) {
@@ -1394,11 +1414,12 @@ function getMonthlyRuns(member, monthKey) {
 }
 
 async function renderMyActivityState(me, selectedMonth, raffleRecords) {
-  const [photos, comments] = await Promise.all([loadMyPhotos(), loadMyComments()]);
+  const [photos, comments] = await Promise.all([loadMyPhotos(selectedMonth), loadMyComments(selectedMonth)]);
   const wins = Array.isArray(raffleRecords)
     ? raffleRecords.filter((record) => hasRaffleWinner(record, authProfile?.name))
     : [];
   const latestWin = wins[0] || null;
+  const selectedMonthWin = wins.find((record) => record.target_month_key === selectedMonth) || null;
   const feeLabel = getPersonalFeeLabel(me, selectedMonth);
   const previousStreak = getAttendanceStreakFromMonth(me, shiftMonthKey(selectedMonth, -1));
   const currentStreak = getAttendanceStreakFromMonth(me, selectedMonth);
@@ -1409,7 +1430,7 @@ async function renderMyActivityState(me, selectedMonth, raffleRecords) {
     selectedMonth,
     photoCount: photos.length,
     commentCount: comments.length,
-    latestWin
+    latestWin: selectedMonthWin
   });
   const raffleLabel = latestWin
     ? `${monthKeyToLabel(latestWin.target_month_key)} 당첨`
@@ -1438,8 +1459,8 @@ async function renderMyActivityState(me, selectedMonth, raffleRecords) {
   }
   if (myPointNote) {
     myPointNote.textContent = nextReward.remaining > 0
-      ? `${nextReward.remaining}P 더 모으면 ${nextReward.label} 신청권에 가까워집니다.`
-      : `${nextReward.label} 구간입니다. 운영진 승인 후 RRC샵 보조 신청이 가능합니다.`;
+      ? `${nextReward.remaining}P 더 모으면 ${nextReward.label} 신청권에 가까워집니다. 1P는 운영 기준 ${POINT_WON_RATE.toLocaleString("ko-KR")}원으로 환산합니다.`
+      : `${nextReward.label} 구간입니다. 현재 기준 약 ${Number(nextReward.won || 0).toLocaleString("ko-KR")}원 상당이며 운영진 승인 후 RRC샵 보조 신청이 가능합니다.`;
   }
 
   renderBadgeList(buildPersonalBadges({
@@ -1772,13 +1793,7 @@ async function callMemberRewards(query = "", options = {}) {
 }
 
 function getRewardItemMeta(code) {
-  const items = [
-    { code: "fuel_support", name: "젤/보급 간식 보조", points: 40 },
-    { code: "gear_support", name: "러닝 양말/소도구 보조", points: 80 },
-    { code: "bottle_support", name: "보틀/액세서리 보조", points: 140 },
-    { code: "premium_support", name: "RRC샵 메인 리워드 보조", points: 220 }
-  ];
-  return items.find((item) => item.code === code) || null;
+  return REWARD_ITEMS.find((item) => item.code === code) || null;
 }
 
 function getRewardRequestStatusLabel(status) {
@@ -1940,30 +1955,46 @@ function getSuggestionStatusClass(status) {
   }
 }
 
-async function loadMyPhotos() {
+async function loadMyPhotos(monthKey = currentMonthKey()) {
   if (!supabaseClient || !authUser) {
     return [];
   }
+  const range = getMonthDateRange(monthKey);
   const result = await supabaseClient
     .from("photos")
     .select("id,caption,created_at")
     .eq("user_id", authUser.id)
+    .gte("created_at", range.start)
+    .lt("created_at", range.end)
     .order("created_at", { ascending: false })
-    .limit(5);
+    .limit(POINT_POLICY.photoMonthlyCap);
   return result.error ? [] : (Array.isArray(result.data) ? result.data : []);
 }
 
-async function loadMyComments() {
+async function loadMyComments(monthKey = currentMonthKey()) {
   if (!supabaseClient || !authUser) {
     return [];
   }
+  const range = getMonthDateRange(monthKey);
   const result = await supabaseClient
     .from("photo_comments")
     .select("id,content,created_at")
     .eq("user_id", authUser.id)
+    .gte("created_at", range.start)
+    .lt("created_at", range.end)
     .order("created_at", { ascending: false })
-    .limit(5);
+    .limit(POINT_POLICY.commentMonthlyCap);
   return result.error ? [] : (Array.isArray(result.data) ? result.data : []);
+}
+
+function getMonthDateRange(monthKey) {
+  const [year, month] = String(monthKey || currentMonthKey()).split("-").map(Number);
+  const startDate = new Date(Date.UTC(year || new Date().getFullYear(), (month || 1) - 1, 1));
+  const endDate = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth() + 1, 1));
+  return {
+    start: startDate.toISOString(),
+    end: endDate.toISOString()
+  };
 }
 
 function renderSimpleHistory(node, items, emptyText) {
@@ -2051,41 +2082,36 @@ function calculateMonthlyTickets(member, monthKey) {
 function calculateAttendancePoints(member, monthKey) {
   const monthRuns = getMonthlyRuns(member, monthKey);
   const streak = getAttendanceStreakFromMonth(member, monthKey);
-  let points = monthRuns * 10;
+  let points = monthRuns * POINT_POLICY.attendance;
   if (monthRuns >= getMonthThreshold(monthKey)) {
-    points += 20;
+    points += POINT_POLICY.monthlyGoal;
   }
   if (streak >= 3) {
-    points += 50;
+    points += POINT_POLICY.streakThreeMonths;
   } else if (streak >= 2) {
-    points += 30;
+    points += POINT_POLICY.streakTwoMonths;
   }
   return points;
 }
 
 function calculatePersonalMonthlyPoints({ me, selectedMonth, photoCount, commentCount, latestWin }) {
   const attendancePoints = calculateAttendancePoints(me, selectedMonth);
-  const photoPoints = Math.min(Number(photoCount || 0), 5) * 5;
-  const commentPoints = Math.min(Number(commentCount || 0), 10) * 2;
-  const winPoints = latestWin ? 10 : 0;
+  const photoPoints = Math.min(Number(photoCount || 0), POINT_POLICY.photoMonthlyCap) * POINT_POLICY.photo;
+  const commentPoints = Math.min(Number(commentCount || 0), POINT_POLICY.commentMonthlyCap) * POINT_POLICY.comment;
+  const winPoints = latestWin ? POINT_POLICY.raffleWin : 0;
   return attendancePoints + photoPoints + commentPoints + winPoints;
 }
 
 function getNextReward(points) {
-  const tiers = [
-    { threshold: 40, label: "젤/보급 간식 보조" },
-    { threshold: 80, label: "러닝 양말/소도구 보조" },
-    { threshold: 140, label: "보틀/러닝 액세서리 보조" },
-    { threshold: 220, label: "RRC샵 메인 리워드 보조" }
-  ];
   const currentPoints = Number(points || 0);
-  const nextTier = tiers.find((tier) => currentPoints < tier.threshold);
+  const nextTier = REWARD_ITEMS.find((tier) => currentPoints < tier.points);
   if (!nextTier) {
-    return { label: "RRC샵 프리미엄 구간", remaining: 0 };
+    return { label: "RRC샵 프리미엄 구간", remaining: 0, won: currentPoints * POINT_WON_RATE };
   }
   return {
-    label: nextTier.label,
-    remaining: Math.max(nextTier.threshold - currentPoints, 0)
+    label: nextTier.name,
+    remaining: Math.max(nextTier.points - currentPoints, 0),
+    won: currentPoints * POINT_WON_RATE
   };
 }
 

@@ -74,7 +74,7 @@ function rebuildMembers(profiles, currentMembers, attendanceLogs) {
 
     mergedByKey.set(key, {
       name: String(member.name || "이름없음").slice(0, 80),
-      birth_year: clampNumber(member.birth_year, 1989, 2000, 1994),
+      birth_year: clampNumber(member.birth_year, 1989, 2004, 1994),
       total_runs: totalRuns,
       monthly_runs: monthlyRuns,
       fee_status: member.fee_status && typeof member.fee_status === "object" ? member.fee_status : {},
@@ -91,7 +91,7 @@ function rebuildMembers(profiles, currentMembers, attendanceLogs) {
 
     mergedByKey.set(key, {
       name: String(profile.name || "이름없음").slice(0, 80),
-      birth_year: clampNumber(profile.birth_year, 1989, 2000, 1994),
+      birth_year: clampNumber(profile.birth_year, 1989, 2004, 1994),
       total_runs: Math.max(totalRuns, Number(current?.total_runs || 0)),
       monthly_runs: mergeMonthlyRuns(current?.monthly_runs, monthlyRuns),
       fee_status: current?.fee_status && typeof current.fee_status === "object" ? current.fee_status : {},

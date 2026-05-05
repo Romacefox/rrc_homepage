@@ -148,7 +148,7 @@ function normalizeMembers(input) {
   }
   return input.slice(0, 300).map((item) => ({
     name: String(item?.name || "이름없음").slice(0, 80),
-    birth_year: clampNumber(item?.birth_year, 1989, 2000, 1994),
+    birth_year: clampNumber(item?.birth_year, 1989, 2004, 1994),
     total_runs: Math.max(0, Number(item?.total_runs || 0)),
     monthly_runs: item?.monthly_runs && typeof item.monthly_runs === "object" ? item.monthly_runs : {},
     fee_status: item?.fee_status && typeof item.fee_status === "object" ? item.fee_status : {},
@@ -174,7 +174,7 @@ function normalizeGuests(input) {
   }
   return input.slice(0, 500).map((item) => ({
     name: String(item?.name || "게스트").slice(0, 80),
-    birth_year: clampNumber(item?.birth_year, 1989, 2000, 1994),
+    birth_year: clampNumber(item?.birth_year, 1989, 2004, 1994),
     phone: String(item?.phone || "").slice(0, 40),
     message: String(item?.message || "").slice(0, 4000),
     status: String(item?.status || "대기").slice(0, 20),

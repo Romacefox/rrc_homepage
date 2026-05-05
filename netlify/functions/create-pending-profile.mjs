@@ -1,4 +1,6 @@
 const TABLE = "member_profiles";
+const BIRTH_YEAR_MIN = 1989;
+const BIRTH_YEAR_MAX = 2004;
 
 export default async (request) => {
   if (request.method !== "POST") {
@@ -16,7 +18,7 @@ export default async (request) => {
     if (!userId || !email || !name || !birthYear) {
       return json(400, { ok: false, error: "missing required fields" });
     }
-    if (birthYear < 1989 || birthYear > 2000) {
+    if (birthYear < BIRTH_YEAR_MIN || birthYear > BIRTH_YEAR_MAX) {
       return json(400, { ok: false, error: "invalid birth_year" });
     }
 
