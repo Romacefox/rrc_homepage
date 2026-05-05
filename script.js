@@ -76,8 +76,15 @@ const feeOnlyUnpaidInput = document.getElementById("fee-only-unpaid");
 const feeDownloadCsvButton = document.getElementById("fee-download-csv");
 const feeImportFileInput = document.getElementById("fee-import-file");
 const feeImportApplyButton = document.getElementById("fee-import-apply");
+const feeNameInput = document.getElementById("fee-name-input");
+const feeNameApplyButton = document.getElementById("fee-name-apply");
 const feeImportResult = document.getElementById("fee-import-result");
 const feeWarningList = document.getElementById("fee-warning-list");
+
+const adminTaskStatus = document.getElementById("admin-task-status");
+const adminTaskList = document.getElementById("admin-task-list");
+const copyUnpaidMessageButton = document.getElementById("copy-unpaid-message");
+const copyRaffleCheckMessageButton = document.getElementById("copy-raffle-check-message");
 
 const riskList = document.getElementById("risk-list");
 
@@ -163,11 +170,15 @@ function init() {
     renderFees();
     renderDashboard();
     renderRisks();
+    renderAdminTasks();
   });
   feeMarkAllUnpaidButton.addEventListener("click", resetCurrentMonthFees);
   feeOnlyUnpaidInput.addEventListener("change", renderFees);
   feeDownloadCsvButton.addEventListener("click", downloadFeeCsv);
   feeImportApplyButton?.addEventListener("click", handleFeeImportApply);
+  feeNameApplyButton?.addEventListener("click", handleFeeNameApply);
+  copyUnpaidMessageButton?.addEventListener("click", copyUnpaidMessage);
+  copyRaffleCheckMessageButton?.addEventListener("click", copyRaffleCheckMessage);
 
   runRouletteButton.addEventListener("click", runManualRafflePreview);
 
@@ -245,7 +256,7 @@ function markCurrentNavigation() {
 }
 
 function configureAdminInputs() {
-  const koreanTextInputs = [memberNameInput, attendanceNameInput, memberSearchInput, bulkAttendanceInput];
+  const koreanTextInputs = [memberNameInput, attendanceNameInput, memberSearchInput, bulkAttendanceInput, feeNameInput];
   koreanTextInputs.forEach((node) => {
     if (!node) {
       return;
@@ -1957,6 +1968,7 @@ function renderAll() {
   renderRisks();
   renderDashboard();
   renderRaffle();
+  renderAdminTasks();
   renderAuditLogs();
 }
 function renderNotices() {
@@ -2438,6 +2450,7 @@ async function updateMemberFeeStatus(id, monthKey, status) {
   renderFees();
   renderRisks();
   renderDashboard();
+  renderAdminTasks();
 }
 
 async function resetCurrentMonthFees() {
@@ -2472,6 +2485,7 @@ async function resetCurrentMonthFees() {
   renderFees();
   renderRisks();
   renderDashboard();
+  renderAdminTasks();
 }
 
 function populateFeeMonthOptions() {
@@ -2584,6 +2598,124 @@ async function handleFeeImportApply() {
   if (feeImportResult) {
     feeImportResult.textContent = `토스 거래내역 반영 완료: ${preview.matches.length}명 납부 처리 (${names})`;
   }
+}
+
+async function handleFeeNameApply() {
+  const rawInput = String(feeNameInput?.value || "").trim();
+  const monthKey = feeMonthSelect.value || currentMonthKey();
+  if (!rawInput) {
+    alert("납부 처리할 이름 목록을 붙여넣어 주세요.");
+    return;
+  }
+
+  const preview = buildFeeNamePreview(rawInput, monthKey);
+  if (!preview.matches.length) {
+    const skippedText = buildFeePreviewSkippedText(preview);
+    if (feeImportResult) {
+      feeImportResult.textContent = skippedText
+        ? `반영할 새 납부자가 없습니다. 참고: ${skippedText}`
+        : "반영할 새 납부자가 없습니다.";
+    }
+    alert("반영할 납부자를 찾지 못했습니다.");
+    return;
+  }
+
+  const names = preview.matches.map((entry) => entry.member.name).join(", ");
+  const skippedText = buildFeePreviewSkippedText(preview);
+  const message = `${monthKeyToLabel(monthKey)} 회비 납부로 ${preview.matches.length}명을 반영할까요?\n\n${names}${skippedText ? `\n\n참고: ${skippedText}` : ""}`;
+  if (!confirm(message)) {
+    return;
+  }
+
+  const memberIds = preview.matches.map((entry) => entry.member.id);
+  if (currentAdminToken) {
+    try {
+      await callAdminWrite("bulk_update_member_fee_status", {
+        member_ids: memberIds,
+        month_key: monthKey,
+        status: "paid"
+      });
+      await loadAdminSnapshot();
+      renderAll();
+      if (feeNameInput) {
+        feeNameInput.value = "";
+      }
+      if (feeImportResult) {
+        feeImportResult.textContent = `이름 목록 납부 처리 완료: ${preview.matches.length}명 (${names})`;
+      }
+      return;
+    } catch (error) {
+      alert(`이름 목록 납부 처리 실패: ${String(error?.message || error)}`);
+      return;
+    }
+  }
+
+  const memberIdSet = new Set(memberIds);
+  db.members = db.members.map((member) => memberIdSet.has(member.id)
+    ? { ...member, feeStatus: { ...(member.feeStatus || {}), [monthKey]: "paid" } }
+    : member);
+  saveDb();
+  renderFees();
+  renderRisks();
+  renderDashboard();
+  renderAdminTasks();
+  if (feeNameInput) {
+    feeNameInput.value = "";
+  }
+  if (feeImportResult) {
+    feeImportResult.textContent = `이름 목록 납부 처리 완료: ${preview.matches.length}명 (${names})`;
+  }
+}
+
+function buildFeeNamePreview(rawInput, monthKey) {
+  const names = dedupeNormalized(parseNames(rawInput));
+  const matchedIds = new Set();
+  const preview = {
+    matches: [],
+    alreadyPaid: [],
+    ambiguous: [],
+    inactive: [],
+    unmatched: []
+  };
+
+  names.forEach((name) => {
+    const result = findMemberByName(name);
+    if (result.type === "ambiguous") {
+      preview.ambiguous.push(name);
+      return;
+    }
+    if (result.type !== "unique") {
+      preview.unmatched.push(name);
+      return;
+    }
+
+    const member = result.member;
+    if (member.isActive === false) {
+      preview.inactive.push(member);
+      return;
+    }
+    if (matchedIds.has(member.id)) {
+      return;
+    }
+    if (getFeeStatus(member, monthKey) === "paid") {
+      preview.alreadyPaid.push(member);
+      return;
+    }
+    matchedIds.add(member.id);
+    preview.matches.push({ member, name });
+  });
+
+  return preview;
+}
+
+function buildFeePreviewSkippedText(preview) {
+  return [
+    preview.alreadyPaid?.length ? `이미 납부 ${preview.alreadyPaid.length}명` : "",
+    preview.ambiguous?.length ? `동명이인/중복 후보 ${preview.ambiguous.length}건` : "",
+    preview.unmatched?.length ? `미일치 ${preview.unmatched.length}건` : "",
+    preview.inactive?.length ? `휴면 회원 ${preview.inactive.length}명` : "",
+    preview.outOfMonth?.length ? `다른 월로 보이는 내역 ${preview.outOfMonth.length}건` : ""
+  ].filter(Boolean).join(" · ");
 }
 
 function buildFeeImportPreview(text, monthKey) {
@@ -2755,6 +2887,111 @@ function renderDashboard() {
 
   renderTrend(runsTrend, runSeries, "회");
   renderTrend(feeTrend, feeSeries, "%");
+}
+
+function renderAdminTasks() {
+  if (!adminTaskList || !adminTaskStatus) {
+    return;
+  }
+
+  const monthKey = feeMonthSelect?.value || currentMonthKey();
+  const drawSchedule = getDrawSchedule(new Date());
+  const activeMembers = db.members.filter((member) => member.isActive !== false);
+  const unpaidMembers = getUnpaidMembers(monthKey);
+  const riskMembers = activeMembers.filter((member) => computeMemberRisk(member, new Date()).level !== "ok");
+  const raffleCandidatesForTarget = getEligibleMembers(drawSchedule.targetMonthKey);
+  const raffleDone = (Array.isArray(db.raffle?.history) ? db.raffle.history : [])
+    .some((record) => record.targetMonthKey === drawSchedule.targetMonthKey);
+  const latestAttendanceLog = (Array.isArray(db.attendanceLogs) ? db.attendanceLogs : [])[0] || null;
+
+  adminTaskStatus.textContent = `${monthKeyToLabel(monthKey)} 기준: 활성 ${activeMembers.length}명 · 미납 ${unpaidMembers.length}명 · 주의 ${riskMembers.length}명`;
+  adminTaskList.innerHTML = "";
+
+  const tasks = [
+    {
+      title: "회비",
+      meta: unpaidMembers.length
+        ? `${unpaidMembers.length}명 미납: ${unpaidMembers.slice(0, 8).map((member) => member.name).join(", ")}${unpaidMembers.length > 8 ? " 외" : ""}`
+        : "현재 선택 월 미납자가 없습니다.",
+      tone: unpaidMembers.length ? "warn" : "ok"
+    },
+    {
+      title: "출석/추첨 점검",
+      meta: `${monthKeyToLabel(drawSchedule.targetMonthKey)} 후보 ${raffleCandidatesForTarget.length}명 · ${raffleDone ? "이미 추첨 기록 있음" : "추첨 전"}`,
+      tone: raffleDone ? "ok" : "warn"
+    },
+    {
+      title: "활동 리스크",
+      meta: riskMembers.length
+        ? `${riskMembers.length}명 점검 필요: ${riskMembers.slice(0, 6).map((member) => member.name).join(", ")}${riskMembers.length > 6 ? " 외" : ""}`
+        : "강퇴 후보/주의 회원이 없습니다.",
+      tone: riskMembers.length ? "warn" : "ok"
+    },
+    {
+      title: "최근 출석 로그",
+      meta: latestAttendanceLog
+        ? `${formatDate(latestAttendanceLog.date)} ${latestAttendanceLog.eventType} · 반영 ${latestAttendanceLog.matched?.length || 0}명`
+        : "아직 출석 로그가 없습니다.",
+      tone: latestAttendanceLog ? "ok" : "warn"
+    }
+  ];
+
+  tasks.forEach((task) => {
+    const item = document.createElement("li");
+    item.className = "list-item admin-task-item";
+    item.innerHTML = `<div class="list-top"><span class="list-title">${escapeHtml(task.title)}</span><span class="status-chip ${task.tone === "warn" ? "warn" : ""}">${task.tone === "warn" ? "확인" : "정상"}</span></div><p class="list-meta">${escapeHtml(task.meta)}</p>`;
+    adminTaskList.appendChild(item);
+  });
+}
+
+function getUnpaidMembers(monthKey) {
+  return db.members
+    .filter((member) => member.isActive !== false && getFeeStatus(member, monthKey) !== "paid")
+    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "ko"));
+}
+
+async function copyUnpaidMessage() {
+  const monthKey = feeMonthSelect?.value || currentMonthKey();
+  const unpaidMembers = getUnpaidMembers(monthKey);
+  const text = unpaidMembers.length
+    ? `[RRC 회비 안내]\n${monthKeyToLabel(monthKey)} 회비 미납 확인 부탁드립니다.\n대상: ${unpaidMembers.map((member) => member.name).join(", ")}\n\n이미 입금하셨다면 운영진에게 알려주세요. 감사합니다!`
+    : `[RRC 회비 안내]\n${monthKeyToLabel(monthKey)} 기준 미납자가 없습니다.`;
+  await copyTextToClipboard(text, "미납 안내 문구를 복사했습니다.");
+}
+
+async function copyRaffleCheckMessage() {
+  const schedule = getDrawSchedule(new Date());
+  const threshold = getThresholdForMonthKey(schedule.targetMonthKey);
+  const candidates = getEligibleMembers(schedule.targetMonthKey)
+    .sort((a, b) => getMonthlyRuns(b, schedule.targetMonthKey) - getMonthlyRuns(a, schedule.targetMonthKey) || String(a.name || "").localeCompare(String(b.name || ""), "ko"));
+  const candidateText = candidates.length
+    ? candidates.map((member, index) => `${index + 1}. ${member.name} (${getMonthlyRuns(member, schedule.targetMonthKey)}회)`).join("\n")
+    : "후보 없음";
+  const text = `[RRC 참여 추첨 점검]\n대상월: ${monthKeyToLabel(schedule.targetMonthKey)}\n기준: ${threshold}회 이상 출석\n후보 ${candidates.length}명\n${candidateText}\n\n출석 누락이 있으면 추첨 전 운영진에게 알려주세요.`;
+  await copyTextToClipboard(text, "추첨 점검 문구를 복사했습니다.");
+}
+
+async function copyTextToClipboard(text, successMessage) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.setAttribute("readonly", "readonly");
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      textarea.remove();
+    }
+    if (adminTaskStatus) {
+      adminTaskStatus.textContent = successMessage;
+    }
+  } catch (error) {
+    alert(`복사 실패: ${String(error?.message || error)}`);
+  }
 }
 
 function renderTrend(target, series, suffix) {

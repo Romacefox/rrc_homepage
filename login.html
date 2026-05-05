@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=SUIT:wght@300;400;500;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20260420a" />
+  <link rel="stylesheet" href="styles.css?v=20260505a" />
 </head>
 <body>
   <header class="site-header">
@@ -189,6 +189,10 @@
                 <h3>내 추첨 이력</h3>
                 <ul id="my-raffle-history" class="list small"></ul>
               </article>
+              <article class="panel">
+                <h3>내 포인트 지급 기록</h3>
+                <ul id="my-point-award-history" class="list small"></ul>
+              </article>
             </div>
             <div class="board-engagement-grid" style="margin-top:1rem;">
               <article class="panel board-highlight reward-guide-panel">
@@ -211,7 +215,7 @@
                     <p class="list-meta">보틀/러닝 액세서리 보조</p>
                   </div>
                 </div>
-                <p class="list-meta" style="margin-top:0.8rem;">출석 1회 10P, 월 기준 달성 20P, 2개월 연속 30P, 3개월 이상 연속 50P, 월 사진 최대 5장(장당 5P), 월 응원 댓글 최대 10개(개당 2P), 추첨 당첨 10P로 계산합니다.</p>
+                <p class="list-meta" style="margin-top:0.8rem;">월 참여상 후보 등극 20P, 2개월 연속 후보 30P, 3개월 이상 연속 후보 50P, 매주 정기런 참여 30P, 화요일 한강 정기런 누적 10회 달성 50P, 목요일 올림픽공원 정기런 누적 10회 달성 50P, 월 사진 최대 5장(장당 5P), 월 응원 댓글 최대 10개(개당 2P)로 계산합니다.</p>
                 <form id="reward-request-form" class="form compact" style="margin-top:0.9rem;">
                   <select id="reward-request-item">
                     <option value="fuel_support">젤/보급 간식 보조 · 40P</option>
@@ -227,6 +231,65 @@
                 </form>
                 <p id="reward-request-status" class="list-meta" style="margin-top:0.7rem;">포인트는 신청 기준 안내용이며, 실제 보조는 월 예산과 운영진 승인 후 진행됩니다.</p>
                 <ul id="reward-request-list" class="list small" style="margin-top:0.8rem;"></ul>
+              </article>
+              <article class="panel challenge-panel">
+                <div class="section-head">
+                  <h3>포인트 챌린지</h3>
+                  <span class="badge">카톡 인증</span>
+                </div>
+                <p class="list-meta">챌린지는 참가 포인트를 걸고, 카카오톡 채팅방 인증을 운영진이 확인해 성공자를 정산합니다. 성공 보상은 월간 포인트 지급 기록에 반영됩니다.</p>
+                <form id="challenge-form" class="form compact" style="margin-top:0.8rem;">
+                  <input id="challenge-title" type="text" maxlength="80" placeholder="챌린지명 예: 매일 1km 뛰기" />
+                  <div class="inline-form">
+                    <input id="challenge-stake" type="number" min="1" max="500" placeholder="참가 포인트" />
+                    <input id="challenge-tag" type="text" maxlength="40" placeholder="인증 태그 예: #RRC매일1K" />
+                  </div>
+                  <div class="inline-form">
+                    <input id="challenge-start" type="date" />
+                    <input id="challenge-end" type="date" />
+                  </div>
+                  <textarea id="challenge-rule" rows="4" maxlength="600" placeholder="성공 조건과 카톡 인증 방식을 적어 주세요"></textarea>
+                  <div class="inline-form">
+                    <button id="challenge-submit" class="btn primary" type="submit">챌린지 제안</button>
+                    <button id="challenge-refresh" class="btn ghost" type="button">목록 새로고침</button>
+                  </div>
+                </form>
+                <p id="challenge-status" class="list-meta" style="margin-top:0.7rem;">운영진 승인 후 모집을 시작할 수 있습니다.</p>
+                <ul id="challenge-list" class="list small" style="margin-top:0.8rem;"></ul>
+              </article>
+              <article id="point-award-panel" class="panel point-award-panel hidden" hidden>
+                <div class="section-head">
+                  <h3>월간 포인트 지급</h3>
+                  <span class="badge">운영진</span>
+                </div>
+                <p class="list-meta">낭만러너, 페이스메이커, 번개왕처럼 운영진이 선정하는 월간 배지를 포인트와 함께 지급합니다.</p>
+                <form id="point-award-form" class="form compact" style="margin-top:0.8rem;">
+                  <div class="inline-form">
+                    <input id="point-award-member" type="text" maxlength="80" placeholder="회원 이름" />
+                    <input id="point-award-month" type="month" />
+                  </div>
+                  <div class="inline-form">
+                    <select id="point-award-code">
+                      <option value="romantic_runner">낭만러너</option>
+                      <option value="pacemaker">페이스메이커</option>
+                      <option value="guest_mate">게스트메이트</option>
+                      <option value="course_maker">코스메이커</option>
+                      <option value="race_review_king">대회후기왕</option>
+                      <option value="operations_helper">운영헬퍼</option>
+                      <option value="cheer_fairy">응원요정</option>
+                      <option value="challenge_maker">챌린지메이커</option>
+                      <option value="flash_king">번개왕</option>
+                    </select>
+                    <input id="point-award-points" type="number" min="1" max="500" placeholder="포인트" />
+                  </div>
+                  <textarea id="point-award-note" rows="3" maxlength="300" placeholder="선정 이유를 간단히 적어 주세요"></textarea>
+                  <div class="inline-form">
+                    <button id="point-award-submit" class="btn primary" type="submit">포인트 지급</button>
+                    <button id="point-award-refresh" class="btn ghost" type="button">지급 내역 새로고침</button>
+                  </div>
+                </form>
+                <p id="point-award-status" class="list-meta" style="margin-top:0.7rem;">운영진 로그인 후 사용할 수 있습니다.</p>
+                <ul id="point-award-list" class="list small" style="margin-top:0.8rem;"></ul>
               </article>
               <article class="panel suggestion-panel">
                 <div class="section-head">
@@ -260,6 +323,6 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="auth.js?v=20260505b"></script>
+  <script src="auth.js?v=20260505e"></script>
 </body>
 </html>

@@ -8,15 +8,16 @@ const BIRTH_YEAR_MIN = 1989;
 const BIRTH_YEAR_MAX = 2004;
 const POINT_WON_RATE = 10;
 const POINT_POLICY = {
-  attendance: 10,
-  monthlyGoal: 20,
-  streakTwoMonths: 30,
-  streakThreeMonths: 50,
+  monthlyCandidate: 20,
+  candidateStreakTwoMonths: 30,
+  candidateStreakThreeMonths: 50,
+  weeklyRegular: 30,
+  hangangLover: 50,
+  olympicLover: 50,
   photo: 5,
   photoMonthlyCap: 5,
   comment: 2,
-  commentMonthlyCap: 10,
-  raffleWin: 10
+  commentMonthlyCap: 10
 };
 const REWARD_ITEMS = [
   { code: "fuel_support", name: "젤/보급 간식 보조", points: 40 },
@@ -104,6 +105,7 @@ const boardMissionNote = document.getElementById("board-mission-note");
 const myPhotoHistory = document.getElementById("my-photo-history");
 const myCommentHistory = document.getElementById("my-comment-history");
 const myRaffleHistory = document.getElementById("my-raffle-history");
+const myPointAwardHistory = document.getElementById("my-point-award-history");
 const suggestionForm = document.getElementById("suggestion-form");
 const suggestionTitleInput = document.getElementById("suggestion-title");
 const suggestionContentInput = document.getElementById("suggestion-content");
@@ -119,6 +121,28 @@ const rewardRequestSubmitButton = document.getElementById("reward-request-submit
 const rewardRequestRefreshButton = document.getElementById("reward-request-refresh");
 const rewardRequestStatus = document.getElementById("reward-request-status");
 const rewardRequestList = document.getElementById("reward-request-list");
+const challengeForm = document.getElementById("challenge-form");
+const challengeTitleInput = document.getElementById("challenge-title");
+const challengeStakeInput = document.getElementById("challenge-stake");
+const challengeTagInput = document.getElementById("challenge-tag");
+const challengeStartInput = document.getElementById("challenge-start");
+const challengeEndInput = document.getElementById("challenge-end");
+const challengeRuleInput = document.getElementById("challenge-rule");
+const challengeSubmitButton = document.getElementById("challenge-submit");
+const challengeRefreshButton = document.getElementById("challenge-refresh");
+const challengeStatus = document.getElementById("challenge-status");
+const challengeList = document.getElementById("challenge-list");
+const pointAwardPanel = document.getElementById("point-award-panel");
+const pointAwardForm = document.getElementById("point-award-form");
+const pointAwardMemberInput = document.getElementById("point-award-member");
+const pointAwardMonthInput = document.getElementById("point-award-month");
+const pointAwardCodeInput = document.getElementById("point-award-code");
+const pointAwardPointsInput = document.getElementById("point-award-points");
+const pointAwardNoteInput = document.getElementById("point-award-note");
+const pointAwardSubmitButton = document.getElementById("point-award-submit");
+const pointAwardRefreshButton = document.getElementById("point-award-refresh");
+const pointAwardStatus = document.getElementById("point-award-status");
+const pointAwardList = document.getElementById("point-award-list");
 const memberNavLinks = document.querySelectorAll("[data-member-nav]");
 const adminNavLinks = document.querySelectorAll("[data-admin-nav]");
 const authEntryLinks = document.querySelectorAll("[data-auth-entry]");
@@ -226,10 +250,19 @@ function init() {
   suggestionRefreshButton?.addEventListener("click", loadSuggestionBoard);
   rewardRequestForm?.addEventListener("submit", handleRewardRequestSubmit);
   rewardRequestRefreshButton?.addEventListener("click", loadRewardRequests);
+  challengeForm?.addEventListener("submit", handleChallengeSubmit);
+  challengeRefreshButton?.addEventListener("click", loadChallenges);
+  pointAwardForm?.addEventListener("submit", handlePointAwardSubmit);
+  pointAwardRefreshButton?.addEventListener("click", loadPointAwards);
+  pointAwardCodeInput?.addEventListener("change", syncPointAwardDefaults);
 
   if (activityMonthSelect) {
     populateRecentMonthOptions(activityMonthSelect);
   }
+  if (pointAwardMonthInput) {
+    pointAwardMonthInput.value = currentMonthKey();
+  }
+  syncPointAwardDefaults();
 
   supabaseClient.auth.onAuthStateChange((_event, session) => {
     void hydrateAuthState(session?.user || null);
@@ -1049,13 +1082,14 @@ async function loadActivityBoard() {
     .limit(10);
 
   const raffleRecords = Array.isArray(raffleResult.data) ? raffleResult.data : [];
+  const attendanceLogs = await loadAttendanceLogsForPoints();
   const rows = members
     .map((member) => ({
       ...member,
       monthRuns: getMonthlyRuns(member, selectedMonth),
       streak: getAttendanceStreakFromMonth(member, selectedMonth),
       tickets: calculateMonthlyTickets(member, selectedMonth),
-      basePoints: calculateAttendancePoints(member, selectedMonth)
+      basePoints: calculateAttendancePoints(member, selectedMonth, attendanceLogs)
     }))
     .sort((a, b) => (b.monthRuns - a.monthRuns) || (Number(b.total_runs || 0) - Number(a.total_runs || 0)) || String(a.name || "").localeCompare(String(b.name || ""), "ko"));
   window.__RRC_ACTIVITY_ROWS = rows;
@@ -1094,9 +1128,11 @@ async function loadActivityBoard() {
   renderRunnerCard(runner, selectedMonth);
   renderBoardPulseSummary(rows, runner, selectedMonth);
   renderBoardRaffleHistory(raffleRecords.slice(0, 4));
-  await renderMyActivityState(me, selectedMonth, raffleRecords);
+  await renderMyActivityState(me, selectedMonth, raffleRecords, attendanceLogs);
   await loadSuggestionBoard();
   await loadRewardRequests();
+  await loadChallenges();
+  await loadPointAwards();
 }
 
 function renderBoardLocked(message) {
@@ -1109,6 +1145,7 @@ function renderBoardLocked(message) {
   renderPersonalBoardEmpty();
   renderSuggestionBoardLocked("승인 회원 로그인 후 건의사항을 남길 수 있습니다.");
   renderRewardRequestLocked("승인 회원 로그인 후 RRC샵 보조 신청을 할 수 있습니다.");
+  renderChallengeLocked("승인 회원 로그인 후 포인트 챌린지를 볼 수 있습니다.");
   renderPublicTicketBoard([], currentMonthKey());
   renderCandidatePreviewBoard([], currentMonthKey());
   renderMissionBoard([], null, currentMonthKey(), 0, 0);
@@ -1413,13 +1450,28 @@ function getMonthlyRuns(member, monthKey) {
   return Number(monthlyRuns[monthKey] || 0);
 }
 
-async function renderMyActivityState(me, selectedMonth, raffleRecords) {
-  const [photos, comments] = await Promise.all([loadMyPhotos(selectedMonth), loadMyComments(selectedMonth)]);
+async function loadAttendanceLogsForPoints() {
+  if (!supabaseClient || !authUser || !authProfile || authProfile.approval_status !== "approved") {
+    return [];
+  }
+  const result = await supabaseClient
+    .from("attendance_logs")
+    .select("event_type,attendance_date,matched")
+    .order("attendance_date", { ascending: false })
+    .limit(1000);
+  return result.error ? [] : (Array.isArray(result.data) ? result.data : []);
+}
+
+async function renderMyActivityState(me, selectedMonth, raffleRecords, attendanceLogs = []) {
+  const [photos, comments, pointAwards] = await Promise.all([
+    loadMyPhotos(selectedMonth),
+    loadMyComments(selectedMonth),
+    loadPointAwardsForMonth(selectedMonth)
+  ]);
   const wins = Array.isArray(raffleRecords)
     ? raffleRecords.filter((record) => hasRaffleWinner(record, authProfile?.name))
     : [];
   const latestWin = wins[0] || null;
-  const selectedMonthWin = wins.find((record) => record.target_month_key === selectedMonth) || null;
   const feeLabel = getPersonalFeeLabel(me, selectedMonth);
   const previousStreak = getAttendanceStreakFromMonth(me, shiftMonthKey(selectedMonth, -1));
   const currentStreak = getAttendanceStreakFromMonth(me, selectedMonth);
@@ -1430,7 +1482,8 @@ async function renderMyActivityState(me, selectedMonth, raffleRecords) {
     selectedMonth,
     photoCount: photos.length,
     commentCount: comments.length,
-    latestWin: selectedMonthWin
+    attendanceLogs,
+    pointAwards
   });
   const raffleLabel = latestWin
     ? `${monthKeyToLabel(latestWin.target_month_key)} 당첨`
@@ -1459,7 +1512,7 @@ async function renderMyActivityState(me, selectedMonth, raffleRecords) {
   }
   if (myPointNote) {
     myPointNote.textContent = nextReward.remaining > 0
-      ? `${nextReward.remaining}P 더 모으면 ${nextReward.label} 신청권에 가까워집니다. 1P는 운영 기준 ${POINT_WON_RATE.toLocaleString("ko-KR")}원으로 환산합니다.`
+      ? `${nextReward.remaining}P 더 모으면 ${nextReward.label} 신청권에 가까워집니다. 운영 환산 기준은 10P=100원입니다.`
       : `${nextReward.label} 구간입니다. 현재 기준 약 ${Number(nextReward.won || 0).toLocaleString("ko-KR")}원 상당이며 운영진 승인 후 RRC샵 보조 신청이 가능합니다.`;
   }
 
@@ -1470,6 +1523,8 @@ async function renderMyActivityState(me, selectedMonth, raffleRecords) {
     latestWin,
     pointTotal,
     ticketCount,
+    attendanceLogs,
+    pointAwards,
     photoCount: photos.length,
     commentCount: comments.length
   }));
@@ -1504,6 +1559,16 @@ async function renderMyActivityState(me, selectedMonth, raffleRecords) {
     })),
     "아직 당첨 이력이 없습니다."
   );
+
+  renderSimpleHistory(
+    myPointAwardHistory,
+    pointAwards.map((award) => ({
+      title: `${award.award_label || "포인트 지급"} · ${Number(award.points || 0)}P`,
+      meta: monthKeyToLabel(award.month_key || selectedMonth),
+      body: award.note || award.member_name || ""
+    })),
+    "아직 포인트 지급 기록이 없습니다."
+  );
 }
 
 function renderPersonalBoardEmpty() {
@@ -1533,6 +1598,7 @@ function renderPersonalBoardEmpty() {
   renderSimpleHistory(myPhotoHistory, [], "로그인 후 개인 사진 기록이 표시됩니다.");
   renderSimpleHistory(myCommentHistory, [], "로그인 후 내 댓글 기록이 표시됩니다.");
   renderSimpleHistory(myRaffleHistory, [], "로그인 후 내 추첨 기록이 표시됩니다.");
+  renderSimpleHistory(myPointAwardHistory, [], "로그인 후 포인트 지급 기록이 표시됩니다.");
 }
 
 function renderMissionBoardCache(me, selectedMonth, photoCount, commentCount) {
@@ -1792,6 +1858,469 @@ async function callMemberRewards(query = "", options = {}) {
   return result;
 }
 
+function syncPointAwardDefaults() {
+  if (!pointAwardCodeInput || !pointAwardPointsInput) {
+    return;
+  }
+  const meta = getPointAwardMeta(pointAwardCodeInput.value);
+  if (meta) {
+    pointAwardPointsInput.value = String(meta.points);
+  }
+}
+
+async function handlePointAwardSubmit(event) {
+  event?.preventDefault();
+  if (!supabaseClient || !authUser || !authProfile || authProfile.role !== "admin" || authProfile.approval_status !== "approved") {
+    setStatus(pointAwardStatus, "운영진 로그인 후 포인트를 지급할 수 있습니다.");
+    return;
+  }
+
+  const memberName = String(pointAwardMemberInput?.value || "").trim();
+  const monthKey = String(pointAwardMonthInput?.value || currentMonthKey()).trim();
+  const awardCode = String(pointAwardCodeInput?.value || "").trim();
+  const meta = getPointAwardMeta(awardCode);
+  const points = Number(pointAwardPointsInput?.value || meta?.points || 0);
+  const note = String(pointAwardNoteInput?.value || "").trim();
+  if (!memberName || !monthKey || !meta || points <= 0) {
+    setStatus(pointAwardStatus, "회원 이름, 월, 지급 유형, 포인트를 확인해 주세요.");
+    return;
+  }
+
+  pointAwardSubmitButton && (pointAwardSubmitButton.disabled = true);
+  setStatus(pointAwardStatus, "포인트를 지급하는 중입니다...");
+  try {
+    const result = await callPointAwards("", {
+      method: "POST",
+      body: JSON.stringify({
+        member_name: memberName,
+        month_key: monthKey,
+        award_code: awardCode,
+        award_label: meta.label,
+        points,
+        note
+      })
+    });
+    if (!result?.ok) {
+      throw new Error(result?.error || "point award failed");
+    }
+    if (pointAwardMemberInput) {
+      pointAwardMemberInput.value = "";
+    }
+    if (pointAwardNoteInput) {
+      pointAwardNoteInput.value = "";
+    }
+    setStatus(pointAwardStatus, `${memberName}님에게 ${meta.label} ${points}P를 지급했습니다.`);
+    await loadPointAwards();
+    await loadActivityBoard();
+  } catch (error) {
+    setStatus(pointAwardStatus, `포인트 지급 실패: ${String(error?.message || error)}`);
+  } finally {
+    pointAwardSubmitButton && (pointAwardSubmitButton.disabled = false);
+  }
+}
+
+async function loadPointAwards() {
+  if (!pointAwardPanel && !myPointAwardHistory) {
+    return [];
+  }
+  const isAdmin = authProfile?.role === "admin" && authProfile?.approval_status === "approved";
+  if (pointAwardPanel) {
+    pointAwardPanel.classList.toggle("hidden", !isAdmin);
+    pointAwardPanel.hidden = !isAdmin;
+  }
+  if (!supabaseClient || !authUser || !authProfile || authProfile.approval_status !== "approved") {
+    return [];
+  }
+  const monthKey = pointAwardMonthInput?.value || activityMonthSelect?.value || currentMonthKey();
+  try {
+    const result = await callPointAwards(`?month_key=${encodeURIComponent(monthKey)}&limit=30`);
+    const items = Array.isArray(result?.items) ? result.items : [];
+    if (result?.available === false) {
+      if (pointAwardStatus) {
+        pointAwardStatus.textContent = "포인트 지급 테이블 준비 중입니다. Supabase 패치를 먼저 적용해 주세요.";
+      }
+      return [];
+    }
+    if (isAdmin) {
+      renderPointAwardAdminList(items);
+    }
+    return items;
+  } catch (error) {
+    if (pointAwardStatus) {
+      pointAwardStatus.textContent = `포인트 지급 내역 로드 실패: ${String(error?.message || error)}`;
+    }
+    return [];
+  }
+}
+
+async function loadPointAwardsForMonth(monthKey) {
+  if (!supabaseClient || !authUser || !authProfile || authProfile.approval_status !== "approved") {
+    return [];
+  }
+  try {
+    const result = await callPointAwards(`?month_key=${encodeURIComponent(monthKey)}&limit=50`);
+    return Array.isArray(result?.items) ? result.items : [];
+  } catch (_error) {
+    return [];
+  }
+}
+
+function renderPointAwardAdminList(items) {
+  if (!pointAwardList) {
+    return;
+  }
+  pointAwardList.innerHTML = "";
+  if (!items.length) {
+    pointAwardList.innerHTML = '<li class="list-item"><p class="list-meta">이번 달 포인트 지급 내역이 없습니다.</p></li>';
+    return;
+  }
+  items.forEach((award) => {
+    const node = document.createElement("li");
+    node.className = "list-item";
+    node.innerHTML = `
+      <div class="list-top">
+        <span class="list-title">${escapeHtml(award.member_name || "회원")} · ${escapeHtml(award.award_label || "포인트")}</span>
+        <span class="status-chip">${Number(award.points || 0)}P</span>
+      </div>
+      <p class="list-meta">${escapeHtml(monthKeyToLabel(award.month_key || currentMonthKey()))} · ${escapeHtml(award.note || "사유 없음")}</p>
+    `;
+    pointAwardList.appendChild(node);
+  });
+}
+
+async function callPointAwards(query = "", options = {}) {
+  const sessionResult = await supabaseClient.auth.getSession();
+  const accessToken = sessionResult.data?.session?.access_token;
+  if (!accessToken) {
+    throw new Error("로그인이 필요합니다.");
+  }
+
+  const response = await fetch(`/.netlify/functions/member-point-awards${query}`, {
+    method: options.method || "GET",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`
+    },
+    body: options.body
+  });
+  const result = await response.json().catch(() => ({ ok: false, error: "invalid response" }));
+  if (!response.ok) {
+    throw new Error(result?.error || `request failed (${response.status})`);
+  }
+  return result;
+}
+
+function getPointAwardMeta(code) {
+  return getPointAwardOptions().find((item) => item.code === code) || null;
+}
+
+function getPointAwardOptions() {
+  return [
+    { code: "romantic_runner", label: "낭만러너", points: 30 },
+    { code: "pacemaker", label: "페이스메이커", points: 40 },
+    { code: "guest_mate", label: "게스트메이트", points: 30 },
+    { code: "course_maker", label: "코스메이커", points: 30 },
+    { code: "race_review_king", label: "대회후기왕", points: 30 },
+    { code: "operations_helper", label: "운영헬퍼", points: 40 },
+    { code: "cheer_fairy", label: "응원요정", points: 20 },
+    { code: "challenge_maker", label: "챌린지메이커", points: 30 },
+    { code: "flash_king", label: "번개왕", points: 40 }
+  ];
+}
+
+async function handleChallengeSubmit(event) {
+  event?.preventDefault();
+  if (!supabaseClient || !authUser || !authProfile || authProfile.approval_status !== "approved") {
+    setStatus(challengeStatus, "승인 회원 로그인 후 챌린지를 제안할 수 있습니다.");
+    return;
+  }
+
+  const title = String(challengeTitleInput?.value || "").trim();
+  const stakePoints = Number(challengeStakeInput?.value || 0);
+  const verificationTag = String(challengeTagInput?.value || "").trim();
+  const startDate = String(challengeStartInput?.value || "").trim();
+  const endDate = String(challengeEndInput?.value || "").trim();
+  const ruleText = String(challengeRuleInput?.value || "").trim();
+
+  if (!title || !stakePoints || !startDate || !endDate || !ruleText) {
+    setStatus(challengeStatus, "챌린지명, 참가 포인트, 기간, 성공 조건을 입력해 주세요.");
+    return;
+  }
+
+  challengeSubmitButton && (challengeSubmitButton.disabled = true);
+  setStatus(challengeStatus, "챌린지 제안을 등록하는 중입니다...");
+  try {
+    const result = await callMemberChallenges("", {
+      method: "POST",
+      body: JSON.stringify({
+        title,
+        stake_points: stakePoints,
+        verification_tag: verificationTag,
+        start_date: startDate,
+        end_date: endDate,
+        rule_text: ruleText
+      })
+    });
+    if (!result?.ok) {
+      throw new Error(result?.error || "challenge submit failed");
+    }
+    challengeForm?.reset();
+    setStatus(challengeStatus, "챌린지 제안이 접수되었습니다. 운영진이 모집 시작 여부를 결정합니다.");
+    await loadChallenges();
+  } catch (error) {
+    setStatus(challengeStatus, `챌린지 등록 실패: ${String(error?.message || error)}`);
+  } finally {
+    challengeSubmitButton && (challengeSubmitButton.disabled = false);
+  }
+}
+
+async function loadChallenges() {
+  if (!challengeList) {
+    return;
+  }
+  if (!supabaseClient || !authUser || !authProfile || authProfile.approval_status !== "approved") {
+    renderChallengeLocked("승인 회원 로그인 후 포인트 챌린지를 볼 수 있습니다.");
+    return;
+  }
+
+  challengeRefreshButton && (challengeRefreshButton.disabled = true);
+  if (!challengeList.innerHTML) {
+    challengeList.innerHTML = '<li class="list-item"><p class="list-meta">챌린지를 불러오는 중입니다.</p></li>';
+  }
+
+  try {
+    const result = await callMemberChallenges("?limit=12");
+    const items = Array.isArray(result?.items) ? result.items : [];
+    if (result?.available === false) {
+      renderChallengeLocked("챌린지 테이블 준비 중입니다. Supabase 패치를 먼저 적용해 주세요.");
+      return;
+    }
+    renderChallengeList(items, Boolean(result?.can_manage));
+    setStatus(challengeStatus, "카톡 인증형 포인트 챌린지를 확인할 수 있습니다.");
+  } catch (error) {
+    renderChallengeLocked(`챌린지 로드 실패: ${String(error?.message || error)}`);
+  } finally {
+    challengeRefreshButton && (challengeRefreshButton.disabled = false);
+  }
+}
+
+function renderChallengeLocked(message) {
+  if (challengeList) {
+    challengeList.innerHTML = `<li class="list-item"><p class="list-meta">${escapeHtml(message)}</p></li>`;
+  }
+  if (challengeStatus) {
+    challengeStatus.textContent = message;
+  }
+}
+
+function renderChallengeList(items, canManage) {
+  if (!challengeList) {
+    return;
+  }
+  challengeList.innerHTML = "";
+  if (!items.length) {
+    challengeList.innerHTML = '<li class="list-item"><p class="list-meta">아직 등록된 챌린지가 없습니다.</p></li>';
+    return;
+  }
+
+  items.forEach((item) => {
+    const entries = Array.isArray(item.entries) ? item.entries : [];
+    const joined = entries.some((entry) => entry.user_id === authUser?.id);
+    const successCount = entries.filter((entry) => entry.result === "success").length;
+    const pot = entries.reduce((sum, entry) => sum + Number(entry.stake_points || item.stake_points || 0), 0);
+    const node = document.createElement("li");
+    node.className = "list-item";
+    node.innerHTML = `
+      <div class="list-top">
+        <span class="list-title">${escapeHtml(item.title || "포인트 챌린지")}</span>
+        <span class="status-chip ${getChallengeStatusClass(item.status)}">${escapeHtml(getChallengeStatusLabel(item.status))}</span>
+      </div>
+      <p class="list-meta">${escapeHtml(item.start_date || "-")} ~ ${escapeHtml(item.end_date || "-")} · 참가 ${Number(item.stake_points || 0)}P · 팟 ${pot}P</p>
+      <p class="list-meta">인증: RRC 카카오톡 채팅방 ${item.verification_tag ? `· ${escapeHtml(item.verification_tag)}` : ""}</p>
+      <p>${escapeHtml(item.rule_text || "")}</p>
+      <p class="list-meta">참가 ${entries.length}명 · 성공 ${successCount}명${item.status === "settled" ? ` · 성공자 지급 ${Number(item.payout_points || 0)}P` : ""}</p>
+    `;
+
+    const entryWrap = document.createElement("div");
+    entryWrap.className = "challenge-entry-list";
+    entries.slice(0, 8).forEach((entry) => {
+      const row = document.createElement("div");
+      row.className = "challenge-entry-row";
+      row.innerHTML = `<span>${escapeHtml(entry.member_name || "회원")}</span><span>${escapeHtml(getChallengeResultLabel(entry.result))}${entry.payout_points ? ` · ${Number(entry.payout_points)}P` : ""}</span>`;
+      entryWrap.appendChild(row);
+    });
+    if (entries.length) {
+      node.appendChild(entryWrap);
+    }
+
+    const actions = document.createElement("div");
+    actions.className = "item-actions";
+    if (item.status === "recruiting" && !joined) {
+      actions.appendChild(buildActionButton("참가", () => joinChallenge(item.id)));
+    }
+    if (canManage) {
+      if (item.status === "submitted") {
+        actions.appendChild(buildActionButton("모집 시작", () => updateChallengeStatus(item.id, "recruiting", "모집 시작")));
+      }
+      if (item.status === "recruiting") {
+        actions.appendChild(buildActionButton("진행 중", () => updateChallengeStatus(item.id, "in_progress", "진행 중")));
+      }
+      if (item.status === "in_progress") {
+        actions.appendChild(buildActionButton("인증 확인", () => updateChallengeStatus(item.id, "judging", "인증 확인")));
+      }
+      if (item.status === "judging") {
+        entries.forEach((entry) => {
+          if (entry.result !== "success") {
+            actions.appendChild(buildActionButton(`${entry.member_name} 성공`, () => judgeChallengeEntry(entry.id, "success")));
+          }
+          if (entry.result !== "failed") {
+            actions.appendChild(buildActionButton(`${entry.member_name} 실패`, () => judgeChallengeEntry(entry.id, "failed")));
+          }
+        });
+        actions.appendChild(buildActionButton("정산", () => settleChallenge(item.id)));
+      }
+      if (item.status !== "settled" && item.status !== "cancelled") {
+        actions.appendChild(buildActionButton("취소", () => updateChallengeStatus(item.id, "cancelled", "취소")));
+      }
+    }
+    if (actions.childElementCount) {
+      node.appendChild(actions);
+    }
+    challengeList.appendChild(node);
+  });
+}
+
+function buildActionButton(label, onClick) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "btn ghost tiny";
+  button.textContent = label;
+  button.addEventListener("click", onClick);
+  return button;
+}
+
+async function joinChallenge(challengeId) {
+  try {
+    const result = await callMemberChallenges("", {
+      method: "PATCH",
+      body: JSON.stringify({ action: "join", challenge_id: challengeId })
+    });
+    if (!result?.ok) {
+      throw new Error(result?.error || "join failed");
+    }
+    setStatus(challengeStatus, "챌린지에 참가했습니다. 카톡방 인증 규칙을 확인해 주세요.");
+    await loadChallenges();
+  } catch (error) {
+    setStatus(challengeStatus, `챌린지 참가 실패: ${String(error?.message || error)}`);
+  }
+}
+
+async function updateChallengeStatus(challengeId, status, label) {
+  try {
+    const result = await callMemberChallenges("", {
+      method: "PATCH",
+      body: JSON.stringify({ action: "status", challenge_id: challengeId, status })
+    });
+    if (!result?.ok) {
+      throw new Error(result?.error || "status failed");
+    }
+    setStatus(challengeStatus, `챌린지 상태를 '${label}'로 변경했습니다.`);
+    await loadChallenges();
+  } catch (error) {
+    setStatus(challengeStatus, `챌린지 상태 변경 실패: ${String(error?.message || error)}`);
+  }
+}
+
+async function judgeChallengeEntry(entryId, resultStatus) {
+  try {
+    const result = await callMemberChallenges("", {
+      method: "PATCH",
+      body: JSON.stringify({ action: "judge", entry_id: entryId, result: resultStatus })
+    });
+    if (!result?.ok) {
+      throw new Error(result?.error || "judge failed");
+    }
+    setStatus(challengeStatus, "참가자 판정을 저장했습니다.");
+    await loadChallenges();
+  } catch (error) {
+    setStatus(challengeStatus, `참가자 판정 실패: ${String(error?.message || error)}`);
+  }
+}
+
+async function settleChallenge(challengeId) {
+  if (!confirm("성공자를 기준으로 챌린지 포인트를 정산할까요?")) {
+    return;
+  }
+  try {
+    const result = await callMemberChallenges("", {
+      method: "PATCH",
+      body: JSON.stringify({ action: "settle", challenge_id: challengeId })
+    });
+    if (!result?.ok) {
+      throw new Error(result?.error || "settle failed");
+    }
+    setStatus(challengeStatus, `정산 완료: 성공자 ${result.success_count || 0}명 · 1인 ${result.payout_points || 0}P`);
+    await loadChallenges();
+  } catch (error) {
+    setStatus(challengeStatus, `정산 실패: ${String(error?.message || error)}`);
+  }
+}
+
+async function callMemberChallenges(query = "", options = {}) {
+  const sessionResult = await supabaseClient.auth.getSession();
+  const accessToken = sessionResult.data?.session?.access_token;
+  if (!accessToken) {
+    throw new Error("로그인이 필요합니다.");
+  }
+
+  const response = await fetch(`/.netlify/functions/member-challenges${query}`, {
+    method: options.method || "GET",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`
+    },
+    body: options.body
+  });
+  const result = await response.json().catch(() => ({ ok: false, error: "invalid response" }));
+  if (!response.ok) {
+    throw new Error(result?.error || `request failed (${response.status})`);
+  }
+  return result;
+}
+
+function getChallengeStatusLabel(status) {
+  switch (String(status || "")) {
+    case "submitted": return "제안";
+    case "recruiting": return "모집 중";
+    case "in_progress": return "진행 중";
+    case "judging": return "인증 확인";
+    case "settled": return "정산 완료";
+    case "cancelled": return "취소";
+    default: return "제안";
+  }
+}
+
+function getChallengeStatusClass(status) {
+  switch (String(status || "")) {
+    case "recruiting":
+    case "in_progress":
+      return "";
+    case "cancelled":
+      return "danger";
+    default:
+      return "warn";
+  }
+}
+
+function getChallengeResultLabel(result) {
+  switch (String(result || "")) {
+    case "success": return "성공";
+    case "failed": return "실패";
+    case "refunded": return "환불";
+    default: return "참가";
+  }
+}
+
 function getRewardItemMeta(code) {
   return REWARD_ITEMS.find((item) => item.code === code) || null;
 }
@@ -2037,9 +2566,10 @@ function renderBadgeList(badges) {
   });
 }
 
-function buildPersonalBadges({ me, selectedMonth, feeLabel, latestWin, photoCount, commentCount, pointTotal, ticketCount }) {
+function buildPersonalBadges({ me, selectedMonth, feeLabel, latestWin, photoCount, commentCount, pointTotal, ticketCount, attendanceLogs, pointAwards }) {
   const badges = [];
   const threshold = getMonthThreshold(selectedMonth);
+  const attendanceBonus = getAttendanceBonusState(me, selectedMonth, attendanceLogs);
   if ((me?.monthRuns || 0) >= threshold) {
     badges.push("이번 달 추첨 대상");
   }
@@ -2070,6 +2600,21 @@ function buildPersonalBadges({ me, selectedMonth, feeLabel, latestWin, photoCoun
   if ((pointTotal || 0) >= 80) {
     badges.push("포인트 러너");
   }
+  if (attendanceBonus.weeklyRegular) {
+    badges.push("매주 정기런");
+  }
+  if (attendanceBonus.hangangLover) {
+    badges.push("한강러버");
+  }
+  if (attendanceBonus.olympicLover) {
+    badges.push("올공러버");
+  }
+  (Array.isArray(pointAwards) ? pointAwards : []).forEach((award) => {
+    const label = String(award.award_label || "").trim();
+    if (label && !badges.includes(label)) {
+      badges.push(label);
+    }
+  });
   return badges;
 }
 
@@ -2079,27 +2624,134 @@ function calculateMonthlyTickets(member, monthKey) {
   return monthRuns >= threshold ? 1 : 0;
 }
 
-function calculateAttendancePoints(member, monthKey) {
+function calculateAttendancePoints(member, monthKey, attendanceLogs = []) {
   const monthRuns = getMonthlyRuns(member, monthKey);
-  const streak = getAttendanceStreakFromMonth(member, monthKey);
-  let points = monthRuns * POINT_POLICY.attendance;
+  const candidateStreak = getCandidateStreakFromMonth(member, monthKey);
+  const bonusState = getAttendanceBonusState(member, monthKey, attendanceLogs);
+  let points = 0;
   if (monthRuns >= getMonthThreshold(monthKey)) {
-    points += POINT_POLICY.monthlyGoal;
+    points += POINT_POLICY.monthlyCandidate;
   }
-  if (streak >= 3) {
-    points += POINT_POLICY.streakThreeMonths;
-  } else if (streak >= 2) {
-    points += POINT_POLICY.streakTwoMonths;
+  if (candidateStreak >= 3) {
+    points += POINT_POLICY.candidateStreakThreeMonths;
+  } else if (candidateStreak >= 2) {
+    points += POINT_POLICY.candidateStreakTwoMonths;
+  }
+  if (bonusState.weeklyRegular) {
+    points += POINT_POLICY.weeklyRegular;
+  }
+  if (bonusState.hangangLover) {
+    points += POINT_POLICY.hangangLover;
+  }
+  if (bonusState.olympicLover) {
+    points += POINT_POLICY.olympicLover;
   }
   return points;
 }
 
-function calculatePersonalMonthlyPoints({ me, selectedMonth, photoCount, commentCount, latestWin }) {
-  const attendancePoints = calculateAttendancePoints(me, selectedMonth);
+function calculatePersonalMonthlyPoints({ me, selectedMonth, photoCount, commentCount, attendanceLogs, pointAwards }) {
+  const attendancePoints = calculateAttendancePoints(me, selectedMonth, attendanceLogs);
   const photoPoints = Math.min(Number(photoCount || 0), POINT_POLICY.photoMonthlyCap) * POINT_POLICY.photo;
   const commentPoints = Math.min(Number(commentCount || 0), POINT_POLICY.commentMonthlyCap) * POINT_POLICY.comment;
-  const winPoints = latestWin ? POINT_POLICY.raffleWin : 0;
-  return attendancePoints + photoPoints + commentPoints + winPoints;
+  const awardPoints = (Array.isArray(pointAwards) ? pointAwards : []).reduce((sum, award) => sum + Number(award.points || 0), 0);
+  return attendancePoints + photoPoints + commentPoints + awardPoints;
+}
+
+function getAttendanceBonusState(member, monthKey, attendanceLogs = []) {
+  const memberLogs = getMemberAttendanceLogs(member, attendanceLogs);
+  return {
+    weeklyRegular: hasEveryRegularWeek(memberLogs, monthKey),
+    hangangLover: crossedVenueMilestone(memberLogs, monthKey, 2, 10),
+    olympicLover: crossedVenueMilestone(memberLogs, monthKey, 4, 10)
+  };
+}
+
+function getMemberAttendanceLogs(member, attendanceLogs = []) {
+  const memberName = normalizeName(member?.name || authProfile?.name || "");
+  if (!memberName) {
+    return [];
+  }
+  return (Array.isArray(attendanceLogs) ? attendanceLogs : []).filter((log) => {
+    const matched = Array.isArray(log?.matched) ? log.matched : [];
+    return matched.some((name) => normalizeName(name) === memberName);
+  });
+}
+
+function hasEveryRegularWeek(memberLogs, monthKey) {
+  const regularDates = getRegularRunDatesInMonth(monthKey);
+  const requiredWeeks = new Set(regularDates.map((date) => getWeekKey(date)));
+  if (requiredWeeks.size < 4) {
+    return false;
+  }
+  const attendedWeeks = new Set(
+    memberLogs
+      .filter((log) => isRegularVenueLog(log) && String(log.attendance_date || "").startsWith(monthKey))
+      .map((log) => getWeekKey(parseIsoDateOnly(log.attendance_date)))
+  );
+  return Array.from(requiredWeeks).every((weekKey) => attendedWeeks.has(weekKey));
+}
+
+function crossedVenueMilestone(memberLogs, monthKey, weekday, threshold) {
+  const range = getMonthDateBoundary(monthKey);
+  let beforeCount = 0;
+  let throughMonthCount = 0;
+  memberLogs.forEach((log) => {
+    if (!isRegularVenueLog(log)) {
+      return;
+    }
+    const date = parseIsoDateOnly(log.attendance_date);
+    if (!date || date.getDay() !== weekday) {
+      return;
+    }
+    if (date < range.start) {
+      beforeCount += 1;
+    }
+    if (date < range.end) {
+      throughMonthCount += 1;
+    }
+  });
+  return beforeCount < threshold && throughMonthCount >= threshold;
+}
+
+function getRegularRunDatesInMonth(monthKey) {
+  const range = getMonthDateBoundary(monthKey);
+  const dates = [];
+  for (const date = new Date(range.start); date < range.end; date.setDate(date.getDate() + 1)) {
+    if (date.getDay() === 2 || date.getDay() === 4) {
+      dates.push(new Date(date));
+    }
+  }
+  return dates;
+}
+
+function isRegularVenueLog(log) {
+  const eventType = String(log?.event_type || "");
+  return !eventType || eventType.includes("정기");
+}
+
+function getMonthDateBoundary(monthKey) {
+  const [year, month] = String(monthKey || currentMonthKey()).split("-").map(Number);
+  const start = new Date(year || new Date().getFullYear(), (month || 1) - 1, 1);
+  const end = new Date(start.getFullYear(), start.getMonth() + 1, 1);
+  return { start, end };
+}
+
+function parseIsoDateOnly(value) {
+  const [year, month, day] = String(value || "").split("-").map(Number);
+  if (!year || !month || !day) {
+    return null;
+  }
+  return new Date(year, month - 1, day);
+}
+
+function getWeekKey(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return "";
+  }
+  const monday = new Date(date);
+  const day = monday.getDay() || 7;
+  monday.setDate(monday.getDate() - day + 1);
+  return `${monday.getFullYear()}-${pad(monday.getMonth() + 1)}-${pad(monday.getDate())}`;
 }
 
 function getNextReward(points) {
@@ -2155,6 +2807,21 @@ function getAttendanceStreakFromMonth(member, startMonthKey) {
   for (let i = 0; i < 12; i += 1) {
     const key = shiftMonthKey(startMonthKey, -i);
     if (getMonthlyRuns(member, key) <= 0) {
+      break;
+    }
+    streak += 1;
+  }
+  return streak;
+}
+
+function getCandidateStreakFromMonth(member, startMonthKey) {
+  if (!member) {
+    return 0;
+  }
+  let streak = 0;
+  for (let i = 0; i < 12; i += 1) {
+    const key = shiftMonthKey(startMonthKey, -i);
+    if (getMonthlyRuns(member, key) < getMonthThreshold(key)) {
       break;
     }
     streak += 1;

@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=SUIT:wght@300;400;500;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20260420a" />
+  <link rel="stylesheet" href="styles.css?v=20260505a" />
 </head>
 <body>
   <header class="site-header">
@@ -177,6 +177,16 @@
               </ul>
             </article>
 
+            <article class="panel admin-today-panel">
+              <h3>오늘의 운영 체크</h3>
+              <p id="admin-task-status" class="list-meta">운영 데이터를 점검하는 중입니다.</p>
+              <ul id="admin-task-list" class="list small admin-task-list"></ul>
+              <div class="item-actions">
+                <button id="copy-unpaid-message" class="btn ghost" type="button">미납 안내 복사</button>
+                <button id="copy-raffle-check-message" class="btn ghost" type="button">추첨 점검 문구 복사</button>
+              </div>
+            </article>
+
             <article class="panel">
               <h3>공지 등록</h3>
               <form id="notice-form" class="form compact">
@@ -242,7 +252,9 @@
                 <input id="fee-import-file" type="file" accept=".csv,.txt,text/csv,text/plain" />
                 <button id="fee-import-apply" class="btn ghost" type="button">토스 거래내역 반영</button>
               </div>
-              <p id="fee-import-result" class="list-meta">토스 거래내역은 CSV/TXT 파일을 올리면 이름과 5,000원 입금 내역을 찾아 납부 처리합니다.</p>
+              <textarea id="fee-name-input" rows="4" placeholder="모바일에서 입금자 이름만 붙여넣기&#10;예: 김철수, 박러너 또는 줄바꿈 명단"></textarea>
+              <button id="fee-name-apply" class="btn ghost" type="button">이름 목록 납부 처리</button>
+              <p id="fee-import-result" class="list-meta">토스 거래내역 CSV/TXT 파일 또는 이름 목록을 넣으면 회비 납부 처리를 도와줍니다.</p>
               <p id="fee-summary" class="list-meta"></p>
               <p class="list-meta" style="margin:0.3rem 0 0.4rem;">2개월 이상 연속 미납 경고</p>
               <ul id="fee-warning-list" class="list small"></ul>
@@ -332,7 +344,7 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="script.js?v=20260505a"></script>
+    <script src="script.js?v=20260505b"></script>
 </body>
 </html>
 

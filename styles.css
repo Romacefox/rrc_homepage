@@ -187,6 +187,19 @@ input, textarea, select {
 .trend-bar-wrap { height: 9px; background: #222; border-radius: 99px; overflow: hidden; border: 1px solid #333; }
 .trend-bar { height: 100%; background: linear-gradient(90deg, #ff6b00, #ffb171); }
 
+.admin-today-panel {
+  border-color: rgba(255, 159, 85, 0.38);
+}
+
+.admin-task-list {
+  margin-top: 0.65rem;
+}
+
+.admin-task-item .status-chip {
+  flex: 0 0 auto;
+  margin-left: 0;
+}
+
 .site-footer { border-top: 1px solid var(--line); margin-top: 1.5rem; }
 .footer-wrap { padding: 1rem 0 1.4rem; color: var(--muted); display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
 
@@ -716,6 +729,29 @@ body.modal-open {
 
 .suggestion-panel {
   border-color: rgba(255, 152, 88, 0.2);
+}
+
+.challenge-panel {
+  border-color: rgba(255, 187, 115, 0.22);
+}
+
+.point-award-panel {
+  border-color: rgba(255, 211, 143, 0.22);
+}
+
+.challenge-entry-list {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.55rem;
+}
+
+.challenge-entry-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  align-items: center;
+  color: var(--muted);
+  font-size: 0.82rem;
 }
 
 .suggestion-item p {

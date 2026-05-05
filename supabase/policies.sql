@@ -6,6 +6,9 @@ alter table public.attendance_logs enable row level security;
 alter table public.operation_logs enable row level security;
 alter table public.settings enable row level security;
 alter table public.photos enable row level security;
+alter table public.member_challenges enable row level security;
+alter table public.member_challenge_entries enable row level security;
+alter table public.member_point_awards enable row level security;
 alter table public.member_profiles enable row level security;
 alter table public.running_hub_posts enable row level security;
 alter table public.photo_comments enable row level security;
@@ -104,6 +107,32 @@ with check (public.is_admin());
 
 drop policy if exists "auth manage attendance logs" on public.attendance_logs;
 create policy "auth manage attendance logs" on public.attendance_logs
+for all to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
+drop policy if exists "approved member read attendance logs" on public.attendance_logs;
+create policy "approved member read attendance logs" on public.attendance_logs
+for select to authenticated
+using (public.is_approved_member());
+
+drop policy if exists "approved member read point awards" on public.member_point_awards;
+create policy "approved member read point awards" on public.member_point_awards
+for select to authenticated
+using (
+  public.is_admin()
+  or auth.uid() = user_id
+  or exists (
+    select 1
+    from public.member_profiles mp
+    where mp.user_id = auth.uid()
+      and mp.approval_status = 'approved'
+      and lower(replace(mp.name, ' ', '')) = lower(replace(member_name, ' ', ''))
+  )
+);
+
+drop policy if exists "admin manage point awards" on public.member_point_awards;
+create policy "admin manage point awards" on public.member_point_awards
 for all to authenticated
 using (public.is_admin())
 with check (public.is_admin());
