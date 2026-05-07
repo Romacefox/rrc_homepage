@@ -20,6 +20,9 @@ create table if not exists public.member_challenges (
   updated_at timestamptz not null default now()
 );
 
+alter table public.member_challenges
+alter column kakao_room set default 'RRC 카카오톡 채팅방';
+
 create table if not exists public.member_challenge_entries (
   id uuid primary key default gen_random_uuid(),
   challenge_id uuid not null references public.member_challenges(id) on delete cascade,

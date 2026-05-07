@@ -198,6 +198,38 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 .trend-bar-wrap { height: 9px; background: #222; border-radius: 99px; overflow: hidden; border: 1px solid #333; }
 .trend-bar { height: 100%; background: linear-gradient(90deg, #ff6b00, #ffb171); }
 
+.admin-tabbar,
+.activity-board-tabs {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  margin: 0.9rem 0 1rem;
+}
+
+.admin-tab,
+.activity-board-tab {
+  border: 1px solid rgba(255, 140, 66, 0.42);
+  border-radius: 999px;
+  background: rgba(18, 18, 18, 0.92);
+  color: #ffd9bf;
+  padding: 0.5rem 0.8rem;
+  cursor: pointer;
+  font-weight: 800;
+  width: auto;
+}
+
+.admin-tab.is-active,
+.activity-board-tab.is-active {
+  background: var(--brand);
+  color: #fff;
+  border-color: var(--brand);
+}
+
+.admin-tab-hidden,
+.activity-tab-hidden {
+  display: none !important;
+}
+
 .admin-today-panel {
   border-color: rgba(255, 159, 85, 0.38);
 }
@@ -282,6 +314,24 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 
 .member-board-stats {
   grid-template-columns: repeat(3, minmax(120px, 1fr));
+}
+
+.activity-month-controls {
+  align-items: center;
+}
+
+.activity-month-label {
+  flex: 0 0 auto;
+  color: #ffd3b3;
+  font-weight: 800;
+}
+
+.activity-raffle-tab {
+  margin-top: 1rem;
+}
+
+.member-roulette-shell {
+  min-height: 78px;
 }
 
 .board-layout {

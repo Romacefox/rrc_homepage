@@ -144,6 +144,7 @@ function init() {
   migrateLegacyData();
   configureAdminInputs();
   configureSyncActions();
+  configureAdminTabs();
   populateFeeMonthOptions();
   setDefaultBulkDate();
   renderAll();
@@ -305,6 +306,55 @@ function configureSyncActions() {
   restoreBackupButton.textContent = "마지막 백업 복원";
   recoverMembersButton.insertAdjacentElement("afterend", restoreBackupButton);
   restoreBackupButton.addEventListener("click", restoreLastSyncBackup);
+}
+
+function configureAdminTabs() {
+  const adminGrid = document.querySelector("#admin-panel .admin-grid");
+  if (!adminGrid || adminGrid.dataset.tabsReady === "1") {
+    return;
+  }
+  adminGrid.dataset.tabsReady = "1";
+
+  const tabs = [
+    { key: "today", label: "오늘", match: ["운영 기능 요약", "오늘의 운영 체크", "운영 요약 보드"] },
+    { key: "members", label: "회원/출석", match: ["회원 관리", "이름 목록", "강퇴 후보"] },
+    { key: "fees", label: "회비/추첨", match: ["회비 관리", "참여 추첨"] },
+    { key: "requests", label: "신청/공지", match: ["공지 등록", "회원 가입 승인", "게스트 신청"] },
+    { key: "system", label: "시스템", match: ["운영진 권한", "운영 변경 기록", "Supabase"] }
+  ];
+  const panels = Array.from(adminGrid.children).filter((node) => node.matches?.("article.panel"));
+
+  panels.forEach((panel) => {
+    const title = String(panel.querySelector("h3")?.textContent || "").trim();
+    const group = tabs.find((tab) => tab.match.some((needle) => title.includes(needle))) || tabs[0];
+    panel.dataset.adminTabPanel = group.key;
+  });
+
+  const nav = document.createElement("div");
+  nav.className = "admin-tabbar";
+  nav.setAttribute("role", "tablist");
+  nav.innerHTML = tabs.map((tab, index) => `<button class="admin-tab${index === 0 ? " is-active" : ""}" type="button" data-admin-tab="${tab.key}">${tab.label}</button>`).join("");
+  adminGrid.insertAdjacentElement("beforebegin", nav);
+
+  const activate = (key) => {
+    nav.querySelectorAll("[data-admin-tab]").forEach((button) => {
+      button.classList.toggle("is-active", button.dataset.adminTab === key);
+    });
+    panels.forEach((panel) => {
+      const visible = panel.dataset.adminTabPanel === key;
+      panel.classList.toggle("admin-tab-hidden", !visible);
+      panel.hidden = !visible;
+    });
+  };
+
+  nav.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-admin-tab]");
+    if (!button) {
+      return;
+    }
+    activate(button.dataset.adminTab);
+  });
+  activate("today");
 }
 
 function setAdminPanelVisibility(isVisible) {
@@ -1845,19 +1895,47 @@ function checkScheduledDraw(forceRun) {
 async function runManualRafflePreview() {
   const schedule = getDrawSchedule(new Date());
   const threshold = getThresholdForMonthKey(schedule.targetMonthKey);
-  const candidates = getEligibleMembers(schedule.targetMonthKey);
 
   if (!currentAdminToken) {
     alert("운영진 로그인 후 추첨을 진행해 주세요.");
     return;
   }
 
-  if (!candidates.length) {
-    runRouletteAnimation(candidates, [], schedule.targetMonthKey, threshold, true);
+  if (winnerResult) {
+    winnerResult.textContent = "최신 출석 정보를 확인하는 중입니다...";
+  }
+
+  let preview = null;
+  try {
+    preview = await callAdminWrite("preview_raffle", {
+      target_month_key: schedule.targetMonthKey,
+      threshold,
+      winner_count: DRAW_WINNER_COUNT
+    });
+    await loadAdminSnapshot();
+    renderAll();
+  } catch (error) {
+    if (winnerResult) {
+      winnerResult.textContent = `추첨 후보 확인 실패: ${String(error?.message || error)}`;
+    }
     return;
   }
 
-  const confirmed = confirm(`${monthKeyToLabel(schedule.targetMonthKey)} 기준 추첨을 진행할까요?\n\n후보 ${candidates.length}명 중 ${DRAW_WINNER_COUNT}명을 룰렛으로 추첨하고 기록에 저장합니다.`);
+  const candidates = Array.isArray(preview?.candidates) ? preview.candidates : [];
+  if (preview?.already_drawn) {
+    if (winnerResult) {
+      winnerResult.textContent = `${monthKeyToLabel(schedule.targetMonthKey)} 추첨 기록이 이미 있습니다. 최근 추첨 기록을 확인해 주세요.`;
+    }
+    return;
+  }
+
+  if (!candidates.length) {
+    runRouletteAnimation(candidates, [], schedule.targetMonthKey, Number(preview?.threshold || threshold), true);
+    return;
+  }
+
+  const previewNames = candidates.slice(0, 12).map((member) => `${member.name}(${member.runs}회)`).join(", ");
+  const confirmed = confirm(`${monthKeyToLabel(schedule.targetMonthKey)} 기준 최신 출석 정보로 추첨을 진행할까요?\n\n후보 ${candidates.length}명 중 ${DRAW_WINNER_COUNT}명을 룰렛으로 추첨하고 기록에 저장합니다.\n\n후보: ${previewNames}${candidates.length > 12 ? " 외" : ""}`);
   if (!confirmed) {
     return;
   }

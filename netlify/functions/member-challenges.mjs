@@ -33,7 +33,7 @@ export default async (request) => {
     if (request.method === "POST") {
       const body = await request.json();
       const title = String(body?.title || "").trim().slice(0, 80);
-      const stakePoints = Math.max(1, Math.min(Number(body?.stake_points || 0), 500));
+      const stakePoints = Math.max(1, Math.min(Number(body?.stake_points || 0), 2000));
       const startDate = normalizeDate(body?.start_date);
       const endDate = normalizeDate(body?.end_date);
       const verificationTag = String(body?.verification_tag || "").trim().slice(0, 40);
@@ -58,7 +58,7 @@ export default async (request) => {
         rule_text: ruleText,
         status: "submitted"
       });
-      await tryInsertOperationLog(auth, "챌린지 제안", `${title} / ${stakePoints}P`);
+      await tryInsertOperationLog(auth, "챌린지 제안", `${title} / 기본 ${stakePoints}P`);
       return json(200, { ok: true });
     }
 
@@ -68,19 +68,23 @@ export default async (request) => {
 
       if (action === "join") {
         const challengeId = String(body?.challenge_id || "").trim();
+        const stakePoints = Math.max(1, Math.min(Number(body?.stake_points || 0), 2000));
         const challenge = await loadChallenge(challengeId);
         if (!challenge || challenge.status !== "recruiting") {
           return json(400, { ok: false, error: "challenge is not recruiting" });
+        }
+        if (!Number.isFinite(stakePoints) || stakePoints <= 0) {
+          return json(400, { ok: false, error: "invalid stake points" });
         }
 
         await supabaseInsert(ENTRY_TABLE, {
           challenge_id: challengeId,
           user_id: auth.user.id,
           member_name: auth.profile?.name || auth.user.email || "member",
-          stake_points: Number(challenge.stake_points || 0),
+          stake_points: stakePoints,
           result: "joined"
         });
-        await tryInsertOperationLog(auth, "챌린지 참가", `${challenge.title} / ${challenge.stake_points}P`);
+        await tryInsertOperationLog(auth, "챌린지 참가", `${challenge.title} / ${stakePoints}P`);
         return json(200, { ok: true });
       }
 
@@ -127,15 +131,18 @@ export default async (request) => {
         const entries = await loadEntries(challengeId);
         const successEntries = entries.filter((entry) => entry.result === "success");
         const pot = entries.reduce((sum, entry) => sum + Number(entry.stake_points || 0), 0);
-        const payoutPoints = successEntries.length ? Math.floor(pot / successEntries.length) : 0;
+        const payoutMap = allocateProportionalPayouts(successEntries, pot);
+        const payoutTotal = [...payoutMap.values()].reduce((sum, points) => sum + points, 0);
 
         for (const entry of entries) {
+          const payoutPoints = entry.result === "success" ? Number(payoutMap.get(String(entry.id)) || 0) : 0;
           await supabasePatch(`${ENTRY_TABLE}?id=eq.${encodeURIComponent(entry.id)}`, {
-            payout_points: entry.result === "success" ? payoutPoints : 0,
+            payout_points: payoutPoints,
             updated_at: new Date().toISOString()
           });
         }
         for (const entry of successEntries) {
+          const payoutPoints = Number(payoutMap.get(String(entry.id)) || 0);
           await tryInsertPointAward(auth, {
             userId: entry.user_id,
             memberName: entry.member_name,
@@ -143,17 +150,17 @@ export default async (request) => {
             awardCode: "challenge_payout",
             awardLabel: `챌린지 성공: ${challenge.title}`.slice(0, 80),
             points: payoutPoints,
-            note: `참가 포인트 팟 ${pot}P / 성공 ${successEntries.length}명`
+            note: `참가 팟 ${pot}P / 내 베팅 ${Number(entry.stake_points || 0)}P / 성공자 베팅 비율 정산`
           });
         }
         await supabasePatch(`${CHALLENGE_TABLE}?id=eq.${encodeURIComponent(challengeId)}`, {
           status: "settled",
-          payout_points: payoutPoints,
+          payout_points: payoutTotal,
           settled_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         });
-        await tryInsertOperationLog(auth, "챌린지 정산", `${challenge.title}: ${successEntries.length}명 / ${payoutPoints}P`);
-        return json(200, { ok: true, success_count: successEntries.length, payout_points: payoutPoints, pot_points: pot });
+        await tryInsertOperationLog(auth, "챌린지 정산", `${challenge.title}: 성공 ${successEntries.length}명 / 총 ${payoutTotal}P`);
+        return json(200, { ok: true, success_count: successEntries.length, payout_points: payoutTotal, payout_total: payoutTotal, pot_points: pot });
       }
 
       return json(400, { ok: false, error: "invalid action" });
@@ -207,6 +214,43 @@ async function loadChallenge(id) {
 
 async function loadEntries(challengeId) {
   return supabaseSelect(`${ENTRY_TABLE}?challenge_id=eq.${encodeURIComponent(challengeId)}&select=id,user_id,member_name,stake_points,result`);
+}
+
+function allocateProportionalPayouts(successEntries, pot) {
+  const entries = Array.isArray(successEntries) ? successEntries : [];
+  const totalStake = entries.reduce((sum, entry) => sum + Number(entry.stake_points || 0), 0);
+  const totalPot = Math.max(0, Math.floor(Number(pot || 0)));
+  const payouts = new Map();
+  if (!entries.length || totalStake <= 0 || totalPot <= 0) {
+    entries.forEach((entry) => payouts.set(String(entry.id), 0));
+    return payouts;
+  }
+
+  const shares = entries.map((entry) => {
+    const raw = totalPot * (Number(entry.stake_points || 0) / totalStake);
+    const floor = Math.floor(raw);
+    return {
+      id: String(entry.id),
+      memberName: String(entry.member_name || ""),
+      stake: Number(entry.stake_points || 0),
+      floor,
+      remainder: raw - floor
+    };
+  });
+  let distributed = shares.reduce((sum, share) => sum + share.floor, 0);
+  shares.forEach((share) => payouts.set(share.id, share.floor));
+
+  shares
+    .sort((a, b) => (b.remainder - a.remainder) || (b.stake - a.stake) || a.memberName.localeCompare(b.memberName, "ko"))
+    .forEach((share) => {
+      if (distributed >= totalPot) {
+        return;
+      }
+      payouts.set(share.id, Number(payouts.get(share.id) || 0) + 1);
+      distributed += 1;
+    });
+
+  return payouts;
 }
 
 function normalizeDate(value) {

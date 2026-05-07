@@ -20,10 +20,9 @@ const POINT_POLICY = {
   commentMonthlyCap: 10
 };
 const REWARD_ITEMS = [
-  { code: "rrc_shop_500", name: "RRC샵 500원 보조권", points: 50 },
-  { code: "rrc_shop_1000", name: "RRC샵 1,000원 보조권", points: 100 },
-  { code: "rrc_shop_2000", name: "RRC샵 2,000원 보조권", points: 200 },
-  { code: "rrc_shop_3000", name: "RRC샵 3,000원 보조권", points: 300 }
+  { code: "rrc_shop_5000", name: "RRC샵 5,000원 보조권", points: 500 },
+  { code: "rrc_shop_10000", name: "RRC샵 10,000원 보조권", points: 1000 },
+  { code: "rrc_shop_20000", name: "RRC샵 20,000원 보조권", points: 2000 }
 ];
 
 let supabaseClient = null;
@@ -75,6 +74,12 @@ const activityMonthSelect = document.getElementById("activity-month");
 const activityRefreshButton = document.getElementById("activity-refresh");
 const activityLock = document.getElementById("activity-lock");
 const activityBoard = document.getElementById("activity-board");
+const memberFocusPanel = document.querySelector(".member-focus-panel");
+const boardPulseGrid = document.querySelector(".board-pulse-grid");
+const boardLayout = document.querySelector(".board-layout");
+const boardPublicGrid = document.querySelector(".board-public-grid");
+const boardRecordGrid = document.querySelector(".board-record-grid");
+const boardEngagementGrid = document.querySelector(".board-engagement-grid");
 const myMonthRuns = document.getElementById("my-month-runs");
 const myTotalRuns = document.getElementById("my-total-runs");
 const myStreak = document.getElementById("my-streak");
@@ -86,6 +91,11 @@ const candidatePreviewBoard = document.getElementById("candidate-preview-board")
 const missionBoard = document.getElementById("mission-board");
 const badgeShowcaseBoard = document.getElementById("badge-showcase-board");
 const boardRaffleHistory = document.getElementById("board-raffle-history");
+let boardRaffleReplayPanel = null;
+let boardRaffleReplayStatus = null;
+let boardRaffleReplayButton = null;
+let boardRaffleRouletteTrack = null;
+let latestRaffleRecords = [];
 const myFeeStatus = document.getElementById("my-fee-status");
 const myRaffleStatus = document.getElementById("my-raffle-status");
 const myStreakChange = document.getElementById("my-streak-change");
@@ -102,6 +112,7 @@ const boardPointLeader = document.getElementById("board-point-leader");
 const boardPointLeaderNote = document.getElementById("board-point-leader-note");
 const boardMissionProgress = document.getElementById("board-mission-progress");
 const boardMissionNote = document.getElementById("board-mission-note");
+const pointRankingBoard = document.getElementById("point-ranking-board");
 const myPhotoHistory = document.getElementById("my-photo-history");
 const myCommentHistory = document.getElementById("my-comment-history");
 const myRaffleHistory = document.getElementById("my-raffle-history");
@@ -246,6 +257,7 @@ function init() {
   photoLikeButton?.addEventListener("click", handlePhotoLikeToggle);
   activityRefreshButton?.addEventListener("click", loadActivityBoard);
   activityMonthSelect?.addEventListener("change", loadActivityBoard);
+  configureActivityBoardTabs();
   suggestionForm?.addEventListener("submit", handleSuggestionSubmit);
   suggestionRefreshButton?.addEventListener("click", loadSuggestionBoard);
   rewardRequestForm?.addEventListener("submit", handleRewardRequestSubmit);
@@ -319,6 +331,97 @@ function attachDatePickerOpen(input) {
       openPicker();
     }
   });
+}
+
+function configureActivityBoardTabs() {
+  if (!activityBoard || activityBoard.dataset.tabsReady === "1") {
+    return;
+  }
+  activityBoard.dataset.tabsReady = "1";
+
+  const controls = activityMonthSelect?.closest(".inline-form");
+  if (controls) {
+    controls.classList.add("activity-month-controls");
+    controls.insertAdjacentHTML("afterbegin", '<span class="activity-month-label">조회 월</span>');
+  }
+
+  const tabs = [
+    { key: "overview", label: "요약", nodes: [memberFocusPanel, boardPulseGrid] },
+    { key: "attendance", label: "출석", nodes: [boardLayout, boardPublicGrid] },
+    { key: "raffle", label: "추첨", nodes: [] },
+    { key: "rewards", label: "리워드", nodes: [boardRecordGrid, boardEngagementGrid] }
+  ];
+
+  boardRaffleReplayPanel = buildRaffleReplayPanel();
+  if (boardLayout) {
+    boardLayout.insertAdjacentElement("afterend", boardRaffleReplayPanel);
+  } else {
+    activityBoard.appendChild(boardRaffleReplayPanel);
+  }
+  tabs.find((tab) => tab.key === "raffle").nodes = [boardRaffleReplayPanel];
+
+  const tabbar = document.createElement("div");
+  tabbar.className = "activity-board-tabs";
+  tabbar.setAttribute("role", "tablist");
+  tabbar.innerHTML = tabs.map((tab, index) => `<button class="activity-board-tab${index === 0 ? " is-active" : ""}" type="button" data-board-tab="${tab.key}">${tab.label}</button>`).join("");
+  if (controls) {
+    controls.insertAdjacentElement("afterend", tabbar);
+  } else {
+    activityBoard.insertAdjacentElement("afterbegin", tabbar);
+  }
+
+  const tabNodeMap = new Map(tabs.map((tab) => [tab.key, tab.nodes.filter(Boolean)]));
+  const allNodes = tabs.flatMap((tab) => tab.nodes).filter(Boolean);
+  const activate = (key) => {
+    tabbar.querySelectorAll("[data-board-tab]").forEach((button) => {
+      button.classList.toggle("is-active", button.dataset.boardTab === key);
+    });
+    allNodes.forEach((node) => {
+      const visible = (tabNodeMap.get(key) || []).includes(node);
+      node.classList.toggle("activity-tab-hidden", !visible);
+      node.hidden = !visible;
+    });
+  };
+
+  tabbar.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-board-tab]");
+    if (!button) {
+      return;
+    }
+    activate(button.dataset.boardTab);
+  });
+  boardRaffleReplayButton?.addEventListener("click", () => replayBoardRaffleResult());
+  activate("overview");
+}
+
+function buildRaffleReplayPanel() {
+  const wrapper = document.createElement("section");
+  wrapper.className = "activity-raffle-tab activity-tab-hidden";
+  wrapper.hidden = true;
+  wrapper.innerHTML = `
+    <article class="panel board-highlight member-raffle-replay-panel">
+      <div class="section-head">
+        <h3>추첨 결과 확인</h3>
+        <span class="badge">룰렛 재생</span>
+      </div>
+      <p id="board-raffle-replay-status" class="list-meta">운영진이 추첨을 완료하면 결과를 룰렛처럼 확인할 수 있습니다.</p>
+      <div class="roulette-shell member-roulette-shell">
+        <div id="board-raffle-roulette-track" class="roulette-track">READY</div>
+      </div>
+      <button id="board-raffle-replay-button" class="btn primary" type="button">최근 추첨 결과 확인</button>
+    </article>
+    <article class="panel" style="margin-top:1rem;">
+      <div class="section-head">
+        <h3>월별 추첨 기록</h3>
+        <span class="badge">공개 기록</span>
+      </div>
+      <ul id="board-raffle-history-tab" class="list small" style="margin-top:0.8rem;"></ul>
+    </article>
+  `;
+  boardRaffleReplayStatus = wrapper.querySelector("#board-raffle-replay-status");
+  boardRaffleReplayButton = wrapper.querySelector("#board-raffle-replay-button");
+  boardRaffleRouletteTrack = wrapper.querySelector("#board-raffle-roulette-track");
+  return wrapper;
 }
 
 async function hydrateAuthState(forcedUser = undefined) {
@@ -1107,15 +1210,28 @@ async function loadActivityBoard() {
     .limit(10);
 
   const raffleRecords = Array.isArray(raffleResult.data) ? raffleResult.data : [];
-  const attendanceLogs = await loadAttendanceLogsForPoints();
+  latestRaffleRecords = raffleRecords;
+  const [attendanceLogs, publicPointAwards] = await Promise.all([
+    loadAttendanceLogsForPoints(),
+    loadPublicPointAwardRanking(selectedMonth)
+  ]);
+  const awardPointsByName = new Map(
+    publicPointAwards.map((entry) => [normalizeName(entry.member_name), Number(entry.points || 0)])
+  );
   const rows = members
-    .map((member) => ({
-      ...member,
-      monthRuns: getMonthlyRuns(member, selectedMonth),
-      streak: getAttendanceStreakFromMonth(member, selectedMonth),
-      tickets: calculateMonthlyTickets(member, selectedMonth),
-      basePoints: calculateAttendancePoints(member, selectedMonth, attendanceLogs)
-    }))
+    .map((member) => {
+      const basePoints = calculateAttendancePoints(member, selectedMonth, attendanceLogs);
+      const awardPoints = awardPointsByName.get(normalizeName(member.name)) || 0;
+      return {
+        ...member,
+        monthRuns: getMonthlyRuns(member, selectedMonth),
+        streak: getAttendanceStreakFromMonth(member, selectedMonth),
+        tickets: calculateMonthlyTickets(member, selectedMonth),
+        basePoints,
+        awardPoints,
+        pointTotal: basePoints + awardPoints
+      };
+    })
     .sort((a, b) => (b.monthRuns - a.monthRuns) || (Number(b.total_runs || 0) - Number(a.total_runs || 0)) || String(a.name || "").localeCompare(String(b.name || ""), "ko"));
   window.__RRC_ACTIVITY_ROWS = rows;
 
@@ -1150,9 +1266,11 @@ async function loadActivityBoard() {
   renderPublicTicketBoard(rows, selectedMonth);
   renderCandidatePreviewBoard(rows, selectedMonth);
   renderBadgeShowcase(rows, selectedMonth);
+  renderPointRankingBoard(rows, selectedMonth);
   renderRunnerCard(runner, selectedMonth);
   renderBoardPulseSummary(rows, runner, selectedMonth);
   renderBoardRaffleHistory(raffleRecords.slice(0, 4));
+  renderBoardRaffleReplayState(raffleRecords);
   await renderMyActivityState(me, selectedMonth, raffleRecords, attendanceLogs);
   await loadSuggestionBoard();
   await loadRewardRequests();
@@ -1175,6 +1293,8 @@ function renderBoardLocked(message) {
   renderCandidatePreviewBoard([], currentMonthKey());
   renderMissionBoard([], null, currentMonthKey(), 0, 0);
   renderBadgeShowcase([], currentMonthKey());
+  renderPointRankingBoard([], currentMonthKey());
+  renderBoardRaffleReplayState([]);
 }
 
 function renderAttendanceBoard(rows, monthKey) {
@@ -1201,7 +1321,7 @@ function renderAttendanceBoard(rows, monthKey) {
         <span class="list-title">${index + 1}. ${escapeHtml(member.name || "이름없음")}${badge}${ticketChip}</span>
         <span class="list-meta">${monthKeyToLabel(monthKey)} ${member.monthRuns}회</span>
       </div>
-      <p class="list-meta">누적 ${Number(member.total_runs || 0)}회 / 연속 출석 ${member.streak}개월 / 활동 포인트 ${member.basePoints}P</p>
+      <p class="list-meta">누적 ${Number(member.total_runs || 0)}회 / 연속 출석 ${member.streak}개월 / 활동 포인트 ${getMemberPointTotal(member)}P</p>
     `;
     attendanceBoard.appendChild(item);
   });
@@ -1211,8 +1331,8 @@ function renderBoardPulseSummary(rows, runner, monthKey) {
   const threshold = getMonthThreshold(monthKey);
   const eligibleCount = rows.filter((member) => member.monthRuns >= threshold).length;
   const pointLeader = [...rows]
-    .filter((member) => member.basePoints > 0 || member.monthRuns > 0)
-    .sort((a, b) => (b.basePoints - a.basePoints) || (b.monthRuns - a.monthRuns))[0] || null;
+    .filter((member) => getMemberPointTotal(member) > 0 || member.monthRuns > 0)
+    .sort((a, b) => (getMemberPointTotal(b) - getMemberPointTotal(a)) || (b.monthRuns - a.monthRuns))[0] || null;
   const missionAchievers = rows.filter((member) => member.monthRuns >= threshold).length;
   const missionRate = rows.length ? Math.round((missionAchievers / rows.length) * 100) : 0;
 
@@ -1235,7 +1355,7 @@ function renderBoardPulseSummary(rows, runner, monthKey) {
   }
   if (boardPointLeaderNote) {
     boardPointLeaderNote.textContent = pointLeader
-      ? `활동 포인트 ${pointLeader.basePoints}P · 연속 출석 ${pointLeader.streak}개월`
+      ? `활동 포인트 ${getMemberPointTotal(pointLeader)}P · 연속 출석 ${pointLeader.streak}개월`
       : "포인트 집계 대상이 아직 없습니다.";
   }
   if (boardMissionProgress) {
@@ -1259,7 +1379,7 @@ function renderRunnerCard(runner, monthKey) {
     <p class="list-meta">${monthKeyToLabel(monthKey)} 최다 출석</p>
     <h3 style="margin:0.2rem 0 0.4rem;">${escapeHtml(runner.name || "이름없음")}</h3>
     <p>${runner.monthRuns}회 출석 / 누적 ${Number(runner.total_runs || 0)}회</p>
-    <p class="list-meta">연속 출석 ${runner.streak}개월 / 추첨권 ${runner.tickets || calculateMonthlyTickets(runner, monthKey)}장 / 활동 포인트 ${runner.basePoints || calculateAttendancePoints(runner, monthKey)}P</p>
+    <p class="list-meta">연속 출석 ${runner.streak}개월 / 추첨권 ${runner.tickets || calculateMonthlyTickets(runner, monthKey)}장 / 활동 포인트 ${getMemberPointTotal(runner) || calculateAttendancePoints(runner, monthKey)}P</p>
   `;
 }
 
@@ -1274,8 +1394,8 @@ function renderPublicTicketBoard(rows, monthKey) {
   }
 
   const visibleRows = rows
-    .filter((member) => member.monthRuns > 0 || member.tickets > 0 || member.basePoints > 0)
-    .sort((a, b) => (b.tickets - a.tickets) || (b.basePoints - a.basePoints) || (b.monthRuns - a.monthRuns))
+    .filter((member) => member.monthRuns > 0 || member.tickets > 0 || getMemberPointTotal(member) > 0)
+    .sort((a, b) => (b.tickets - a.tickets) || (getMemberPointTotal(b) - getMemberPointTotal(a)) || (b.monthRuns - a.monthRuns))
     .slice(0, 6);
 
   visibleRows.forEach((member, index) => {
@@ -1291,7 +1411,7 @@ function renderPublicTicketBoard(rows, monthKey) {
         <span class="list-title">${index + 1}. ${escapeHtml(member.name || "이름없음")}${titleChip}</span>
         <span class="list-meta">추첨권 ${member.tickets}장</span>
       </div>
-      <p class="list-meta">이번 달 출석 ${member.monthRuns}회 / 활동 포인트 ${member.basePoints}P / 연속 출석 ${member.streak}개월</p>
+      <p class="list-meta">이번 달 출석 ${member.monthRuns}회 / 활동 포인트 ${getMemberPointTotal(member)}P / 연속 출석 ${member.streak}개월</p>
     `;
     publicTicketBoard.appendChild(item);
   });
@@ -1306,7 +1426,7 @@ function renderCandidatePreviewBoard(rows, monthKey) {
   const threshold = getMonthThreshold(monthKey);
   const candidates = rows
     .filter((member) => member.monthRuns >= threshold)
-    .sort((a, b) => (b.tickets - a.tickets) || (b.monthRuns - a.monthRuns) || (b.basePoints - a.basePoints))
+    .sort((a, b) => (b.tickets - a.tickets) || (b.monthRuns - a.monthRuns) || (getMemberPointTotal(b) - getMemberPointTotal(a)))
     .slice(0, 8);
 
   if (!candidates.length) {
@@ -1320,7 +1440,7 @@ function renderCandidatePreviewBoard(rows, monthKey) {
     card.innerHTML = `
       <strong>${escapeHtml(member.name || "이름없음")}</strong>
       <p class="list-meta">추첨권 ${member.tickets}장 · 출석 ${member.monthRuns}회</p>
-      <p class="list-meta">연속 출석 ${member.streak}개월 · 활동 포인트 ${member.basePoints}P</p>
+      <p class="list-meta">연속 출석 ${member.streak}개월 · 활동 포인트 ${getMemberPointTotal(member)}P</p>
     `;
     candidatePreviewBoard.appendChild(card);
   });
@@ -1396,12 +1516,12 @@ function renderBadgeShowcase(rows, monthKey) {
       body: `연속 출석 ${streakRunner.streak}개월 달성`
     });
   }
-  const pointRunner = [...rows].sort((a, b) => (b.basePoints - a.basePoints))[0];
-  if (pointRunner && pointRunner.basePoints > 0) {
+  const pointRunner = [...rows].sort((a, b) => (getMemberPointTotal(b) - getMemberPointTotal(a)))[0];
+  if (pointRunner && getMemberPointTotal(pointRunner) > 0) {
     showcase.push({
       label: "포인트 러너",
       owner: pointRunner.name,
-      body: `이번 달 활동 포인트 ${pointRunner.basePoints}P`
+      body: `이번 달 활동 포인트 ${getMemberPointTotal(pointRunner)}P`
     });
   }
 
@@ -1421,6 +1541,36 @@ function renderBadgeShowcase(rows, monthKey) {
       <p class="list-meta">${escapeHtml(badge.body)}</p>
     `;
     badgeShowcaseBoard.appendChild(item);
+  });
+}
+
+function renderPointRankingBoard(rows, monthKey) {
+  if (!pointRankingBoard) {
+    return;
+  }
+  pointRankingBoard.innerHTML = "";
+  const ranking = (Array.isArray(rows) ? rows : [])
+    .filter((member) => getMemberPointTotal(member) > 0 || member.monthRuns > 0)
+    .sort((a, b) => (getMemberPointTotal(b) - getMemberPointTotal(a)) || (b.monthRuns - a.monthRuns) || String(a.name || "").localeCompare(String(b.name || ""), "ko"))
+    .slice(0, 10);
+
+  if (!ranking.length) {
+    pointRankingBoard.innerHTML = '<li class="list-item"><p class="list-meta">아직 포인트 랭킹 데이터가 없습니다.</p></li>';
+    return;
+  }
+
+  ranking.forEach((member, index) => {
+    const item = document.createElement("li");
+    item.className = "list-item board-ranking-item";
+    const awardPoints = Number(member.awardPoints || 0);
+    item.innerHTML = `
+      <div class="list-top">
+        <span class="list-title">${index + 1}. ${escapeHtml(member.name || "이름없음")}${index === 0 ? '<span class="status-chip">포인트 선두</span>' : ""}</span>
+        <span class="status-chip">${getMemberPointTotal(member)}P</span>
+      </div>
+      <p class="list-meta">${monthKeyToLabel(monthKey)} 출석 ${Number(member.monthRuns || 0)}회 · 출석/배지 ${Number(member.basePoints || 0)}P${awardPoints ? ` · 사진/댓글/운영 ${awardPoints}P` : ""}</p>
+    `;
+    pointRankingBoard.appendChild(item);
   });
 }
 
@@ -1450,13 +1600,110 @@ function renderBoardRaffleHistory(records) {
   });
 }
 
+function renderBoardRaffleReplayState(records) {
+  const historyTab = document.getElementById("board-raffle-history-tab");
+  const source = Array.isArray(records) ? records : [];
+  if (boardRaffleReplayStatus) {
+    const latest = source[0] || null;
+    boardRaffleReplayStatus.textContent = latest
+      ? `${monthKeyToLabel(latest.target_month_key)} 운영진 추첨 결과를 룰렛처럼 다시 확인할 수 있습니다.`
+      : "운영진이 추첨을 완료하면 결과를 룰렛처럼 확인할 수 있습니다.";
+  }
+  if (boardRaffleReplayButton) {
+    boardRaffleReplayButton.disabled = !source.length;
+  }
+  if (boardRaffleRouletteTrack && !source.length) {
+    boardRaffleRouletteTrack.textContent = "READY";
+  }
+  if (!historyTab) {
+    return;
+  }
+  historyTab.innerHTML = "";
+  if (!source.length) {
+    historyTab.innerHTML = '<li class="list-item"><p class="list-meta">추첨 기록이 없습니다.</p></li>';
+    return;
+  }
+  source.forEach((record, index) => {
+    const winners = Array.isArray(record.winners) ? record.winners.map((winner) => winner.name).join(", ") : "";
+    const item = document.createElement("li");
+    item.className = "list-item";
+    item.innerHTML = `
+      <div class="list-top">
+        <span class="list-title">${monthKeyToLabel(record.target_month_key)} 추첨</span>
+        <span class="list-meta">${formatDate(record.created_at)}</span>
+      </div>
+      <p class="list-meta">기준 ${record.threshold}회 / ${record.winner_count}명 추첨</p>
+      <p>${escapeHtml(winners || "당첨자 없음")}</p>
+      <div class="item-actions">
+        <button class="btn tiny" type="button" data-replay-raffle="${index}">결과 확인</button>
+      </div>
+    `;
+    item.querySelector("[data-replay-raffle]")?.addEventListener("click", () => replayBoardRaffleResult(record));
+    historyTab.appendChild(item);
+  });
+}
+
+function replayBoardRaffleResult(record = null) {
+  const target = record || latestRaffleRecords[0] || null;
+  if (!target || !boardRaffleRouletteTrack) {
+    if (boardRaffleReplayStatus) {
+      boardRaffleReplayStatus.textContent = "아직 재생할 추첨 기록이 없습니다.";
+    }
+    return;
+  }
+
+  const winners = Array.isArray(target.winners) ? target.winners : [];
+  const rows = Array.isArray(window.__RRC_ACTIVITY_ROWS) ? window.__RRC_ACTIVITY_ROWS : [];
+  const candidates = rows
+    .filter((member) => getMonthlyRuns(member, target.target_month_key) >= Number(target.threshold || 0))
+    .map((member) => ({
+      name: member.name,
+      runs: getMonthlyRuns(member, target.target_month_key)
+    }));
+  const spinPool = candidates.length ? candidates : winners;
+
+  if (!spinPool.length) {
+    boardRaffleRouletteTrack.textContent = "NO WINNER";
+    if (boardRaffleReplayStatus) {
+      boardRaffleReplayStatus.textContent = `${monthKeyToLabel(target.target_month_key)} 당첨자가 없습니다.`;
+    }
+    return;
+  }
+
+  let tick = 0;
+  boardRaffleRouletteTrack.textContent = monthKeyToLabel(target.target_month_key);
+  boardRaffleRouletteTrack.classList.add("spinning");
+  if (boardRaffleReplayStatus) {
+    boardRaffleReplayStatus.textContent = `${monthKeyToLabel(target.target_month_key)} 추첨 결과를 재생하는 중입니다...`;
+  }
+
+  const timer = setInterval(() => {
+    const member = spinPool[tick % spinPool.length];
+    boardRaffleRouletteTrack.textContent = `${member.name} · ${Number(member.runs || 0)}회`;
+    tick += 1;
+  }, 85);
+
+  setTimeout(() => {
+    clearInterval(timer);
+    boardRaffleRouletteTrack.classList.remove("spinning");
+    const names = winners.length
+      ? winners.map((winner) => `${winner.name} (${Number(winner.runs || 0)}회)`).join(" / ")
+      : "당첨자 없음";
+    boardRaffleRouletteTrack.textContent = names;
+    if (boardRaffleReplayStatus) {
+      boardRaffleReplayStatus.textContent = `${monthKeyToLabel(target.target_month_key)} 추첨 결과: ${names}`;
+    }
+  }, 2600);
+}
+
 function populateRecentMonthOptions(selectNode) {
   const now = new Date();
   const options = [];
-  for (let i = 0; i < 6; i += 1) {
+  for (let i = 0; i < 12; i += 1) {
     const dt = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const key = `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}`;
-    options.push(`<option value="${key}">${monthKeyToLabel(key)}</option>`);
+    const label = i === 0 ? `${monthKeyToLabel(key)} 현재 월` : `${monthKeyToLabel(key)} 기록`;
+    options.push(`<option value="${key}">${label}</option>`);
   }
   selectNode.innerHTML = options.join("");
   selectNode.value = currentMonthKey();
@@ -1990,6 +2237,18 @@ async function loadPointAwardsForMonth(monthKey) {
   }
 }
 
+async function loadPublicPointAwardRanking(monthKey) {
+  if (!supabaseClient || !authUser || !authProfile || authProfile.approval_status !== "approved") {
+    return [];
+  }
+  try {
+    const result = await callPointAwards(`?month_key=${encodeURIComponent(monthKey)}&limit=500&public=ranking`);
+    return Array.isArray(result?.ranking) ? result.ranking : [];
+  } catch (_error) {
+    return [];
+  }
+}
+
 function renderPointAwardAdminList(items) {
   if (!pointAwardList) {
     return;
@@ -2151,8 +2410,10 @@ function renderChallengeList(items, canManage) {
   items.forEach((item) => {
     const entries = Array.isArray(item.entries) ? item.entries : [];
     const joined = entries.some((entry) => entry.user_id === authUser?.id);
-    const successCount = entries.filter((entry) => entry.result === "success").length;
+    const successEntries = entries.filter((entry) => entry.result === "success");
+    const successCount = successEntries.length;
     const pot = entries.reduce((sum, entry) => sum + Number(entry.stake_points || item.stake_points || 0), 0);
+    const successStakeTotal = successEntries.reduce((sum, entry) => sum + Number(entry.stake_points || item.stake_points || 0), 0);
     const node = document.createElement("li");
     node.className = "list-item";
     node.innerHTML = `
@@ -2160,10 +2421,10 @@ function renderChallengeList(items, canManage) {
         <span class="list-title">${escapeHtml(item.title || "포인트 챌린지")}</span>
         <span class="status-chip ${getChallengeStatusClass(item.status)}">${escapeHtml(getChallengeStatusLabel(item.status))}</span>
       </div>
-      <p class="list-meta">${escapeHtml(item.start_date || "-")} ~ ${escapeHtml(item.end_date || "-")} · 참가 ${Number(item.stake_points || 0)}P · 팟 ${pot}P</p>
+      <p class="list-meta">${escapeHtml(item.start_date || "-")} ~ ${escapeHtml(item.end_date || "-")} · 기본 베팅 ${Number(item.stake_points || 0)}P · 팟 ${pot}P</p>
       <p class="list-meta">인증: RRC 카카오톡 채팅방 ${item.verification_tag ? `· ${escapeHtml(item.verification_tag)}` : ""}</p>
       <p>${escapeHtml(item.rule_text || "")}</p>
-      <p class="list-meta">참가 ${entries.length}명 · 성공 ${successCount}명${item.status === "settled" ? ` · 성공자 지급 ${Number(item.payout_points || 0)}P` : ""}</p>
+      <p class="list-meta">참가 ${entries.length}명 · 성공 ${successCount}명${successStakeTotal ? ` · 성공 베팅 ${successStakeTotal}P` : ""}${item.status === "settled" ? ` · 총 정산 ${Number(item.payout_points || 0)}P` : ""}</p>
     `;
 
     const entryWrap = document.createElement("div");
@@ -2171,7 +2432,7 @@ function renderChallengeList(items, canManage) {
     entries.slice(0, 8).forEach((entry) => {
       const row = document.createElement("div");
       row.className = "challenge-entry-row";
-      row.innerHTML = `<span>${escapeHtml(entry.member_name || "회원")}</span><span>${escapeHtml(getChallengeResultLabel(entry.result))}${entry.payout_points ? ` · ${Number(entry.payout_points)}P` : ""}</span>`;
+      row.innerHTML = `<span>${escapeHtml(entry.member_name || "회원")}</span><span>베팅 ${Number(entry.stake_points || item.stake_points || 0)}P · ${escapeHtml(getChallengeResultLabel(entry.result))}${entry.payout_points ? ` · 정산 ${Number(entry.payout_points)}P` : ""}</span>`;
       entryWrap.appendChild(row);
     });
     if (entries.length) {
@@ -2181,7 +2442,7 @@ function renderChallengeList(items, canManage) {
     const actions = document.createElement("div");
     actions.className = "item-actions";
     if (item.status === "recruiting" && !joined) {
-      actions.appendChild(buildActionButton("참가", () => joinChallenge(item.id)));
+      actions.appendChild(buildActionButton("참가", () => joinChallenge(item.id, item.stake_points)));
     }
     if (canManage) {
       if (item.status === "submitted") {
@@ -2224,16 +2485,25 @@ function buildActionButton(label, onClick) {
   return button;
 }
 
-async function joinChallenge(challengeId) {
+async function joinChallenge(challengeId, defaultStake = 0) {
+  const rawStake = prompt("이 챌린지에 베팅할 포인트를 입력해 주세요.", String(Number(defaultStake || 50)));
+  if (rawStake === null) {
+    return;
+  }
+  const stakePoints = Math.max(1, Math.min(Number(rawStake || 0), 2000));
+  if (!Number.isFinite(stakePoints) || stakePoints <= 0) {
+    setStatus(challengeStatus, "베팅 포인트를 숫자로 입력해 주세요.");
+    return;
+  }
   try {
     const result = await callMemberChallenges("", {
       method: "PATCH",
-      body: JSON.stringify({ action: "join", challenge_id: challengeId })
+      body: JSON.stringify({ action: "join", challenge_id: challengeId, stake_points: stakePoints })
     });
     if (!result?.ok) {
       throw new Error(result?.error || "join failed");
     }
-    setStatus(challengeStatus, "챌린지에 참가했습니다. 카톡방 인증 규칙을 확인해 주세요.");
+    setStatus(challengeStatus, `챌린지에 ${stakePoints}P 베팅으로 참가했습니다. 카톡방 인증 규칙을 확인해 주세요.`);
     await loadChallenges();
   } catch (error) {
     setStatus(challengeStatus, `챌린지 참가 실패: ${String(error?.message || error)}`);
@@ -2273,7 +2543,7 @@ async function judgeChallengeEntry(entryId, resultStatus) {
 }
 
 async function settleChallenge(challengeId) {
-  if (!confirm("성공자를 기준으로 챌린지 포인트를 정산할까요?")) {
+  if (!confirm("성공자의 베팅 비율을 기준으로 챌린지 포인트를 정산할까요?")) {
     return;
   }
   try {
@@ -2284,7 +2554,7 @@ async function settleChallenge(challengeId) {
     if (!result?.ok) {
       throw new Error(result?.error || "settle failed");
     }
-    setStatus(challengeStatus, `정산 완료: 성공자 ${result.success_count || 0}명 · 1인 ${result.payout_points || 0}P`);
+    setStatus(challengeStatus, `정산 완료: 성공자 ${result.success_count || 0}명 · 총 ${result.payout_total || result.payout_points || 0}P를 베팅 비율로 지급했습니다.`);
     await loadChallenges();
   } catch (error) {
     setStatus(challengeStatus, `정산 실패: ${String(error?.message || error)}`);
@@ -2680,6 +2950,10 @@ function calculatePersonalMonthlyPoints({ me, selectedMonth, photoCount, comment
   const commentPoints = Math.min(Number(commentCount || 0), POINT_POLICY.commentMonthlyCap) * POINT_POLICY.comment;
   const awardPoints = (Array.isArray(pointAwards) ? pointAwards : []).reduce((sum, award) => sum + Number(award.points || 0), 0);
   return attendancePoints + photoPoints + commentPoints + awardPoints;
+}
+
+function getMemberPointTotal(member) {
+  return Number(member?.pointTotal ?? member?.basePoints ?? 0);
 }
 
 function getAttendanceBonusState(member, monthKey, attendanceLogs = []) {

@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=SUIT:wght@300;400;500;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20260505b" />
+  <link rel="stylesheet" href="styles.css?v=20260507a" />
 </head>
 <body>
   <header class="site-header">
@@ -203,29 +203,29 @@
                 <p class="list-meta">출석과 커뮤니티 활동으로 월간 포인트를 모으고, 운영진 승인 후 RRC샵 결제 보조로 사용하는 흐름입니다. 운영 환산 기준은 10P=100원입니다.</p>
                 <div id="reward-preview-list" class="reward-preview-list">
                   <div class="reward-preview-card">
-                    <strong>50P</strong>
-                    <p class="list-meta">RRC샵 500원 보조권</p>
+                    <strong>500P</strong>
+                    <p class="list-meta">RRC샵 5,000원 보조권</p>
                   </div>
                   <div class="reward-preview-card">
-                    <strong>100P</strong>
-                    <p class="list-meta">RRC샵 1,000원 보조권</p>
+                    <strong>1,000P</strong>
+                    <p class="list-meta">RRC샵 10,000원 보조권</p>
                   </div>
                   <div class="reward-preview-card">
-                    <strong>200P</strong>
-                    <p class="list-meta">RRC샵 2,000원 보조권</p>
-                  </div>
-                  <div class="reward-preview-card">
-                    <strong>300P</strong>
-                    <p class="list-meta">RRC샵 3,000원 보조권</p>
+                    <strong>2,000P</strong>
+                    <p class="list-meta">RRC샵 20,000원 보조권</p>
                   </div>
                 </div>
+                <div class="section-head" style="margin-top:1rem;">
+                  <h3>월간 포인트 랭킹</h3>
+                  <span class="badge">전체 포인트</span>
+                </div>
+                <ul id="point-ranking-board" class="list small" style="margin-top:0.7rem;"></ul>
                 <p class="list-meta" style="margin-top:0.8rem;">월 참여상 후보 등극 20P, 2개월 연속 후보 30P, 3개월 이상 연속 후보 50P, 매주 정기런 참여 30P, 화요일 한강 정기런 누적 10회 달성 50P, 목요일 올림픽공원 정기런 누적 10회 달성 50P, 월 사진 최대 5장(장당 5P), 월 응원 댓글 최대 10개(개당 2P)로 계산합니다.</p>
                 <form id="reward-request-form" class="form compact" style="margin-top:0.9rem;">
                   <select id="reward-request-item">
-                    <option value="rrc_shop_500">RRC샵 500원 보조권 · 50P</option>
-                    <option value="rrc_shop_1000">RRC샵 1,000원 보조권 · 100P</option>
-                    <option value="rrc_shop_2000">RRC샵 2,000원 보조권 · 200P</option>
-                    <option value="rrc_shop_3000">RRC샵 3,000원 보조권 · 300P</option>
+                    <option value="rrc_shop_5000">RRC샵 5,000원 보조권 · 500P</option>
+                    <option value="rrc_shop_10000">RRC샵 10,000원 보조권 · 1,000P</option>
+                    <option value="rrc_shop_20000">RRC샵 20,000원 보조권 · 2,000P</option>
                   </select>
                   <textarea id="reward-request-note" rows="3" maxlength="300" placeholder="사용하려는 RRC샵 품목이나 요청 내용을 간단히 적어 주세요"></textarea>
                   <div class="inline-form">
@@ -241,11 +241,11 @@
                   <h3>포인트 챌린지</h3>
                   <span class="badge">카톡 인증</span>
                 </div>
-                <p class="list-meta">챌린지는 참가 포인트를 걸고, 카카오톡 채팅방 인증을 운영진이 확인해 성공자를 정산합니다. 성공 보상은 월간 포인트 지급 기록에 반영됩니다.</p>
+                <p class="list-meta">챌린지는 참가 포인트를 걸고, 카카오톡 채팅방 인증을 운영진이 확인해 성공자를 정산합니다. 성공 보상은 성공자별 베팅 비율에 따라 월간 포인트 지급 기록에 반영됩니다.</p>
                 <form id="challenge-form" class="form compact" style="margin-top:0.8rem;">
                   <input id="challenge-title" type="text" maxlength="80" placeholder="챌린지명 예: 매일 1km 뛰기" />
                   <div class="inline-form">
-                    <input id="challenge-stake" type="number" min="1" max="500" placeholder="참가 포인트" />
+                    <input id="challenge-stake" type="number" min="1" max="2000" placeholder="기본 베팅 포인트" />
                     <input id="challenge-tag" type="text" maxlength="40" placeholder="인증 태그 예: #RRC매일1K" />
                   </div>
                   <div class="inline-form">
@@ -327,6 +327,6 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="auth.js?v=20260505f"></script>
+  <script src="auth.js?v=20260507a"></script>
 </body>
 </html>

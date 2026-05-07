@@ -201,6 +201,32 @@ export default async (request) => {
       return json(200, { ok: true, message: "raffle drawn", record, candidate_count: candidates.length });
     }
 
+    if (action === "preview_raffle") {
+      const targetMonthKey = normalizeMonthKey(body?.target_month_key) || previousMonthKey(new Date());
+      const threshold = Math.max(1, Number(body?.threshold || thresholdForMonthKey(targetMonthKey)));
+      const existingDraws = await supabaseSelect(`raffle_history?target_month_key=eq.${encodeURIComponent(targetMonthKey)}&select=draw_id&limit=1`);
+      const members = await loadMembers();
+      const candidates = members
+        .filter((member) => (
+          member.is_active !== false
+          && monthlyRunsOf(member, targetMonthKey) >= threshold
+        ))
+        .sort((a, b) => monthlyRunsOf(b, targetMonthKey) - monthlyRunsOf(a, targetMonthKey) || String(a.name || "").localeCompare(String(b.name || ""), "ko"))
+        .map((member) => ({
+          id: member.id,
+          name: member.name,
+          runs: monthlyRunsOf(member, targetMonthKey)
+        }));
+      return json(200, {
+        ok: true,
+        target_month_key: targetMonthKey,
+        threshold,
+        already_drawn: Array.isArray(existingDraws) && existingDraws.length > 0,
+        candidate_count: candidates.length,
+        candidates
+      });
+    }
+
     if (action === "toggle_member_active") {
       const memberId = String(body?.member_id || "").trim();
       const isActive = Boolean(body?.is_active);
