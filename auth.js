@@ -2427,7 +2427,7 @@ async function loadPointAwardsForMonth(monthKey) {
   }
   try {
     const result = await callPointAwards(`?month_key=${encodeURIComponent(monthKey)}&limit=50`);
-    return Array.isArray(result?.items) ? result.items : [];
+    return filterMyPointAwardRows(result?.items);
   } catch (_error) {
     return [];
   }
@@ -2439,7 +2439,7 @@ async function loadPointAwardsForAllMonths() {
   }
   try {
     const result = await callPointAwards("?period=all&limit=500");
-    return Array.isArray(result?.items) ? result.items : [];
+    return filterMyPointAwardRows(result?.items);
   } catch (_error) {
     return [];
   }
@@ -2451,10 +2451,30 @@ async function loadRewardRequestsForBalance() {
   }
   try {
     const result = await callMemberRewards("?limit=100");
-    return Array.isArray(result?.items) ? result.items : [];
+    return filterMyRewardRequestRows(result?.items);
   } catch (_error) {
     return [];
   }
+}
+
+function filterMyPointAwardRows(items) {
+  const myUserId = String(authUser?.id || "");
+  const myName = normalizeName(authProfile?.name || "");
+  return (Array.isArray(items) ? items : []).filter((item) => {
+    const rowUserId = String(item?.user_id || "");
+    const rowName = normalizeName(item?.member_name || "");
+    return (myUserId && rowUserId === myUserId) || (myName && rowName === myName);
+  });
+}
+
+function filterMyRewardRequestRows(items) {
+  const myUserId = String(authUser?.id || "");
+  const myName = normalizeName(authProfile?.name || "");
+  return (Array.isArray(items) ? items : []).filter((item) => {
+    const rowUserId = String(item?.user_id || "");
+    const rowName = normalizeName(item?.requester_name || "");
+    return (myUserId && rowUserId === myUserId) || (myName && rowName === myName);
+  });
 }
 
 async function loadPublicPointAwardRanking(monthKey) {
