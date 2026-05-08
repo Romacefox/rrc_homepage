@@ -2812,8 +2812,8 @@ async function loadMyPhotos(monthKey = currentMonthKey()) {
     .gte("created_at", range.start)
     .lt("created_at", range.end)
     .order("created_at", { ascending: false })
-    .limit(POINT_POLICY.photoMonthlyCap);
-  return result.error ? [] : (Array.isArray(result.data) ? result.data : []);
+    .limit(100);
+  return result.error ? [] : getDailyPointEligibleItems(result.data, POINT_POLICY.photoMonthlyCap);
 }
 
 async function loadMyComments(monthKey = currentMonthKey()) {
@@ -2828,8 +2828,30 @@ async function loadMyComments(monthKey = currentMonthKey()) {
     .gte("created_at", range.start)
     .lt("created_at", range.end)
     .order("created_at", { ascending: false })
-    .limit(POINT_POLICY.commentMonthlyCap);
-  return result.error ? [] : (Array.isArray(result.data) ? result.data : []);
+    .limit(100);
+  return result.error ? [] : getDailyPointEligibleItems(result.data, POINT_POLICY.commentMonthlyCap);
+}
+
+function getDailyPointEligibleItems(items, monthlyCap) {
+  const seenDays = new Set();
+  const eligible = [];
+  (Array.isArray(items) ? items : []).forEach((item) => {
+    const dayKey = toDateKey(item.created_at);
+    if (!dayKey || seenDays.has(dayKey) || eligible.length >= Number(monthlyCap || 0)) {
+      return;
+    }
+    seenDays.add(dayKey);
+    eligible.push(item);
+  });
+  return eligible;
+}
+
+function toDateKey(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
 function getMonthDateRange(monthKey) {

@@ -129,8 +129,8 @@ async function buildPublicPointRanking(monthKey, awardRows) {
   const range = getMonthDateRange(monthKey);
   const [profiles, photos, comments] = await Promise.all([
     supabaseSelect(`${PROFILE_TABLE}?approval_status=eq.approved&select=user_id,name&limit=1000`).catch(() => []),
-    supabaseSelect(`${PHOTO_TABLE}?created_at=gte.${encodeURIComponent(range.start)}&created_at=lt.${encodeURIComponent(range.end)}&select=user_id&limit=1000`).catch(() => []),
-    supabaseSelect(`${COMMENT_TABLE}?created_at=gte.${encodeURIComponent(range.start)}&created_at=lt.${encodeURIComponent(range.end)}&select=user_id&limit=1000`).catch(() => [])
+    supabaseSelect(`${PHOTO_TABLE}?created_at=gte.${encodeURIComponent(range.start)}&created_at=lt.${encodeURIComponent(range.end)}&select=user_id,created_at&limit=1000`).catch(() => []),
+    supabaseSelect(`${COMMENT_TABLE}?created_at=gte.${encodeURIComponent(range.start)}&created_at=lt.${encodeURIComponent(range.end)}&select=user_id,created_at&limit=1000`).catch(() => [])
   ]);
   const profileByUserId = new Map(
     (Array.isArray(profiles) ? profiles : []).map((profile) => [String(profile.user_id || ""), String(profile.name || "회원")])
@@ -164,7 +164,7 @@ async function buildPublicPointRanking(monthKey, awardRows) {
     group.award_points += points;
   });
 
-  const photoCounts = countByUserId(photos);
+  const photoCounts = countDailyPointEventsByUserId(photos);
   photoCounts.forEach((count, userId) => {
     const group = ensureGroup(profileByUserId.get(userId));
     if (!group) {
@@ -175,7 +175,7 @@ async function buildPublicPointRanking(monthKey, awardRows) {
     group.photo_points += points;
   });
 
-  const commentCounts = countByUserId(comments);
+  const commentCounts = countDailyPointEventsByUserId(comments);
   commentCounts.forEach((count, userId) => {
     const group = ensureGroup(profileByUserId.get(userId));
     if (!group) {
@@ -191,16 +191,31 @@ async function buildPublicPointRanking(monthKey, awardRows) {
     .slice(0, 50);
 }
 
-function countByUserId(rows) {
-  const counts = new Map();
+function countDailyPointEventsByUserId(rows) {
+  const daysByUserId = new Map();
   (Array.isArray(rows) ? rows : []).forEach((row) => {
     const userId = String(row.user_id || "");
-    if (!userId) {
+    const dayKey = toDateKey(row.created_at);
+    if (!userId || !dayKey) {
       return;
     }
-    counts.set(userId, Number(counts.get(userId) || 0) + 1);
+    const days = daysByUserId.get(userId) || new Set();
+    days.add(dayKey);
+    daysByUserId.set(userId, days);
+  });
+  const counts = new Map();
+  daysByUserId.forEach((days, userId) => {
+    counts.set(userId, days.size);
   });
   return counts;
+}
+
+function toDateKey(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 function getMonthDateRange(monthKey) {
