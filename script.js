@@ -2648,15 +2648,16 @@ async function handleFeeImportApply() {
   const memberIds = preview.matches.map((entry) => entry.member.id);
   if (currentAdminToken) {
     try {
-      await callAdminWrite("bulk_update_member_fee_status", {
+      const result = await callAdminWrite("bulk_update_member_fee_status", {
         member_ids: memberIds,
+        member_refs: preview.matches.map((entry) => buildFeeMemberRef(entry.member)),
         month_key: monthKey,
         status: "paid"
       });
       await loadAdminSnapshot();
       renderAll();
       if (feeImportResult) {
-        feeImportResult.textContent = `토스 거래내역 반영 완료: ${preview.matches.length}명 납부 처리 (${names})`;
+        feeImportResult.textContent = `토스 거래내역 반영 완료: ${Number(result?.updated_count ?? preview.matches.length)}명 납부 처리 (${names})`;
       }
       return;
     } catch (error) {
@@ -2708,8 +2709,9 @@ async function handleFeeNameApply() {
   const memberIds = preview.matches.map((entry) => entry.member.id);
   if (currentAdminToken) {
     try {
-      await callAdminWrite("bulk_update_member_fee_status", {
+      const result = await callAdminWrite("bulk_update_member_fee_status", {
         member_ids: memberIds,
+        member_refs: preview.matches.map((entry) => buildFeeMemberRef(entry.member)),
         month_key: monthKey,
         status: "paid"
       });
@@ -2719,7 +2721,7 @@ async function handleFeeNameApply() {
         feeNameInput.value = "";
       }
       if (feeImportResult) {
-        feeImportResult.textContent = `이름 목록 납부 처리 완료: ${preview.matches.length}명 (${names})`;
+        feeImportResult.textContent = `이름 목록 납부 처리 완료: ${Number(result?.updated_count ?? preview.matches.length)}명 (${names})`;
       }
       return;
     } catch (error) {
@@ -2794,6 +2796,14 @@ function buildFeePreviewSkippedText(preview) {
     preview.inactive?.length ? `휴면 회원 ${preview.inactive.length}명` : "",
     preview.outOfMonth?.length ? `다른 월로 보이는 내역 ${preview.outOfMonth.length}건` : ""
   ].filter(Boolean).join(" · ");
+}
+
+function buildFeeMemberRef(member) {
+  return {
+    id: String(member?.id || ""),
+    name: String(member?.name || ""),
+    birth_year: Number(member?.birthYear || member?.birth_year || 0)
+  };
 }
 
 function buildFeeImportPreview(text, monthKey) {

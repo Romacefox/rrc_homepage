@@ -160,9 +160,13 @@ export default async (request) => {
       const targetMonthKey = normalizeMonthKey(body?.target_month_key) || previousMonthKey(new Date());
       const threshold = Math.max(1, Number(body?.threshold || thresholdForMonthKey(targetMonthKey)));
       const winnerCount = Math.max(1, Math.min(Number(body?.winner_count || DEFAULT_WINNER_COUNT), 20));
+      const forceRedraw = body?.force === true;
       const existingDraws = await supabaseSelect(`raffle_history?target_month_key=eq.${encodeURIComponent(targetMonthKey)}&select=draw_id&limit=1`);
       if (Array.isArray(existingDraws) && existingDraws.length > 0) {
-        return json(409, { ok: false, error: "raffle already drawn for target month" });
+        if (!forceRedraw) {
+          return json(409, { ok: false, error: "raffle already drawn for target month" });
+        }
+        await supabaseDelete(`raffle_history?target_month_key=eq.${encodeURIComponent(targetMonthKey)}`);
       }
       const members = await loadMembers();
       const candidates = members.filter((member) => (
@@ -267,17 +271,20 @@ export default async (request) => {
 
     if (action === "bulk_update_member_fee_status") {
       const memberIds = Array.isArray(body?.member_ids) ? body.member_ids.map((id) => String(id || "").trim()).filter(Boolean) : [];
+      const memberRefs = Array.isArray(body?.member_refs) ? body.member_refs.map(normalizeMemberRef).filter((ref) => ref.key) : [];
       const monthKey = String(body?.month_key || "").trim();
       const status = String(body?.status || "").trim();
-      if (!memberIds.length || !monthKey || !["paid", "unpaid"].includes(status)) {
+      if ((!memberIds.length && !memberRefs.length) || !monthKey || !["paid", "unpaid"].includes(status)) {
         return json(400, { ok: false, error: "invalid bulk fee payload" });
       }
 
       const targetIds = new Set(memberIds.slice(0, 500));
+      const targetKeys = new Set(memberRefs.slice(0, 500).map((ref) => ref.key));
       const members = await loadMembers();
       let updatedCount = 0;
       for (const member of members) {
-        if (!targetIds.has(String(member.id))) {
+        const memberKey = memberIdentityKey(member);
+        if (!targetIds.has(String(member.id)) && !targetKeys.has(memberKey)) {
           continue;
         }
         const feeStatus = member?.fee_status && typeof member.fee_status === "object"
@@ -725,6 +732,20 @@ function labelMonth(monthKey) {
 
 function normalizeName(name) {
   return String(name || "").replaceAll(" ", "").toLowerCase();
+}
+
+function normalizeMemberRef(ref) {
+  const name = String(ref?.name || "").trim();
+  const birthYear = Number(ref?.birth_year || ref?.birthYear || 0);
+  return {
+    name,
+    birthYear,
+    key: `${normalizeName(name)}|${birthYear || ""}`
+  };
+}
+
+function memberIdentityKey(member) {
+  return `${normalizeName(member?.name || "")}|${Number(member?.birth_year || 0) || ""}`;
 }
 
 function monthKeyFromDate(dateText) {

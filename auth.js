@@ -7,13 +7,9 @@ const LOCAL_ADMIN_SNAPSHOT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 const BIRTH_YEAR_MIN = 1989;
 const BIRTH_YEAR_MAX = 2004;
 const POINT_WON_RATE = 10;
+const ATTENDANCE_STREAK_START_MONTH = "2026-04";
 const POINT_POLICY = {
-  monthlyCandidate: 20,
-  candidateStreakTwoMonths: 30,
-  candidateStreakThreeMonths: 50,
-  weeklyRegular: 30,
-  hangangLover: 50,
-  olympicLover: 50,
+  monthlyRunner: 100,
   photo: 5,
   photoMonthlyCap: 5,
   comment: 2,
@@ -1225,6 +1221,7 @@ async function loadActivityBoard() {
       return {
         ...member,
         monthRuns: getMonthlyRuns(member, selectedMonth),
+        regularRuns: countRegularRunsForMember(member, selectedMonth, attendanceLogs),
         streak: getAttendanceStreakFromMonth(member, selectedMonth),
         tickets: calculateMonthlyTickets(member, selectedMonth),
         basePoints,
@@ -1233,6 +1230,7 @@ async function loadActivityBoard() {
       };
     })
     .sort((a, b) => (b.monthRuns - a.monthRuns) || (Number(b.total_runs || 0) - Number(a.total_runs || 0)) || String(a.name || "").localeCompare(String(b.name || ""), "ko"));
+  applyMonthlyRunnerBonus(rows);
   window.__RRC_ACTIVITY_ROWS = rows;
 
   const profileBirthYear = Number(authProfile.birth_year || 0);
@@ -1247,7 +1245,7 @@ async function loadActivityBoard() {
     }
     return true;
   }) || null;
-  const runner = rows.find((member) => member.monthRuns > 0) || null;
+  const runner = getMonthlyRunner(rows);
 
   activityLock.textContent = `${monthKeyToLabel(selectedMonth)} 출석 기준입니다. ${boardSourceLabel}를 바탕으로 표시됩니다.`;
   activityBoard.classList.remove("hidden");
@@ -1347,7 +1345,7 @@ function renderBoardPulseSummary(rows, runner, monthKey) {
   }
   if (boardTopRunnerNote) {
     boardTopRunnerNote.textContent = runner && runner.monthRuns > 0
-      ? `${runner.monthRuns}회 출석 · 추첨권 ${runner.tickets || calculateMonthlyTickets(runner, monthKey)}장`
+      ? `정기런 ${Number(runner.regularRuns || 0)}회 · 전체 출석 ${runner.monthRuns}회`
       : `${monthKeyToLabel(monthKey)} 출석 기록이 아직 없습니다.`;
   }
   if (boardPointLeader) {
@@ -1370,16 +1368,16 @@ function renderRunnerCard(runner, monthKey) {
   if (!runnerCard) {
     return;
   }
-  if (!runner || runner.monthRuns === 0) {
-    runnerCard.innerHTML = `<p class="list-meta">${monthKeyToLabel(monthKey)}에는 아직 출석 기록이 없습니다.</p>`;
+  if (!runner || Number(runner.regularRuns || 0) === 0) {
+    runnerCard.innerHTML = `<p class="list-meta">${monthKeyToLabel(monthKey)}에는 아직 정기런 출석 기록이 없습니다.</p>`;
     return;
   }
 
   runnerCard.innerHTML = `
-    <p class="list-meta">${monthKeyToLabel(monthKey)} 최다 출석</p>
+    <p class="list-meta">${monthKeyToLabel(monthKey)} 정기런 최다 출석</p>
     <h3 style="margin:0.2rem 0 0.4rem;">${escapeHtml(runner.name || "이름없음")}</h3>
-    <p>${runner.monthRuns}회 출석 / 누적 ${Number(runner.total_runs || 0)}회</p>
-    <p class="list-meta">연속 출석 ${runner.streak}개월 / 추첨권 ${runner.tickets || calculateMonthlyTickets(runner, monthKey)}장 / 활동 포인트 ${getMemberPointTotal(runner) || calculateAttendancePoints(runner, monthKey)}P</p>
+    <p>정기런 ${Number(runner.regularRuns || 0)}회 / 전체 출석 ${runner.monthRuns}회</p>
+    <p class="list-meta">이달의 러너 자동 100P · 연속 출석 ${runner.streak}개월 · 추첨권 ${runner.tickets || calculateMonthlyTickets(runner, monthKey)}장</p>
   `;
 }
 
@@ -1500,12 +1498,12 @@ function renderBadgeShowcase(rows, monthKey) {
   }
 
   const showcase = [];
-  const topRunner = rows.find((member) => member.monthRuns > 0);
+  const topRunner = getMonthlyRunner(rows);
   if (topRunner) {
     showcase.push({
-      label: "월간 출석왕",
+      label: "이달의 러너",
       owner: topRunner.name,
-      body: `${monthKeyToLabel(monthKey)} 출석 ${topRunner.monthRuns}회 / 추첨권 ${topRunner.tickets}장`
+      body: `${monthKeyToLabel(monthKey)} 정기런 ${Number(topRunner.regularRuns || 0)}회 / 자동 ${POINT_POLICY.monthlyRunner}P`
     });
   }
   const streakRunner = rows.find((member) => member.streak >= 6) || rows.find((member) => member.streak >= 3);
@@ -1568,7 +1566,7 @@ function renderPointRankingBoard(rows, monthKey) {
         <span class="list-title">${index + 1}. ${escapeHtml(member.name || "이름없음")}${index === 0 ? '<span class="status-chip">포인트 선두</span>' : ""}</span>
         <span class="status-chip">${getMemberPointTotal(member)}P</span>
       </div>
-      <p class="list-meta">${monthKeyToLabel(monthKey)} 출석 ${Number(member.monthRuns || 0)}회 · 출석/배지 ${Number(member.basePoints || 0)}P${awardPoints ? ` · 사진/댓글/운영 ${awardPoints}P` : ""}</p>
+      <p class="list-meta">${monthKeyToLabel(monthKey)} 정기런 ${Number(member.regularRuns || 0)}회 · 전체 출석 ${Number(member.monthRuns || 0)}회${Number(member.basePoints || 0) ? ` · 이달의 러너 ${Number(member.basePoints || 0)}P` : ""}${awardPoints ? ` · 사진/댓글/운영 ${awardPoints}P` : ""}</p>
     `;
     pointRankingBoard.appendChild(item);
   });
@@ -2920,40 +2918,50 @@ function calculateMonthlyTickets(member, monthKey) {
 }
 
 function calculateAttendancePoints(member, monthKey, attendanceLogs = []) {
-  const monthRuns = getMonthlyRuns(member, monthKey);
-  const candidateStreak = getCandidateStreakFromMonth(member, monthKey);
-  const bonusState = getAttendanceBonusState(member, monthKey, attendanceLogs);
-  let points = 0;
-  if (monthRuns >= getMonthThreshold(monthKey)) {
-    points += POINT_POLICY.monthlyCandidate;
-  }
-  if (candidateStreak >= 3) {
-    points += POINT_POLICY.candidateStreakThreeMonths;
-  } else if (candidateStreak >= 2) {
-    points += POINT_POLICY.candidateStreakTwoMonths;
-  }
-  if (bonusState.weeklyRegular) {
-    points += POINT_POLICY.weeklyRegular;
-  }
-  if (bonusState.hangangLover) {
-    points += POINT_POLICY.hangangLover;
-  }
-  if (bonusState.olympicLover) {
-    points += POINT_POLICY.olympicLover;
-  }
-  return points;
+  return 0;
 }
 
 function calculatePersonalMonthlyPoints({ me, selectedMonth, photoCount, commentCount, attendanceLogs, pointAwards }) {
-  const attendancePoints = calculateAttendancePoints(me, selectedMonth, attendanceLogs);
+  const monthlyRunnerPoints = Number(me?.basePoints || 0);
   const photoPoints = Math.min(Number(photoCount || 0), POINT_POLICY.photoMonthlyCap) * POINT_POLICY.photo;
   const commentPoints = Math.min(Number(commentCount || 0), POINT_POLICY.commentMonthlyCap) * POINT_POLICY.comment;
   const awardPoints = (Array.isArray(pointAwards) ? pointAwards : []).reduce((sum, award) => sum + Number(award.points || 0), 0);
-  return attendancePoints + photoPoints + commentPoints + awardPoints;
+  return monthlyRunnerPoints + photoPoints + commentPoints + awardPoints;
 }
 
 function getMemberPointTotal(member) {
   return Number(member?.pointTotal ?? member?.basePoints ?? 0);
+}
+
+function applyMonthlyRunnerBonus(rows) {
+  const runner = getMonthlyRunner(rows);
+  if (!runner) {
+    return;
+  }
+  runner.basePoints = Number(runner.basePoints || 0) + POINT_POLICY.monthlyRunner;
+  runner.pointTotal = Number(runner.pointTotal || 0) + POINT_POLICY.monthlyRunner;
+  runner.monthlyRunner = true;
+}
+
+function getMonthlyRunner(rows) {
+  return [...(Array.isArray(rows) ? rows : [])]
+    .filter((member) => Number(member.regularRuns || 0) > 0)
+    .sort((a, b) => (Number(b.regularRuns || 0) - Number(a.regularRuns || 0)) || (Number(b.monthRuns || 0) - Number(a.monthRuns || 0)) || String(a.name || "").localeCompare(String(b.name || ""), "ko"))[0] || null;
+}
+
+function countRegularRunsForMember(member, monthKey, attendanceLogs = []) {
+  const normalizedName = normalizeName(member?.name || "");
+  if (!normalizedName) {
+    return 0;
+  }
+  return (Array.isArray(attendanceLogs) ? attendanceLogs : []).filter((log) => {
+    const logMonthKey = toMonthKey(log.attendance_date || log.date || "");
+    const eventType = String(log.event_type || log.eventType || "");
+    const matched = Array.isArray(log.matched) ? log.matched : [];
+    return logMonthKey === monthKey
+      && eventType.includes("정기런")
+      && matched.some((name) => normalizeName(name) === normalizedName);
+  }).length;
 }
 
 function getAttendanceBonusState(member, monthKey, attendanceLogs = []) {
@@ -3105,6 +3113,9 @@ function getAttendanceStreakFromMonth(member, startMonthKey) {
   let streak = 0;
   for (let i = 0; i < 12; i += 1) {
     const key = shiftMonthKey(startMonthKey, -i);
+    if (compareMonthKey(key, ATTENDANCE_STREAK_START_MONTH) < 0) {
+      break;
+    }
     if (getMonthlyRuns(member, key) <= 0) {
       break;
     }
@@ -3120,12 +3131,21 @@ function getCandidateStreakFromMonth(member, startMonthKey) {
   let streak = 0;
   for (let i = 0; i < 12; i += 1) {
     const key = shiftMonthKey(startMonthKey, -i);
+    if (compareMonthKey(key, ATTENDANCE_STREAK_START_MONTH) < 0) {
+      break;
+    }
     if (getMonthlyRuns(member, key) < getMonthThreshold(key)) {
       break;
     }
     streak += 1;
   }
   return streak;
+}
+
+function compareMonthKey(left, right) {
+  const [leftYear, leftMonth] = String(left || "").split("-").map(Number);
+  const [rightYear, rightMonth] = String(right || "").split("-").map(Number);
+  return ((leftYear || 0) * 12 + (leftMonth || 0)) - ((rightYear || 0) * 12 + (rightMonth || 0));
 }
 
 function formatStreakDelta(currentStreak, previousStreak) {
