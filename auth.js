@@ -1211,13 +1211,14 @@ async function loadActivityBoard() {
     loadAttendanceLogsForPoints(),
     loadPublicPointAwardRanking(selectedMonth)
   ]);
-  const awardPointsByName = new Map(
-    publicPointAwards.map((entry) => [normalizeName(entry.member_name), Number(entry.points || 0)])
+  const pointSummaryByName = new Map(
+    publicPointAwards.map((entry) => [normalizeName(entry.member_name), entry])
   );
   const rows = members
     .map((member) => {
       const basePoints = calculateAttendancePoints(member, selectedMonth, attendanceLogs);
-      const awardPoints = awardPointsByName.get(normalizeName(member.name)) || 0;
+      const pointSummary = pointSummaryByName.get(normalizeName(member.name)) || {};
+      const awardPoints = Number(pointSummary.points || 0);
       return {
         ...member,
         monthRuns: getMonthlyRuns(member, selectedMonth),
@@ -1226,6 +1227,9 @@ async function loadActivityBoard() {
         tickets: calculateMonthlyTickets(member, selectedMonth),
         basePoints,
         awardPoints,
+        photoPoints: Number(pointSummary.photo_points || 0),
+        commentPoints: Number(pointSummary.comment_points || 0),
+        manualPoints: Number(pointSummary.award_points || 0),
         pointTotal: basePoints + awardPoints
       };
     })
@@ -1560,16 +1564,35 @@ function renderPointRankingBoard(rows, monthKey) {
   ranking.forEach((member, index) => {
     const item = document.createElement("li");
     item.className = "list-item board-ranking-item";
-    const awardPoints = Number(member.awardPoints || 0);
     item.innerHTML = `
       <div class="list-top">
         <span class="list-title">${index + 1}. ${escapeHtml(member.name || "이름없음")}${index === 0 ? '<span class="status-chip">포인트 선두</span>' : ""}</span>
         <span class="status-chip">${getMemberPointTotal(member)}P</span>
       </div>
-      <p class="list-meta">${monthKeyToLabel(monthKey)} 정기런 ${Number(member.regularRuns || 0)}회 · 전체 출석 ${Number(member.monthRuns || 0)}회${Number(member.basePoints || 0) ? ` · 이달의 러너 ${Number(member.basePoints || 0)}P` : ""}${awardPoints ? ` · 사진/댓글/운영 ${awardPoints}P` : ""}</p>
+      <p class="list-meta">${buildPointRankingMeta(member, monthKey)}</p>
     `;
     pointRankingBoard.appendChild(item);
   });
+}
+
+function buildPointRankingMeta(member, monthKey) {
+  const parts = [
+    `${monthKeyToLabel(monthKey)} 정기런 ${Number(member.regularRuns || 0)}회`,
+    `전체 출석 ${Number(member.monthRuns || 0)}회`
+  ];
+  if (Number(member.basePoints || 0)) {
+    parts.push(`이달의 러너 ${Number(member.basePoints || 0)}P`);
+  }
+  if (Number(member.photoPoints || 0)) {
+    parts.push(`사진 ${Number(member.photoPoints || 0)}P`);
+  }
+  if (Number(member.commentPoints || 0)) {
+    parts.push(`댓글 ${Number(member.commentPoints || 0)}P`);
+  }
+  if (Number(member.manualPoints || 0)) {
+    parts.push(`추첨/운영/챌린지 ${Number(member.manualPoints || 0)}P`);
+  }
+  return parts.join(" · ");
 }
 
 function renderBoardRaffleHistory(records) {
