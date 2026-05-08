@@ -11,7 +11,7 @@ export default async (request) => {
 
     if (request.method === "GET") {
       const url = new URL(request.url);
-      const limit = Math.max(1, Math.min(Number(url.searchParams.get("limit") || 10), 30));
+      const limit = Math.max(1, Math.min(Number(url.searchParams.get("limit") || 10), 100));
       const rows = await listRequests(limit).catch((error) => {
         if (isMissingTableError(error, TABLE)) {
           return null;

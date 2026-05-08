@@ -19,8 +19,9 @@ export default async (request) => {
       const url = new URL(request.url);
       const monthKey = normalizeMonthKey(url.searchParams.get("month_key")) || currentMonthKey();
       const publicMode = String(url.searchParams.get("public") || "") === "ranking";
+      const period = String(url.searchParams.get("period") || "");
       const limit = Math.max(1, Math.min(Number(url.searchParams.get("limit") || (publicMode ? 500 : 30)), 500));
-      const rows = await listAwards(monthKey, limit).catch((error) => {
+      const rows = await (period === "all" && !publicMode ? listAwardsAll(limit) : listAwards(monthKey, limit)).catch((error) => {
         if (isMissingTableError(error, TABLE)) {
           return null;
         }
@@ -103,6 +104,10 @@ async function requireApprovedMember(request) {
 
 async function listAwards(monthKey, limit) {
   return supabaseSelect(`${TABLE}?month_key=eq.${encodeURIComponent(monthKey)}&order=created_at.desc&limit=${limit}&select=id,user_id,member_name,month_key,award_code,award_label,points,note,granted_by_name,created_at`);
+}
+
+async function listAwardsAll(limit) {
+  return supabaseSelect(`${TABLE}?order=created_at.desc&limit=${limit}&select=id,user_id,member_name,month_key,award_code,award_label,points,note,granted_by_name,created_at`);
 }
 
 async function findProfileByName(memberName) {

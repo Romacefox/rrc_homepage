@@ -788,6 +788,56 @@ body.modal-open {
   color: #fff0e3;
 }
 
+.reward-progress {
+  height: 8px;
+  margin: 0.65rem 0 0.45rem;
+  border: 1px solid rgba(255, 150, 86, 0.24);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.reward-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #f97316, #ffd2a8);
+}
+
+.point-guide-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin-top: 0.9rem;
+}
+
+.point-guide-card {
+  display: grid;
+  gap: 0.2rem;
+  min-height: 72px;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid rgba(255, 150, 86, 0.18);
+  border-radius: 10px;
+  background: rgba(18, 18, 18, 0.82);
+}
+
+.point-guide-card strong {
+  color: #fff0e3;
+  font-size: 0.95rem;
+}
+
+.point-guide-card span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 640px) {
+  .point-guide-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .suggestion-panel {
   border-color: rgba(255, 152, 88, 0.2);
 }

@@ -92,6 +92,7 @@ let boardRaffleReplayStatus = null;
 let boardRaffleReplayButton = null;
 let boardRaffleRouletteTrack = null;
 let latestRaffleRecords = [];
+let rewardAvailablePointCache = 0;
 const myFeeStatus = document.getElementById("my-fee-status");
 const myRaffleStatus = document.getElementById("my-raffle-status");
 const myStreakChange = document.getElementById("my-streak-change");
@@ -128,6 +129,11 @@ const rewardRequestSubmitButton = document.getElementById("reward-request-submit
 const rewardRequestRefreshButton = document.getElementById("reward-request-refresh");
 const rewardRequestStatus = document.getElementById("reward-request-status");
 const rewardRequestList = document.getElementById("reward-request-list");
+const rewardPreviewList = document.getElementById("reward-preview-list");
+const rewardBalanceTotal = document.getElementById("reward-balance-total");
+const rewardBalanceUsed = document.getElementById("reward-balance-used");
+const rewardBalanceAvailable = document.getElementById("reward-balance-available");
+const rewardBalanceNote = document.getElementById("reward-balance-note");
 const challengeForm = document.getElementById("challenge-form");
 const challengeTitleInput = document.getElementById("challenge-title");
 const challengeStakeInput = document.getElementById("challenge-stake");
@@ -1756,10 +1762,14 @@ async function loadAttendanceLogsForPoints() {
 }
 
 async function renderMyActivityState(me, selectedMonth, raffleRecords, attendanceLogs = []) {
-  const [photos, comments, pointAwards] = await Promise.all([
+  const [photos, comments, pointAwards, allPointAwards, rewardRequests, allPhotos, allComments] = await Promise.all([
     loadMyPhotos(selectedMonth),
     loadMyComments(selectedMonth),
-    loadPointAwardsForMonth(selectedMonth)
+    loadPointAwardsForMonth(selectedMonth),
+    loadPointAwardsForAllMonths(),
+    loadRewardRequestsForBalance(),
+    loadMyPhotosForRewardBalance(),
+    loadMyCommentsForRewardBalance()
   ]);
   const wins = Array.isArray(raffleRecords)
     ? raffleRecords.filter((record) => hasRaffleWinner(record, authProfile?.name))
@@ -1778,12 +1788,22 @@ async function renderMyActivityState(me, selectedMonth, raffleRecords, attendanc
     attendanceLogs,
     pointAwards
   });
+  const rewardBalance = calculateRewardBalance({
+    selectedMonth,
+    monthlyPointTotal: pointTotal,
+    pointAwards,
+    allPointAwards,
+    rewardRequests,
+    allPhotos,
+    allComments,
+    attendanceLogs
+  });
   const raffleLabel = latestWin
     ? `${monthKeyToLabel(latestWin.target_month_key)} 당첨`
     : (me?.monthRuns || 0) >= raffleThreshold
       ? `${monthKeyToLabel(selectedMonth)} 후보 · 추첨권 ${ticketCount}장`
       : "대기 중";
-  const nextReward = getNextReward(pointTotal);
+  const nextReward = getNextReward(rewardBalance.availablePoints);
 
   if (myFeeStatus) {
     myFeeStatus.textContent = feeLabel;
@@ -1808,6 +1828,7 @@ async function renderMyActivityState(me, selectedMonth, raffleRecords, attendanc
       ? `${nextReward.remaining}P 더 모으면 ${nextReward.label} 신청권에 가까워집니다. 운영 환산 기준은 10P=100원입니다.`
       : `${nextReward.label} 구간입니다. 현재 기준 약 ${Number(nextReward.won || 0).toLocaleString("ko-KR")}원 상당이며 운영진 승인 후 RRC샵 보조 신청이 가능합니다.`;
   }
+  renderRewardLoungeState(rewardBalance);
 
   renderBadgeList(buildPersonalBadges({
     me,
@@ -1892,6 +1913,130 @@ function renderPersonalBoardEmpty() {
   renderSimpleHistory(myCommentHistory, [], "로그인 후 내 댓글 기록이 표시됩니다.");
   renderSimpleHistory(myRaffleHistory, [], "로그인 후 내 추첨 기록이 표시됩니다.");
   renderSimpleHistory(myPointAwardHistory, [], "로그인 후 포인트 지급 기록이 표시됩니다.");
+  renderRewardLoungeState({ earnedPoints: 0, usedPoints: 0, pendingPoints: 0, availablePoints: 0 });
+}
+
+function calculateRewardBalance({ monthlyPointTotal, pointAwards, allPointAwards, rewardRequests, allPhotos, allComments, attendanceLogs }) {
+  const selectedAwardPoints = sumPointAwardRows(pointAwards);
+  const selectedMonthFallback = Math.max(Number(monthlyPointTotal || 0), selectedAwardPoints);
+  const earnedFromAwards = sumPointAwardRows(allPointAwards);
+  const earnedFromPhotos = countMonthlyCappedDailyEvents(allPhotos, POINT_POLICY.photoMonthlyCap) * POINT_POLICY.photo;
+  const earnedFromComments = countMonthlyCappedDailyEvents(allComments, POINT_POLICY.commentMonthlyCap) * POINT_POLICY.comment;
+  const earnedFromMonthlyRunner = calculateMonthlyRunnerRewardPoints(attendanceLogs);
+  const earnedPoints = Math.max(
+    earnedFromAwards + earnedFromPhotos + earnedFromComments + earnedFromMonthlyRunner,
+    selectedMonthFallback
+  );
+  const usedPoints = sumRewardRequestCosts(rewardRequests, ["fulfilled"]);
+  const pendingPoints = sumRewardRequestCosts(rewardRequests, ["submitted", "approved"]);
+  return {
+    earnedPoints,
+    usedPoints,
+    pendingPoints,
+    availablePoints: Math.max(earnedPoints - usedPoints - pendingPoints, 0)
+  };
+}
+
+function sumPointAwardRows(rows) {
+  return (Array.isArray(rows) ? rows : []).reduce((sum, row) => sum + Number(row.points || 0), 0);
+}
+
+function sumRewardRequestCosts(rows, statuses) {
+  const statusSet = new Set(statuses);
+  return (Array.isArray(rows) ? rows : [])
+    .filter((row) => statusSet.has(String(row.status || "")))
+    .reduce((sum, row) => sum + Number(row.point_cost || 0), 0);
+}
+
+function countMonthlyCappedDailyEvents(rows, monthlyCap) {
+  const daysByMonth = new Map();
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    const monthKey = toMonthKey(row.created_at);
+    const dayKey = toDateKey(row.created_at);
+    if (!monthKey || !dayKey) {
+      return;
+    }
+    const days = daysByMonth.get(monthKey) || new Set();
+    days.add(dayKey);
+    daysByMonth.set(monthKey, days);
+  });
+  return [...daysByMonth.values()].reduce((sum, days) => sum + Math.min(days.size, Number(monthlyCap || 0)), 0);
+}
+
+function calculateMonthlyRunnerRewardPoints(attendanceLogs = []) {
+  const targetName = normalizeName(authProfile?.name || "");
+  if (!targetName) {
+    return 0;
+  }
+  const countsByMonth = new Map();
+  (Array.isArray(attendanceLogs) ? attendanceLogs : []).forEach((log) => {
+    const monthKey = toMonthKey(log.attendance_date || log.date || "");
+    const eventType = String(log.event_type || log.eventType || "");
+    if (!monthKey || monthKey < ATTENDANCE_STREAK_START_MONTH || !eventType.includes("정기런")) {
+      return;
+    }
+    const monthCounts = countsByMonth.get(monthKey) || new Map();
+    new Set(Array.isArray(log.matched) ? log.matched.map(normalizeName).filter(Boolean) : []).forEach((name) => {
+      monthCounts.set(name, Number(monthCounts.get(name) || 0) + 1);
+    });
+    countsByMonth.set(monthKey, monthCounts);
+  });
+
+  let bonusPoints = 0;
+  countsByMonth.forEach((monthCounts) => {
+    const leader = [...monthCounts.entries()]
+      .filter(([, count]) => Number(count || 0) > 0)
+      .sort((a, b) => (Number(b[1] || 0) - Number(a[1] || 0)) || String(a[0]).localeCompare(String(b[0]), "ko"))[0];
+    if (leader?.[0] === targetName) {
+      bonusPoints += POINT_POLICY.monthlyRunner;
+    }
+  });
+  return bonusPoints;
+}
+
+function renderRewardLoungeState({ earnedPoints = 0, usedPoints = 0, pendingPoints = 0, availablePoints = 0 }) {
+  rewardAvailablePointCache = Number(availablePoints || 0);
+  if (rewardBalanceTotal) {
+    rewardBalanceTotal.textContent = `${Number(earnedPoints || 0).toLocaleString("ko-KR")}P`;
+  }
+  if (rewardBalanceUsed) {
+    rewardBalanceUsed.textContent = `${Number(usedPoints || 0).toLocaleString("ko-KR")}P`;
+  }
+  if (rewardBalanceAvailable) {
+    rewardBalanceAvailable.textContent = `${rewardAvailablePointCache.toLocaleString("ko-KR")}P`;
+  }
+  if (rewardBalanceNote) {
+    const pendingText = Number(pendingPoints || 0) > 0
+      ? ` 신청/승인 대기 ${Number(pendingPoints || 0).toLocaleString("ko-KR")}P는 사용 가능 포인트에서 미리 제외했습니다.`
+      : "";
+    rewardBalanceNote.textContent = `누적 적립에서 사용 완료·대기 중인 보조 신청을 제외한 기준입니다.${pendingText}`;
+  }
+  renderRewardTierCards(rewardAvailablePointCache);
+}
+
+function renderRewardTierCards(availablePoints) {
+  if (!rewardPreviewList) {
+    return;
+  }
+  const currentPoints = Number(availablePoints || 0);
+  rewardPreviewList.innerHTML = REWARD_ITEMS.map((item) => {
+    const missing = Math.max(Number(item.points || 0) - currentPoints, 0);
+    const ratio = Number(item.points || 0) > 0 ? Math.min(Math.round((currentPoints / Number(item.points || 0)) * 100), 100) : 0;
+    const status = missing > 0 ? `${missing.toLocaleString("ko-KR")}P 더 필요` : "신청 가능";
+    return `
+      <div class="reward-preview-card">
+        <div class="list-top">
+          <strong>${Number(item.points || 0).toLocaleString("ko-KR")}P</strong>
+          <span class="status-chip">${escapeHtml(status)}</span>
+        </div>
+        <p class="list-meta">${escapeHtml(item.name)}</p>
+        <div class="reward-progress" aria-label="${escapeHtml(item.name)} 진행률">
+          <span style="width:${ratio}%"></span>
+        </div>
+        <p class="list-meta">사용 가능 ${currentPoints.toLocaleString("ko-KR")}P / 필요 ${Number(item.points || 0).toLocaleString("ko-KR")}P</p>
+      </div>
+    `;
+  }).join("");
 }
 
 function renderMissionBoardCache(me, selectedMonth, photoCount, commentCount) {
@@ -1996,6 +2141,10 @@ async function handleRewardRequestSubmit(event) {
     setStatus(rewardRequestStatus, "신청할 보조 항목을 선택해 주세요.");
     return;
   }
+  if (rewardAvailablePointCache < Number(rewardInfo.points || 0)) {
+    setStatus(rewardRequestStatus, `${rewardInfo.name} 신청까지 ${Number(rewardInfo.points || 0) - rewardAvailablePointCache}P 더 필요합니다.`);
+    return;
+  }
 
   rewardRequestSubmitButton && (rewardRequestSubmitButton.disabled = true);
   setStatus(rewardRequestStatus, "RRC샵 보조 신청을 등록하는 중입니다...");
@@ -2017,6 +2166,7 @@ async function handleRewardRequestSubmit(event) {
     }
     setStatus(rewardRequestStatus, "RRC샵 보조 신청이 접수되었습니다. 운영진 승인 후 진행됩니다.");
     await loadRewardRequests();
+    await refreshRewardBalanceOverview();
   } catch (error) {
     setStatus(rewardRequestStatus, `보조 신청 실패: ${String(error?.message || error)}`);
   } finally {
@@ -2108,6 +2258,31 @@ function renderRewardRequestList(items, canManage) {
 
     rewardRequestList.appendChild(node);
   });
+}
+
+async function refreshRewardBalanceOverview() {
+  if (!supabaseClient || !authUser || !authProfile || authProfile.approval_status !== "approved") {
+    return;
+  }
+  const selectedMonth = activityMonthSelect?.value || currentMonthKey();
+  const [pointAwards, allPointAwards, rewardRequests, allPhotos, allComments, attendanceLogs] = await Promise.all([
+    loadPointAwardsForMonth(selectedMonth),
+    loadPointAwardsForAllMonths(),
+    loadRewardRequestsForBalance(),
+    loadMyPhotosForRewardBalance(),
+    loadMyCommentsForRewardBalance(),
+    loadAttendanceLogsForPoints()
+  ]);
+  renderRewardLoungeState(calculateRewardBalance({
+    selectedMonth,
+    monthlyPointTotal: 0,
+    pointAwards,
+    allPointAwards,
+    rewardRequests,
+    allPhotos,
+    allComments,
+    attendanceLogs
+  }));
 }
 
 async function updateRewardRequestStatus(requestId, status, label) {
@@ -2252,6 +2427,30 @@ async function loadPointAwardsForMonth(monthKey) {
   }
   try {
     const result = await callPointAwards(`?month_key=${encodeURIComponent(monthKey)}&limit=50`);
+    return Array.isArray(result?.items) ? result.items : [];
+  } catch (_error) {
+    return [];
+  }
+}
+
+async function loadPointAwardsForAllMonths() {
+  if (!supabaseClient || !authUser || !authProfile || authProfile.approval_status !== "approved") {
+    return [];
+  }
+  try {
+    const result = await callPointAwards("?period=all&limit=500");
+    return Array.isArray(result?.items) ? result.items : [];
+  } catch (_error) {
+    return [];
+  }
+}
+
+async function loadRewardRequestsForBalance() {
+  if (!supabaseClient || !authUser || !authProfile || authProfile.approval_status !== "approved") {
+    return [];
+  }
+  try {
+    const result = await callMemberRewards("?limit=100");
     return Array.isArray(result?.items) ? result.items : [];
   } catch (_error) {
     return [];
@@ -2832,6 +3031,32 @@ async function loadMyComments(monthKey = currentMonthKey()) {
   return result.error ? [] : getDailyPointEligibleItems(result.data, POINT_POLICY.commentMonthlyCap);
 }
 
+async function loadMyPhotosForRewardBalance() {
+  if (!supabaseClient || !authUser) {
+    return [];
+  }
+  const result = await supabaseClient
+    .from("photos")
+    .select("id,created_at")
+    .eq("user_id", authUser.id)
+    .order("created_at", { ascending: false })
+    .limit(1000);
+  return result.error ? [] : (Array.isArray(result.data) ? result.data : []);
+}
+
+async function loadMyCommentsForRewardBalance() {
+  if (!supabaseClient || !authUser) {
+    return [];
+  }
+  const result = await supabaseClient
+    .from("photo_comments")
+    .select("id,created_at")
+    .eq("user_id", authUser.id)
+    .order("created_at", { ascending: false })
+    .limit(1000);
+  return result.error ? [] : (Array.isArray(result.data) ? result.data : []);
+}
+
 function getDailyPointEligibleItems(items, monthlyCap) {
   const seenDays = new Set();
   const eligible = [];
@@ -3267,6 +3492,9 @@ function loadLocalAdminMembers(expectedUserId) {
 
 function toMonthKey(iso) {
   const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}`;
 }
 

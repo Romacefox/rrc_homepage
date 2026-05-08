@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=SUIT:wght@300;400;500;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20260508a" />
+  <link rel="stylesheet" href="styles.css?v=20260508b" />
 </head>
 <body>
   <header class="site-header">
@@ -197,10 +197,28 @@
             <div class="board-engagement-grid" style="margin-top:1rem;">
               <article class="panel board-highlight reward-guide-panel">
                 <div class="section-head">
-                  <h3>RRC 리워드 라운지</h3>
-                  <span class="badge">포인트 안내</span>
+                  <h3>포인트 랭킹 & 리워드</h3>
+                  <span class="badge">활동 허브</span>
                 </div>
-                <p class="list-meta">커뮤니티 활동과 챌린지로 월간 포인트를 모으고, 운영진 승인 후 RRC샵 결제 보조로 사용하는 흐름입니다. 운영 환산 기준은 10P=100원입니다.</p>
+                <p class="list-meta">포인트 랭킹으로 활동 흐름을 보고, 커뮤니티 활동과 챌린지로 모은 포인트를 운영진 승인 후 RRC샵 결제 보조로 사용하는 흐름입니다. 운영 환산 기준은 10P=100원입니다.</p>
+                <div class="point-guide-grid">
+                  <div class="point-guide-card"><strong>이달의 러너 · 100P</strong><span>선택 월 정기런 최다 참여자 자동 선정</span></div>
+                  <div class="point-guide-card"><strong>사진 업로드 · 5P</strong><span>하루 1회 인정, 월 최대 5회</span></div>
+                  <div class="point-guide-card"><strong>응원 댓글 · 2P</strong><span>하루 1회 인정, 월 최대 10회</span></div>
+                  <div class="point-guide-card"><strong>포인트 챌린지</strong><span>성공자 베팅 비율에 따라 정산</span></div>
+                  <div class="point-guide-card"><strong>운영진 배지</strong><span>낭만러너, 페이스메이커, 번개왕 등</span></div>
+                  <div class="point-guide-card"><strong>정기런 배지</strong><span>한강러버, 올공러버, 꾸준러너 등</span></div>
+                </div>
+                <div class="section-head" style="margin-top:1rem;">
+                  <h3>월간 포인트 랭킹</h3>
+                  <span class="badge">전체 포인트</span>
+                </div>
+                <ul id="point-ranking-board" class="list small" style="margin-top:0.7rem;"></ul>
+                <p class="list-meta" style="margin-top:0.8rem;">출석 횟수 자체에는 포인트를 붙이지 않고, 선택 월 정기런 최다 참여 이달의 러너 100P, 사진 하루 1회·월 최대 5회(회당 5P), 응원 댓글 하루 1회·월 최대 10회(회당 2P), 운영진 선정 포인트, 챌린지 정산 포인트로 계산합니다.</p>
+                <div class="section-head" style="margin-top:1rem;">
+                  <h3>RRC샵 보조권</h3>
+                  <span class="badge">누적 기준</span>
+                </div>
                 <div id="reward-preview-list" class="reward-preview-list">
                   <div class="reward-preview-card">
                     <strong>500P</strong>
@@ -215,12 +233,12 @@
                     <p class="list-meta">RRC샵 20,000원 보조권</p>
                   </div>
                 </div>
-                <div class="section-head" style="margin-top:1rem;">
-                  <h3>월간 포인트 랭킹</h3>
-                  <span class="badge">전체 포인트</span>
+                <div class="stats-grid reward-balance-grid" style="margin-top:1rem;">
+                  <div class="stat-card"><span>누적 적립</span><strong id="reward-balance-total">0P</strong></div>
+                  <div class="stat-card"><span>사용 완료</span><strong id="reward-balance-used">0P</strong></div>
+                  <div class="stat-card"><span>사용 가능</span><strong id="reward-balance-available">0P</strong></div>
                 </div>
-                <ul id="point-ranking-board" class="list small" style="margin-top:0.7rem;"></ul>
-                <p class="list-meta" style="margin-top:0.8rem;">출석 횟수 자체에는 포인트를 붙이지 않고, 선택 월 정기런 최다 참여 이달의 러너 100P, 사진 하루 1회·월 최대 5회(회당 5P), 응원 댓글 하루 1회·월 최대 10회(회당 2P), 운영진 선정 포인트, 챌린지 정산 포인트로 계산합니다.</p>
+                <p id="reward-balance-note" class="list-meta" style="margin-top:0.7rem;">누적 포인트와 사용 가능 보조권을 계산하고 있습니다.</p>
                 <form id="reward-request-form" class="form compact" style="margin-top:0.9rem;">
                   <select id="reward-request-item">
                     <option value="rrc_shop_5000">RRC샵 5,000원 보조권 · 500P</option>
@@ -241,7 +259,7 @@
                   <h3>포인트 챌린지</h3>
                   <span class="badge">카톡 인증</span>
                 </div>
-                <p class="list-meta">챌린지는 참가 포인트를 걸고, 카카오톡 채팅방 인증을 운영진이 확인해 성공자를 정산합니다. 성공 보상은 성공자별 베팅 비율에 따라 월간 포인트 지급 기록에 반영됩니다.</p>
+                <p class="list-meta">회원이 직접 챌린지를 제안하고, 참가 포인트를 걸어 카카오톡 채팅방에서 인증합니다. 운영진이 성공 여부를 확인하면 성공자별 베팅 비율에 따라 월간 포인트 지급 기록에 반영됩니다.</p>
                 <form id="challenge-form" class="form compact" style="margin-top:0.8rem;">
                   <input id="challenge-title" type="text" maxlength="80" placeholder="챌린지명 예: 매일 1km 뛰기" />
                   <div class="inline-form">
@@ -327,6 +345,6 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="auth.js?v=20260508b"></script>
+  <script src="auth.js?v=20260508c"></script>
 </body>
 </html>
