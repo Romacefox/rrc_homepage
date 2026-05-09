@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=SUIT:wght@300;400;500;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20260509a" />
+  <link rel="stylesheet" href="styles.css?v=20260509b" />
 </head>
 <body>
   <header class="site-header">
@@ -18,7 +18,6 @@
         <a href="login.html" data-auth-entry>회원가입 / 로그인</a>
         <a href="index.html#about">크루 소개</a>
         <a href="index.html#notice">공지</a>
-        <a href="login.html">활동 보드</a>
         <a href="gallery.html">사진첩</a>
         <a href="running.html">러닝 허브</a>
         <a href="login.html" data-member-nav class="hidden" hidden>활동 보드</a>
@@ -32,8 +31,8 @@
     <section class="section alt">
       <div class="container two-col auth-shell">
         <article id="login-panel" class="panel login-panel">
-          <h2 id="login-panel-title">활동 보드</h2>
-          <p class="list-meta">로그인 후 활동 보드와 사진첩 업로드 기능을 사용할 수 있습니다.</p>
+          <h2 id="login-panel-title">로그인</h2>
+          <p id="login-panel-copy" class="list-meta">로그인 후 활동 보드와 사진첩 업로드 기능을 사용할 수 있습니다.</p>
           <form class="form compact" id="login-form">
             <input id="login-email" type="email" placeholder="이메일" autocomplete="username" required />
             <input id="login-password" type="password" placeholder="비밀번호" autocomplete="current-password" required />
@@ -61,7 +60,7 @@
             <span id="runner-month-label" class="badge">이번 달 기준</span>
           </div>
           <p id="activity-lock" class="list-meta">승인 회원 로그인 후 월별 출석, 연속 출석, 이달의 러너를 볼 수 있습니다.</p>
-          <article class="panel board-highlight">
+          <article id="member-feature-guide" class="panel board-highlight">
             <h3>회원 기능 안내</h3>
             <ul class="bullet">
               <li>활동 보드에서 내 출석, 누적 출석, 연속 출석, 본인 회비 상태를 확인할 수 있습니다.</li>
@@ -347,6 +346,6 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="auth.js?v=20260509a"></script>
+  <script src="auth.js?v=20260509b"></script>
 </body>
 </html>

@@ -76,6 +76,10 @@ export default async (request) => {
         if (!Number.isFinite(stakePoints) || stakePoints <= 0) {
           return json(400, { ok: false, error: "invalid stake points" });
         }
+        const existingEntry = await loadEntryForUser(challengeId, auth.user.id);
+        if (existingEntry) {
+          return json(409, { ok: false, error: "already joined" });
+        }
 
         await supabaseInsert(ENTRY_TABLE, {
           challenge_id: challengeId,
@@ -214,6 +218,11 @@ async function loadChallenge(id) {
 
 async function loadEntries(challengeId) {
   return supabaseSelect(`${ENTRY_TABLE}?challenge_id=eq.${encodeURIComponent(challengeId)}&select=id,user_id,member_name,stake_points,result`);
+}
+
+async function loadEntryForUser(challengeId, userId) {
+  const rows = await supabaseSelect(`${ENTRY_TABLE}?challenge_id=eq.${encodeURIComponent(challengeId)}&user_id=eq.${encodeURIComponent(userId)}&select=id&limit=1`);
+  return Array.isArray(rows) ? rows[0] || null : null;
 }
 
 function allocateProportionalPayouts(successEntries, pot) {
