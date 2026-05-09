@@ -555,7 +555,7 @@ async function handleLogin(event) {
   setStatus(loginStatus, "로그인 중...");
 
   try {
-    const loginResult = await supabaseClient.auth.signInWithPassword({ email, password });
+    const loginResult = await signInWithFallback(email, password);
     if (loginResult.error) {
       setStatus(loginStatus, `로그인 실패: ${loginResult.error.message}`);
       return;
@@ -577,6 +577,51 @@ async function handleLogin(event) {
       loginSubmitButton.disabled = false;
     }
   }
+}
+
+async function signInWithFallback(email, password) {
+  try {
+    return await supabaseClient.auth.signInWithPassword({ email, password });
+  } catch (error) {
+    if (!isFetchFailure(error) || window.location.protocol === "file:") {
+      throw error;
+    }
+    return signInViaNetlifyFunction(email, password);
+  }
+}
+
+async function signInViaNetlifyFunction(email, password) {
+  const response = await fetch("/.netlify/functions/auth-login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password })
+  });
+  const result = await response.json().catch(() => ({ ok: false, error: "invalid auth response" }));
+  if (!response.ok || !result?.ok) {
+    return { error: { message: result?.error || `login failed (${response.status})` } };
+  }
+  const accessToken = result?.session?.access_token;
+  const refreshToken = result?.session?.refresh_token;
+  if (!accessToken || !refreshToken) {
+    return { error: { message: "login session missing" } };
+  }
+  const sessionResult = await supabaseClient.auth.setSession({
+    access_token: accessToken,
+    refresh_token: refreshToken
+  });
+  if (sessionResult.error) {
+    return { error: sessionResult.error };
+  }
+  return {
+    data: {
+      session: sessionResult.data?.session || result.session,
+      user: sessionResult.data?.user || result.user
+    }
+  };
+}
+
+function isFetchFailure(error) {
+  return /failed to fetch|network|fetch/i.test(String(error?.message || error || ""));
 }
 
 async function handleLogout() {
