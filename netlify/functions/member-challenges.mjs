@@ -145,12 +145,25 @@ export default async (request) => {
             updated_at: new Date().toISOString()
           });
         }
+        const settlementMonthKey = monthKeyFromDate(challenge.end_date || new Date().toISOString());
+        for (const entry of entries) {
+          const stakePoints = Number(entry.stake_points || 0);
+          await tryInsertPointAward(auth, {
+            userId: entry.user_id,
+            memberName: entry.member_name,
+            monthKey: settlementMonthKey,
+            awardCode: "challenge_stake",
+            awardLabel: `챌린지 베팅 차감: ${challenge.title}`.slice(0, 80),
+            points: -stakePoints,
+            note: `챌린지 참가 베팅 ${stakePoints}P 차감`
+          });
+        }
         for (const entry of successEntries) {
           const payoutPoints = Number(payoutMap.get(String(entry.id)) || 0);
           await tryInsertPointAward(auth, {
             userId: entry.user_id,
             memberName: entry.member_name,
-            monthKey: monthKeyFromDate(challenge.end_date || new Date().toISOString()),
+            monthKey: settlementMonthKey,
             awardCode: "challenge_payout",
             awardLabel: `챌린지 성공: ${challenge.title}`.slice(0, 80),
             points: payoutPoints,

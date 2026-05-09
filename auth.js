@@ -11,6 +11,10 @@ const ATTENDANCE_STREAK_START_MONTH = "2026-04";
 const POINT_POLICY = {
   signupBonus: 20,
   monthlyRunner: 100,
+  weeklyRegular: 30,
+  venueLover: 50,
+  candidateStreak2: 30,
+  candidateStreak3: 50,
   photo: 5,
   photoMonthlyCap: 5,
   comment: 2,
@@ -96,6 +100,9 @@ let boardRaffleReplayButton = null;
 let boardRaffleRouletteTrack = null;
 let latestRaffleRecords = [];
 let rewardAvailablePointCache = 0;
+let rewardAvailableBeforeChallengeLockCache = 0;
+let challengeLockedPointCache = 0;
+let rewardBalanceSnapshot = { earnedPoints: 0, usedPoints: 0, pendingPoints: 0 };
 const myFeeStatus = document.getElementById("my-fee-status");
 const myRaffleStatus = document.getElementById("my-raffle-status");
 const myStreakChange = document.getElementById("my-streak-change");
@@ -1369,7 +1376,8 @@ function buildProfileFallbackMember(monthKey = currentMonthKey()) {
 }
 
 function buildActivityRowFromMember(member, selectedMonth, pointSummaryByName, attendanceLogs) {
-  const basePoints = calculateAttendancePoints(member, selectedMonth, attendanceLogs);
+  const attendanceBonus = calculateAttendanceBonus(member, selectedMonth, attendanceLogs);
+  const basePoints = attendanceBonus.total;
   const pointSummary = pointSummaryByName.get(normalizeName(member.name)) || {};
   const awardPoints = Number(pointSummary.points || 0);
   return {
@@ -1379,6 +1387,9 @@ function buildActivityRowFromMember(member, selectedMonth, pointSummaryByName, a
     streak: getAttendanceStreakFromMonth(member, selectedMonth),
     tickets: calculateMonthlyTickets(member, selectedMonth),
     basePoints,
+    attendanceBonusPoints: attendanceBonus.total,
+    attendanceBonusLabels: attendanceBonus.labels,
+    monthlyRunnerPoints: 0,
     awardPoints,
     photoPoints: Number(pointSummary.photo_points || 0),
     commentPoints: Number(pointSummary.comment_points || 0),
@@ -1668,8 +1679,13 @@ function buildPointRankingMeta(member, monthKey) {
     `${monthKeyToLabel(monthKey)} 정기런 ${Number(member.regularRuns || 0)}회`,
     `전체 출석 ${Number(member.monthRuns || 0)}회`
   ];
-  if (Number(member.basePoints || 0)) {
-    parts.push(`이달의 러너 ${Number(member.basePoints || 0)}P`);
+  if (Array.isArray(member.attendanceBonusLabels) && member.attendanceBonusLabels.length) {
+    parts.push(member.attendanceBonusLabels.join(" + "));
+  } else if (Number(member.attendanceBonusPoints || 0)) {
+    parts.push(`정기런 배지 ${Number(member.attendanceBonusPoints || 0)}P`);
+  }
+  if (Number(member.monthlyRunnerPoints || 0)) {
+    parts.push(`이달의 러너 ${Number(member.monthlyRunnerPoints || 0)}P`);
   }
   if (Number(member.photoPoints || 0)) {
     parts.push(`사진 ${Number(member.photoPoints || 0)}P`);
@@ -1678,7 +1694,7 @@ function buildPointRankingMeta(member, monthKey) {
     parts.push(`댓글 ${Number(member.commentPoints || 0)}P`);
   }
   if (Number(member.manualPoints || 0)) {
-    parts.push(`추첨/운영/챌린지 ${Number(member.manualPoints || 0)}P`);
+    parts.push(`가입/운영/챌린지 ${Number(member.manualPoints || 0)}P`);
   }
   return parts.join(" · ");
 }
@@ -2013,7 +2029,7 @@ function renderPersonalBoardEmpty() {
     myNextReward.textContent = "준비 중";
   }
   if (myPointNote) {
-    myPointNote.textContent = "출석, 사진, 댓글 활동으로 포인트를 모아 RRC샵 보조 신청에 활용할 수 있도록 준비 중입니다.";
+    myPointNote.textContent = "정기런 배지, 사진, 댓글, 챌린지, 운영 리워드로 포인트를 모아 RRC샵 보조 신청에 활용할 수 있습니다.";
   }
   renderBadgeList([]);
   renderMissionBoard([], null, currentMonthKey(), 0, 0);
@@ -2031,8 +2047,9 @@ function calculateRewardBalance({ monthlyPointTotal, pointAwards, allPointAwards
   const earnedFromPhotos = countMonthlyCappedDailyEvents(allPhotos, POINT_POLICY.photoMonthlyCap) * POINT_POLICY.photo;
   const earnedFromComments = countMonthlyCappedDailyEvents(allComments, POINT_POLICY.commentMonthlyCap) * POINT_POLICY.comment;
   const earnedFromMonthlyRunner = calculateMonthlyRunnerRewardPoints(attendanceLogs);
+  const earnedFromAttendanceBonuses = calculateAttendanceBonusRewardPoints(attendanceLogs);
   const earnedPoints = Math.max(
-    earnedFromAwards + earnedFromPhotos + earnedFromComments + earnedFromMonthlyRunner,
+    earnedFromAwards + earnedFromPhotos + earnedFromComments + earnedFromMonthlyRunner + earnedFromAttendanceBonuses,
     selectedMonthFallback
   );
   const usedPoints = sumRewardRequestCosts(rewardRequests, ["fulfilled"]);
@@ -2102,22 +2119,73 @@ function calculateMonthlyRunnerRewardPoints(attendanceLogs = []) {
   return bonusPoints;
 }
 
+function calculateAttendanceBonusRewardPoints(attendanceLogs = []) {
+  const targetName = normalizeName(authProfile?.name || "");
+  if (!targetName) {
+    return 0;
+  }
+  const candidateMember = {
+    name: authProfile?.name || "",
+    monthly_runs: buildMonthlyRunsFromAttendanceLogs(targetName, attendanceLogs)
+  };
+  const months = new Set(
+    (Array.isArray(attendanceLogs) ? attendanceLogs : [])
+      .map((log) => toMonthKey(log.attendance_date || log.date || ""))
+      .filter((monthKey) => monthKey && compareMonthKey(monthKey, ATTENDANCE_STREAK_START_MONTH) >= 0)
+  );
+  let total = 0;
+  months.forEach((monthKey) => {
+    total += calculateAttendanceBonus(candidateMember, monthKey, attendanceLogs).total;
+  });
+  return total;
+}
+
+function buildMonthlyRunsFromAttendanceLogs(targetName, attendanceLogs = []) {
+  const monthlyRuns = {};
+  (Array.isArray(attendanceLogs) ? attendanceLogs : []).forEach((log) => {
+    const matched = Array.isArray(log?.matched) ? log.matched : [];
+    if (!matched.some((name) => normalizeName(name) === targetName)) {
+      return;
+    }
+    const monthKey = toMonthKey(log.attendance_date || log.date || "");
+    if (monthKey) {
+      monthlyRuns[monthKey] = Number(monthlyRuns[monthKey] || 0) + 1;
+    }
+  });
+  return monthlyRuns;
+}
+
 function renderRewardLoungeState({ earnedPoints = 0, usedPoints = 0, pendingPoints = 0, availablePoints = 0 }) {
-  rewardAvailablePointCache = Number(availablePoints || 0);
+  rewardBalanceSnapshot = {
+    earnedPoints: Number(earnedPoints || 0),
+    usedPoints: Number(usedPoints || 0),
+    pendingPoints: Number(pendingPoints || 0)
+  };
+  rewardAvailableBeforeChallengeLockCache = Number(availablePoints || 0);
   if (rewardBalanceTotal) {
     rewardBalanceTotal.textContent = `${Number(earnedPoints || 0).toLocaleString("ko-KR")}P`;
   }
   if (rewardBalanceUsed) {
     rewardBalanceUsed.textContent = `${Number(usedPoints || 0).toLocaleString("ko-KR")}P`;
   }
+  syncRewardAvailabilityDisplay();
+}
+
+function syncRewardAvailabilityDisplay() {
+  const pendingPoints = Number(rewardBalanceSnapshot.pendingPoints || 0);
+  const lockedPoints = Number(challengeLockedPointCache || 0);
+  rewardAvailablePointCache = Math.max(Number(rewardAvailableBeforeChallengeLockCache || 0) - lockedPoints, 0);
   if (rewardBalanceAvailable) {
     rewardBalanceAvailable.textContent = `${rewardAvailablePointCache.toLocaleString("ko-KR")}P`;
   }
   if (rewardBalanceNote) {
-    const pendingText = Number(pendingPoints || 0) > 0
-      ? ` 신청/승인 대기 ${Number(pendingPoints || 0).toLocaleString("ko-KR")}P는 사용 가능 포인트에서 미리 제외했습니다.`
+    const pendingText = pendingPoints > 0
+      ? ` 신청/승인 대기 ${pendingPoints.toLocaleString("ko-KR")}P는 미리 제외했습니다.`
       : "";
-    rewardBalanceNote.textContent = `누적 적립에서 사용 완료·대기 중인 보조 신청을 제외한 기준입니다.${pendingText}`;
+    const lockedText = lockedPoints > 0
+      ? ` 챌린지 베팅 ${lockedPoints.toLocaleString("ko-KR")}P는 정산 전까지 잠김 처리됩니다.`
+      : "";
+    rewardBalanceNote.textContent = `누적 적립에서 사용 완료·대기 중인 보조 신청을 제외한 기준입니다.${pendingText}${lockedText}`;
   }
   renderRewardTierCards(rewardAvailablePointCache);
 }
@@ -2738,6 +2806,8 @@ async function loadChallenges() {
 }
 
 function renderChallengeLocked(message) {
+  challengeLockedPointCache = 0;
+  syncRewardAvailabilityDisplay();
   if (challengeList) {
     challengeList.innerHTML = `<li class="list-item"><p class="list-meta">${escapeHtml(message)}</p></li>`;
   }
@@ -2751,6 +2821,8 @@ function renderChallengeList(items, canManage) {
     return;
   }
   challengeList.innerHTML = "";
+  challengeLockedPointCache = calculateMyChallengeLockedPoints(items);
+  syncRewardAvailabilityDisplay();
   if (!items.length) {
     challengeList.innerHTML = '<li class="list-item"><p class="list-meta">아직 등록된 챌린지가 없습니다.</p></li>';
     return;
@@ -2823,6 +2895,18 @@ function renderChallengeList(items, canManage) {
     }
     challengeList.appendChild(node);
   });
+}
+
+function calculateMyChallengeLockedPoints(items) {
+  const activeStatuses = new Set(["submitted", "recruiting", "in_progress", "judging"]);
+  return (Array.isArray(items) ? items : []).reduce((total, item) => {
+    if (!activeStatuses.has(String(item?.status || ""))) {
+      return total;
+    }
+    const entries = Array.isArray(item.entries) ? item.entries : [];
+    const entry = entries.find((candidate) => candidate.user_id === authUser?.id);
+    return total + Number(entry?.stake_points || 0);
+  }, 0);
 }
 
 function buildChallengeJoinForm(item) {
@@ -3344,19 +3428,46 @@ function calculateMonthlyTickets(member, monthKey) {
 }
 
 function calculateAttendancePoints(member, monthKey, attendanceLogs = []) {
-  return 0;
+  return calculateAttendanceBonus(member, monthKey, attendanceLogs).total;
+}
+
+function calculateAttendanceBonus(member, monthKey, attendanceLogs = []) {
+  const state = getAttendanceBonusState(member, monthKey, attendanceLogs);
+  const labels = [];
+  let total = 0;
+  if (state.weeklyRegular) {
+    total += POINT_POLICY.weeklyRegular;
+    labels.push(`매주 정기런 ${POINT_POLICY.weeklyRegular}P`);
+  }
+  if (state.hangangLover) {
+    total += POINT_POLICY.venueLover;
+    labels.push(`한강러버 ${POINT_POLICY.venueLover}P`);
+  }
+  if (state.olympicLover) {
+    total += POINT_POLICY.venueLover;
+    labels.push(`올공러버 ${POINT_POLICY.venueLover}P`);
+  }
+  if (state.candidateStreak >= 3) {
+    total += POINT_POLICY.candidateStreak3;
+    labels.push(`3개월 연속 후보 ${POINT_POLICY.candidateStreak3}P`);
+  } else if (state.candidateStreak >= 2) {
+    total += POINT_POLICY.candidateStreak2;
+    labels.push(`2개월 연속 후보 ${POINT_POLICY.candidateStreak2}P`);
+  }
+  return { total, labels, state };
 }
 
 function calculatePersonalMonthlyPoints({ me, selectedMonth, photoCount, commentCount, attendanceLogs, pointAwards }) {
-  const monthlyRunnerPoints = Number(me?.basePoints || 0);
+  const activityBonusPoints = Number(me?.basePoints || 0);
   const photoPoints = Math.min(Number(photoCount || 0), POINT_POLICY.photoMonthlyCap) * POINT_POLICY.photo;
   const commentPoints = Math.min(Number(commentCount || 0), POINT_POLICY.commentMonthlyCap) * POINT_POLICY.comment;
   const awardPoints = (Array.isArray(pointAwards) ? pointAwards : []).reduce((sum, award) => sum + Number(award.points || 0), 0);
-  return monthlyRunnerPoints + photoPoints + commentPoints + awardPoints;
+  return activityBonusPoints + photoPoints + commentPoints + awardPoints;
 }
 
 function calculatePersonalMonthlyPointBreakdown({ me, photoCount, commentCount, pointAwards }) {
-  const monthlyRunnerPoints = Number(me?.basePoints || 0);
+  const attendanceBonusPoints = Number(me?.attendanceBonusPoints || 0);
+  const monthlyRunnerPoints = Number(me?.monthlyRunnerPoints || 0);
   const photoEligibleCount = Math.min(Number(photoCount || 0), POINT_POLICY.photoMonthlyCap);
   const commentEligibleCount = Math.min(Number(commentCount || 0), POINT_POLICY.commentMonthlyCap);
   const photoPoints = photoEligibleCount * POINT_POLICY.photo;
@@ -3364,12 +3475,13 @@ function calculatePersonalMonthlyPointBreakdown({ me, photoCount, commentCount, 
   const awardPoints = sumPointAwardRows(pointAwards);
   return {
     monthlyRunnerPoints,
+    attendanceBonusPoints,
     photoEligibleCount,
     photoPoints,
     commentEligibleCount,
     commentPoints,
     awardPoints,
-    total: monthlyRunnerPoints + photoPoints + commentPoints + awardPoints
+    total: attendanceBonusPoints + monthlyRunnerPoints + photoPoints + commentPoints + awardPoints
   };
 }
 
@@ -3380,6 +3492,9 @@ function formatPointBreakdown(breakdown) {
   }
   if (Number(breakdown?.monthlyRunnerPoints || 0) > 0) {
     parts.push(`이달의 러너 ${Number(breakdown.monthlyRunnerPoints).toLocaleString("ko-KR")}P`);
+  }
+  if (Number(breakdown?.attendanceBonusPoints || 0) > 0) {
+    parts.push(`정기런 배지 ${Number(breakdown.attendanceBonusPoints).toLocaleString("ko-KR")}P`);
   }
   if (Number(breakdown?.photoPoints || 0) > 0) {
     parts.push(`사진 ${Number(breakdown.photoEligibleCount || 0)}회 ${Number(breakdown.photoPoints).toLocaleString("ko-KR")}P`);
@@ -3401,6 +3516,7 @@ function applyMonthlyRunnerBonus(rows) {
   }
   runner.basePoints = Number(runner.basePoints || 0) + POINT_POLICY.monthlyRunner;
   runner.pointTotal = Number(runner.pointTotal || 0) + POINT_POLICY.monthlyRunner;
+  runner.monthlyRunnerPoints = POINT_POLICY.monthlyRunner;
   runner.monthlyRunner = true;
 }
 
@@ -3430,7 +3546,8 @@ function getAttendanceBonusState(member, monthKey, attendanceLogs = []) {
   return {
     weeklyRegular: hasEveryRegularWeek(memberLogs, monthKey),
     hangangLover: crossedVenueMilestone(memberLogs, monthKey, 2, 10),
-    olympicLover: crossedVenueMilestone(memberLogs, monthKey, 4, 10)
+    olympicLover: crossedVenueMilestone(memberLogs, monthKey, 4, 10),
+    candidateStreak: getCandidateStreakFromMonth(member, monthKey)
   };
 }
 
