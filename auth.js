@@ -27,6 +27,8 @@ const REWARD_ITEMS = [
 let supabaseClient = null;
 let authUser = null;
 let authProfile = null;
+let loginInFlight = false;
+let loginFeedbackHoldUntil = 0;
 let photoRecords = [];
 let photoLikeCounts = new Map();
 let photoLikedByMe = new Set();
@@ -563,7 +565,8 @@ async function handleLogin(event) {
   if (loginSubmitButton) {
     loginSubmitButton.disabled = true;
   }
-  setStatus(loginStatus, "로그인 중...");
+  loginInFlight = true;
+  setLoginFeedback("로그인 중...", 20000);
 
   try {
     const loginResult = await withTimeout(
@@ -572,22 +575,29 @@ async function handleLogin(event) {
       "로그인 요청 시간이 초과되었습니다. 배포 URL에서 다시 시도해 주세요."
     );
     if (loginResult.error) {
-      setStatus(loginStatus, `로그인 실패: ${formatLoginErrorMessage(loginResult.error)}`);
+      setLoginFeedback(`로그인 실패: ${formatLoginErrorMessage(loginResult.error)}`);
       return;
     }
 
     const signedInUser = loginResult.data?.session?.user || loginResult.data?.user || null;
-    await hydrateAuthState(signedInUser);
-
-    if (!authUser) {
-      setStatus(loginStatus, "로그인은 되었지만 세션 확인에 실패했습니다. 다시 시도해 주세요.");
+    if (!signedInUser) {
+      setLoginFeedback("로그인은 되었지만 세션 확인에 실패했습니다. 다시 시도해 주세요.");
       return;
     }
 
+    authUser = signedInUser;
+    authProfile = null;
+    loginFeedbackHoldUntil = 0;
     setStatus(loginStatus, `로그인됨: ${authUser.email}`);
+    renderAuthState();
+    publishAuthState();
+    void hydrateAuthState(signedInUser).catch((error) => {
+      setStatus(loginApprovalStatus, `승인 상태 확인 실패: ${formatLoginErrorMessage(error)}`);
+    });
   } catch (error) {
-    setStatus(loginStatus, `로그인 실패: ${formatLoginErrorMessage(error)}`);
+    setLoginFeedback(`로그인 실패: ${formatLoginErrorMessage(error)}`);
   } finally {
+    loginInFlight = false;
     if (loginSubmitButton) {
       loginSubmitButton.disabled = false;
     }
@@ -598,6 +608,8 @@ async function handleLogout() {
   if (!supabaseClient) {
     return;
   }
+  loginInFlight = false;
+  loginFeedbackHoldUntil = 0;
   await supabaseClient.auth.signOut();
   authUser = null;
   authProfile = null;
@@ -749,7 +761,9 @@ function renderAuthState() {
     updateSharedNavigation(false, false);
     setVisibility(galleryGuestActions, true);
     setVisibility(galleryMemberActions, false);
-    setStatus(loginStatus, loginStatus ? "로그인이 필요합니다." : null);
+    if (!shouldPreserveLoginFeedback()) {
+      setStatus(loginStatus, loginStatus ? "로그인이 필요합니다." : null);
+    }
     setStatus(loginApprovalStatus, loginApprovalStatus ? "승인 상태: 로그인 필요" : null);
     setStatus(galleryAuthStatus, galleryAuthStatus ? "로그인이 필요합니다." : null);
     setStatus(galleryApprovalStatus, galleryApprovalStatus ? "승인 상태 확인 후 이용할 수 있습니다." : null);
@@ -3701,6 +3715,15 @@ function setStatus(node, message) {
   if (node && typeof message === "string") {
     node.textContent = message;
   }
+}
+
+function setLoginFeedback(message, holdMs = 12000) {
+  loginFeedbackHoldUntil = Date.now() + holdMs;
+  setStatus(loginStatus, message);
+}
+
+function shouldPreserveLoginFeedback() {
+  return loginInFlight || Date.now() < loginFeedbackHoldUntil;
 }
 
 function withTimeout(promise, timeoutMs, timeoutMessage) {
