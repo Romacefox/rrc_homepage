@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=SUIT:wght@300;400;500;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20260508b" />
+  <link rel="stylesheet" href="styles.css?v=20260509a" />
 </head>
 <body>
   <header class="site-header">
@@ -202,11 +202,12 @@
                 </div>
                 <p class="list-meta">포인트 랭킹으로 활동 흐름을 보고, 커뮤니티 활동과 챌린지로 모은 포인트를 운영진 승인 후 RRC샵 결제 보조로 사용하는 흐름입니다. 운영 환산 기준은 10P=100원입니다.</p>
                 <div class="point-guide-grid">
+                  <div class="point-guide-card"><strong>신규 가입 · 20P</strong><span>운영진 승인과 동시에 웰컴 포인트 지급</span></div>
                   <div class="point-guide-card"><strong>이달의 러너 · 100P</strong><span>선택 월 정기런 최다 참여자 자동 선정</span></div>
                   <div class="point-guide-card"><strong>사진 업로드 · 5P</strong><span>하루 1회 인정, 월 최대 5회</span></div>
                   <div class="point-guide-card"><strong>응원 댓글 · 2P</strong><span>하루 1회 인정, 월 최대 10회</span></div>
                   <div class="point-guide-card"><strong>포인트 챌린지</strong><span>성공자 베팅 비율에 따라 정산</span></div>
-                  <div class="point-guide-card"><strong>운영진 배지</strong><span>낭만러너, 페이스메이커, 번개왕 등</span></div>
+                  <div class="point-guide-card"><strong>운영진 배지</strong><span>낭만러너, 이달의 번개왕 100P, 분기 등산킹 300P 등</span></div>
                   <div class="point-guide-card"><strong>정기런 배지</strong><span>한강러버, 올공러버, 꾸준러너 등</span></div>
                 </div>
                 <div class="section-head" style="margin-top:1rem;">
@@ -284,7 +285,7 @@
                   <h3>월간 포인트 지급</h3>
                   <span class="badge">운영진</span>
                 </div>
-                <p class="list-meta">낭만러너, 페이스메이커, 번개왕처럼 운영진이 선정하는 월간 배지를 포인트와 함께 지급합니다.</p>
+                <p class="list-meta">낭만러너, 페이스메이커, 이달의 번개왕, 분기 등산킹처럼 운영진이 선정하는 배지를 포인트와 함께 지급합니다.</p>
                 <form id="point-award-form" class="form compact" style="margin-top:0.8rem;">
                   <div class="inline-form">
                     <input id="point-award-member" type="text" maxlength="80" placeholder="회원 이름" />
@@ -300,7 +301,8 @@
                       <option value="operations_helper">운영헬퍼</option>
                       <option value="cheer_fairy">응원요정</option>
                       <option value="challenge_maker">챌린지메이커</option>
-                      <option value="flash_king">번개왕</option>
+                      <option value="flash_king">이달의 번개왕</option>
+                      <option value="hiking_king">등산킹</option>
                     </select>
                     <input id="point-award-points" type="number" min="1" max="500" placeholder="포인트" />
                   </div>
@@ -345,6 +347,6 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="auth.js?v=20260508c"></script>
+  <script src="auth.js?v=20260509a"></script>
 </body>
 </html>

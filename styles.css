@@ -836,6 +836,55 @@ body.modal-open {
   .point-guide-grid {
     grid-template-columns: 1fr;
   }
+
+  .section {
+    padding: 2.6rem 0;
+  }
+
+  .panel {
+    padding: 0.85rem;
+  }
+
+  .section-head,
+  .list-top {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .status-chip {
+    margin-left: 0;
+  }
+
+  .inline-form {
+    flex-direction: column;
+  }
+
+  .inline-form .btn,
+  .form .btn {
+    width: 100%;
+    text-align: center;
+  }
+
+  .stats-grid,
+  .reward-balance-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .activity-board-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 0.35rem;
+    scrollbar-width: thin;
+  }
+
+  .activity-board-tab {
+    flex: 0 0 auto;
+  }
+
+  .challenge-entry-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 
 .suggestion-panel {

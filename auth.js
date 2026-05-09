@@ -9,6 +9,7 @@ const BIRTH_YEAR_MAX = 2004;
 const POINT_WON_RATE = 10;
 const ATTENDANCE_STREAK_START_MONTH = "2026-04";
 const POINT_POLICY = {
+  signupBonus: 20,
   monthlyRunner: 100,
   photo: 5,
   photoMonthlyCap: 5,
@@ -2555,7 +2556,8 @@ function getPointAwardOptions() {
     { code: "operations_helper", label: "운영헬퍼", points: 40 },
     { code: "cheer_fairy", label: "응원요정", points: 20 },
     { code: "challenge_maker", label: "챌린지메이커", points: 30 },
-    { code: "flash_king", label: "번개왕", points: 40 }
+    { code: "flash_king", label: "이달의 번개왕", points: 100 },
+    { code: "hiking_king", label: "등산킹", points: 300 }
   ];
 }
 

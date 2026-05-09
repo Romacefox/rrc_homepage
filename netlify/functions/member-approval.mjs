@@ -1,5 +1,7 @@
 const TABLE = "member_profiles";
 const LOG_TABLE = "operation_logs";
+const POINT_AWARD_TABLE = "member_point_awards";
+const SIGNUP_BONUS_POINTS = 20;
 
 export default async (request) => {
   try {
@@ -55,6 +57,9 @@ export default async (request) => {
 
       const targetProfile = await getTargetProfile(userId);
       await supabasePatch(`${TABLE}?user_id=eq.${encodeURIComponent(userId)}`, patch);
+      if (shouldGrantSignupBonus(targetProfile, patch)) {
+        await tryInsertSignupBonus(auth, targetProfile);
+      }
       await tryInsertOperationLog(auth, targetProfile, patch);
       return json(200, { ok: true });
     }
@@ -107,6 +112,44 @@ async function requireAdmin(request) {
 async function getTargetProfile(userId) {
   const rows = await supabaseSelect(`${TABLE}?user_id=eq.${encodeURIComponent(userId)}&select=user_id,email,name,approval_status,role&limit=1`);
   return Array.isArray(rows) ? rows[0] || null : null;
+}
+
+function shouldGrantSignupBonus(targetProfile, patch) {
+  return patch?.approval_status === "approved" && targetProfile?.approval_status !== "approved";
+}
+
+async function tryInsertSignupBonus(auth, targetProfile) {
+  if (!targetProfile?.user_id) {
+    return;
+  }
+  try {
+    const existing = await supabaseSelect(`${POINT_AWARD_TABLE}?user_id=eq.${encodeURIComponent(targetProfile.user_id)}&award_code=eq.signup_bonus&select=id&limit=1`);
+    if (Array.isArray(existing) && existing.length > 0) {
+      return;
+    }
+    await supabaseInsert(POINT_AWARD_TABLE, {
+      user_id: targetProfile.user_id,
+      member_name: String(targetProfile.name || targetProfile.email || "회원").slice(0, 80),
+      month_key: currentMonthKey(),
+      award_code: "signup_bonus",
+      award_label: "신규 가입 웰컴 포인트",
+      points: SIGNUP_BONUS_POINTS,
+      note: "챌린지 모드 시작을 위한 신규 가입 기본 포인트",
+      granted_by_user_id: auth.user?.id || null,
+      granted_by_name: String(auth.user?.email || "admin").slice(0, 120)
+    });
+  } catch (error) {
+    const message = String(error?.message || error || "");
+    const missingAwardTable = message.includes(POINT_AWARD_TABLE) && (message.includes("schema cache") || message.includes("does not exist"));
+    if (!missingAwardTable) {
+      throw error;
+    }
+  }
+}
+
+function currentMonthKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
 async function insertOperationLog(auth, targetProfile, patch) {
