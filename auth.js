@@ -1291,8 +1291,6 @@ async function loadActivityBoard() {
   let rows = members
     .map((member) => buildActivityRowFromMember(member, selectedMonth, pointSummaryByName, attendanceLogs))
     .sort((a, b) => (b.monthRuns - a.monthRuns) || (Number(b.total_runs || 0) - Number(a.total_runs || 0)) || String(a.name || "").localeCompare(String(b.name || ""), "ko"));
-  applyMonthlyRunnerBonus(rows);
-
   const profileBirthYear = Number(authProfile.birth_year || 0);
   let me = rows.find((member) => {
     const sameName = normalizeName(member.name) === normalizeName(authProfile.name);
@@ -1480,7 +1478,7 @@ function renderRunnerCard(runner, monthKey) {
     <p class="list-meta">${monthKeyToLabel(monthKey)} 정기런 최다 출석</p>
     <h3 style="margin:0.2rem 0 0.4rem;">${escapeHtml(runner.name || "이름없음")}</h3>
     <p>정기런 ${Number(runner.regularRuns || 0)}회 / 전체 출석 ${runner.monthRuns}회</p>
-    <p class="list-meta">이달의 러너 자동 100P · 연속 출석 ${runner.streak}개월 · 추첨권 ${runner.tickets || calculateMonthlyTickets(runner, monthKey)}장</p>
+    <p class="list-meta">운영진 선정 참고용 · 연속 출석 ${runner.streak}개월 · 추첨권 ${runner.tickets || calculateMonthlyTickets(runner, monthKey)}장</p>
   `;
 }
 
@@ -1606,7 +1604,7 @@ function renderBadgeShowcase(rows, monthKey) {
     showcase.push({
       label: "이달의 러너",
       owner: topRunner.name,
-      body: `${monthKeyToLabel(monthKey)} 정기런 ${Number(topRunner.regularRuns || 0)}회 / 자동 ${POINT_POLICY.monthlyRunner}P`
+      body: `${monthKeyToLabel(monthKey)} 정기런 ${Number(topRunner.regularRuns || 0)}회 / 운영진 선정 참고`
     });
   }
   const streakRunner = rows.find((member) => member.streak >= 6) || rows.find((member) => member.streak >= 3);
@@ -2046,10 +2044,9 @@ function calculateRewardBalance({ monthlyPointTotal, pointAwards, allPointAwards
   const earnedFromAwards = sumPointAwardRows(allPointAwards);
   const earnedFromPhotos = countMonthlyCappedDailyEvents(allPhotos, POINT_POLICY.photoMonthlyCap) * POINT_POLICY.photo;
   const earnedFromComments = countMonthlyCappedDailyEvents(allComments, POINT_POLICY.commentMonthlyCap) * POINT_POLICY.comment;
-  const earnedFromMonthlyRunner = calculateMonthlyRunnerRewardPoints(attendanceLogs);
   const earnedFromAttendanceBonuses = calculateAttendanceBonusRewardPoints(attendanceLogs);
   const earnedPoints = Math.max(
-    earnedFromAwards + earnedFromPhotos + earnedFromComments + earnedFromMonthlyRunner + earnedFromAttendanceBonuses,
+    earnedFromAwards + earnedFromPhotos + earnedFromComments + earnedFromAttendanceBonuses,
     selectedMonthFallback
   );
   const usedPoints = sumRewardRequestCosts(rewardRequests, ["fulfilled"]);
@@ -2086,37 +2083,6 @@ function countMonthlyCappedDailyEvents(rows, monthlyCap) {
     daysByMonth.set(monthKey, days);
   });
   return [...daysByMonth.values()].reduce((sum, days) => sum + Math.min(days.size, Number(monthlyCap || 0)), 0);
-}
-
-function calculateMonthlyRunnerRewardPoints(attendanceLogs = []) {
-  const targetName = normalizeName(authProfile?.name || "");
-  if (!targetName) {
-    return 0;
-  }
-  const countsByMonth = new Map();
-  (Array.isArray(attendanceLogs) ? attendanceLogs : []).forEach((log) => {
-    const monthKey = toMonthKey(log.attendance_date || log.date || "");
-    const eventType = String(log.event_type || log.eventType || "");
-    if (!monthKey || monthKey < ATTENDANCE_STREAK_START_MONTH || !eventType.includes("정기런")) {
-      return;
-    }
-    const monthCounts = countsByMonth.get(monthKey) || new Map();
-    new Set(Array.isArray(log.matched) ? log.matched.map(normalizeName).filter(Boolean) : []).forEach((name) => {
-      monthCounts.set(name, Number(monthCounts.get(name) || 0) + 1);
-    });
-    countsByMonth.set(monthKey, monthCounts);
-  });
-
-  let bonusPoints = 0;
-  countsByMonth.forEach((monthCounts) => {
-    const leader = [...monthCounts.entries()]
-      .filter(([, count]) => Number(count || 0) > 0)
-      .sort((a, b) => (Number(b[1] || 0) - Number(a[1] || 0)) || String(a[0]).localeCompare(String(b[0]), "ko"))[0];
-    if (leader?.[0] === targetName) {
-      bonusPoints += POINT_POLICY.monthlyRunner;
-    }
-  });
-  return bonusPoints;
 }
 
 function calculateAttendanceBonusRewardPoints(attendanceLogs = []) {
@@ -2724,6 +2690,7 @@ function getPointAwardOptions() {
     { code: "operations_helper", label: "운영헬퍼", points: 40 },
     { code: "cheer_fairy", label: "응원요정", points: 20 },
     { code: "challenge_maker", label: "챌린지메이커", points: 30 },
+    { code: "monthly_runner", label: "이달의 러너", points: 100 },
     { code: "flash_king", label: "이달의 번개왕", points: 100 },
     { code: "hiking_king", label: "등산킹", points: 300 }
   ];
@@ -3466,13 +3433,15 @@ function calculatePersonalMonthlyPoints({ me, selectedMonth, photoCount, comment
 }
 
 function calculatePersonalMonthlyPointBreakdown({ me, photoCount, commentCount, pointAwards }) {
+  const rows = Array.isArray(pointAwards) ? pointAwards : [];
   const attendanceBonusPoints = Number(me?.attendanceBonusPoints || 0);
-  const monthlyRunnerPoints = Number(me?.monthlyRunnerPoints || 0);
+  const monthlyRunnerPoints = Number(me?.monthlyRunnerPoints || 0)
+    + sumPointAwardRows(rows.filter((award) => award.award_code === "monthly_runner"));
   const photoEligibleCount = Math.min(Number(photoCount || 0), POINT_POLICY.photoMonthlyCap);
   const commentEligibleCount = Math.min(Number(commentCount || 0), POINT_POLICY.commentMonthlyCap);
   const photoPoints = photoEligibleCount * POINT_POLICY.photo;
   const commentPoints = commentEligibleCount * POINT_POLICY.comment;
-  const awardPoints = sumPointAwardRows(pointAwards);
+  const awardPoints = sumPointAwardRows(rows.filter((award) => award.award_code !== "monthly_runner"));
   return {
     monthlyRunnerPoints,
     attendanceBonusPoints,
@@ -3507,17 +3476,6 @@ function formatPointBreakdown(breakdown) {
 
 function getMemberPointTotal(member) {
   return Number(member?.pointTotal ?? member?.basePoints ?? 0);
-}
-
-function applyMonthlyRunnerBonus(rows) {
-  const runner = getMonthlyRunner(rows);
-  if (!runner) {
-    return;
-  }
-  runner.basePoints = Number(runner.basePoints || 0) + POINT_POLICY.monthlyRunner;
-  runner.pointTotal = Number(runner.pointTotal || 0) + POINT_POLICY.monthlyRunner;
-  runner.monthlyRunnerPoints = POINT_POLICY.monthlyRunner;
-  runner.monthlyRunner = true;
 }
 
 function getMonthlyRunner(rows) {
