@@ -21,7 +21,7 @@ export default async (request) => {
       const publicMode = String(url.searchParams.get("public") || "") === "ranking";
       const period = String(url.searchParams.get("period") || "");
       const limit = Math.max(1, Math.min(Number(url.searchParams.get("limit") || (publicMode ? 500 : 30)), 500));
-      const rows = await (period === "all" && !publicMode ? listAwardsAll(limit) : listAwards(monthKey, limit)).catch((error) => {
+      const rows = await listAwardsForRequest({ monthKey, period, publicMode, limit }).catch((error) => {
         if (isMissingTableError(error, TABLE)) {
           return null;
         }
@@ -35,7 +35,7 @@ export default async (request) => {
           ok: true,
           available: true,
           items: [],
-          ranking: await buildPublicPointRanking(monthKey, rows),
+          ranking: await buildPublicPointRanking(monthKey, rows, period === "year" ? "year" : "month"),
           can_manage: auth.isAdmin
         });
       }
@@ -106,6 +106,21 @@ async function listAwards(monthKey, limit) {
   return supabaseSelect(`${TABLE}?month_key=eq.${encodeURIComponent(monthKey)}&order=created_at.desc&limit=${limit}&select=id,user_id,member_name,month_key,award_code,award_label,points,note,granted_by_name,created_at`);
 }
 
+async function listAwardsForRequest({ monthKey, period, publicMode, limit }) {
+  if (period === "all" && !publicMode) {
+    return listAwardsAll(limit);
+  }
+  if (period === "year" && publicMode) {
+    return listAwardsYear(monthKey, limit);
+  }
+  return listAwards(monthKey, limit);
+}
+
+async function listAwardsYear(monthKey, limit) {
+  const year = String(monthKey || currentMonthKey()).slice(0, 4);
+  return supabaseSelect(`${TABLE}?month_key=gte.${encodeURIComponent(`${year}-01`)}&month_key=lte.${encodeURIComponent(`${year}-12`)}&order=created_at.desc&limit=${limit}&select=id,user_id,member_name,month_key,award_code,award_label,points,note,granted_by_name,created_at`);
+}
+
 async function listAwardsAll(limit) {
   return supabaseSelect(`${TABLE}?order=created_at.desc&limit=${limit}&select=id,user_id,member_name,month_key,award_code,award_label,points,note,granted_by_name,created_at`);
 }
@@ -130,10 +145,10 @@ function normalizeName(name) {
   return String(name || "").replaceAll(" ", "").toLowerCase();
 }
 
-async function buildPublicPointRanking(monthKey, awardRows) {
-  const range = getMonthDateRange(monthKey);
+async function buildPublicPointRanking(monthKey, awardRows, period = "month") {
+  const range = period === "year" ? getYearDateRange(monthKey) : getMonthDateRange(monthKey);
   const [profiles, photos, comments] = await Promise.all([
-    supabaseSelect(`${PROFILE_TABLE}?approval_status=eq.approved&select=user_id,name&limit=1000`).catch(() => []),
+    supabaseSelect(`${PROFILE_TABLE}?approval_status=eq.approved&select=user_id,name,created_at&limit=1000`).catch(() => []),
     supabaseSelect(`${PHOTO_TABLE}?created_at=gte.${encodeURIComponent(range.start)}&created_at=lt.${encodeURIComponent(range.end)}&select=user_id,created_at&limit=1000`).catch(() => []),
     supabaseSelect(`${COMMENT_TABLE}?created_at=gte.${encodeURIComponent(range.start)}&created_at=lt.${encodeURIComponent(range.end)}&select=user_id,created_at&limit=1000`).catch(() => [])
   ]);
@@ -169,7 +184,11 @@ async function buildPublicPointRanking(monthKey, awardRows) {
     group.award_points += points;
   });
 
-  const photoCounts = countDailyPointEventsByUserId(photos);
+  addVirtualSignupBonuses({ profiles, awardRows, grouped, period, monthKey });
+
+  const photoCounts = period === "year"
+    ? countMonthlyCappedDailyPointEventsByUserId(photos, PHOTO_MONTHLY_CAP)
+    : countDailyPointEventsByUserId(photos);
   photoCounts.forEach((count, userId) => {
     const group = ensureGroup(profileByUserId.get(userId));
     if (!group) {
@@ -180,7 +199,9 @@ async function buildPublicPointRanking(monthKey, awardRows) {
     group.photo_points += points;
   });
 
-  const commentCounts = countDailyPointEventsByUserId(comments);
+  const commentCounts = period === "year"
+    ? countMonthlyCappedDailyPointEventsByUserId(comments, COMMENT_MONTHLY_CAP)
+    : countDailyPointEventsByUserId(comments);
   commentCounts.forEach((count, userId) => {
     const group = ensureGroup(profileByUserId.get(userId));
     if (!group) {
@@ -194,6 +215,47 @@ async function buildPublicPointRanking(monthKey, awardRows) {
   return [...grouped.values()]
     .sort((a, b) => (Number(b.points || 0) - Number(a.points || 0)) || String(a.member_name || "").localeCompare(String(b.member_name || ""), "ko"))
     .slice(0, 50);
+}
+
+function addVirtualSignupBonuses({ profiles, awardRows, grouped, period, monthKey }) {
+  const existingSignupUserIds = new Set(
+    (Array.isArray(awardRows) ? awardRows : [])
+      .filter((row) => row.award_code === "signup_bonus")
+      .map((row) => String(row.user_id || ""))
+      .filter(Boolean)
+  );
+  const selectedYear = String(monthKey || currentMonthKey()).slice(0, 4);
+  (Array.isArray(profiles) ? profiles : []).forEach((profile) => {
+    const userId = String(profile.user_id || "");
+    if (!userId || existingSignupUserIds.has(userId)) {
+      return;
+    }
+    const createdMonth = toMonthKey(profile.created_at);
+    if (!createdMonth) {
+      return;
+    }
+    const shouldCount = period === "year"
+      ? createdMonth.slice(0, 4) === selectedYear
+      : createdMonth === monthKey;
+    if (!shouldCount) {
+      return;
+    }
+    const memberName = String(profile.name || "회원");
+    const key = normalizeName(memberName);
+    if (!key) {
+      return;
+    }
+    const group = grouped.get(key) || {
+      member_name: memberName,
+      points: 0,
+      award_points: 0,
+      photo_points: 0,
+      comment_points: 0
+    };
+    group.points += 20;
+    group.award_points += 20;
+    grouped.set(key, group);
+  });
 }
 
 function countDailyPointEventsByUserId(rows) {
@@ -215,6 +277,28 @@ function countDailyPointEventsByUserId(rows) {
   return counts;
 }
 
+function countMonthlyCappedDailyPointEventsByUserId(rows, monthlyCap) {
+  const daysByUserMonth = new Map();
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    const userId = String(row.user_id || "");
+    const monthKey = toMonthKey(row.created_at);
+    const dayKey = toDateKey(row.created_at);
+    if (!userId || !monthKey || !dayKey) {
+      return;
+    }
+    const key = `${userId}:${monthKey}`;
+    const days = daysByUserMonth.get(key) || new Set();
+    days.add(dayKey);
+    daysByUserMonth.set(key, days);
+  });
+  const counts = new Map();
+  daysByUserMonth.forEach((days, key) => {
+    const userId = key.split(":")[0];
+    counts.set(userId, Number(counts.get(userId) || 0) + Math.min(days.size, Number(monthlyCap || 0)));
+  });
+  return counts;
+}
+
 function toDateKey(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -223,10 +307,28 @@ function toDateKey(value) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
+function toMonthKey(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
 function getMonthDateRange(monthKey) {
   const [year, month] = String(monthKey || currentMonthKey()).split("-").map(Number);
   const startDate = new Date(Date.UTC(year || new Date().getFullYear(), (month || 1) - 1, 1));
   const endDate = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth() + 1, 1));
+  return {
+    start: startDate.toISOString(),
+    end: endDate.toISOString()
+  };
+}
+
+function getYearDateRange(monthKey) {
+  const year = Number(String(monthKey || currentMonthKey()).slice(0, 4)) || new Date().getFullYear();
+  const startDate = new Date(Date.UTC(year, 0, 1));
+  const endDate = new Date(Date.UTC(year + 1, 0, 1));
   return {
     start: startDate.toISOString(),
     end: endDate.toISOString()
