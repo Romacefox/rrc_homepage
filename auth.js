@@ -581,7 +581,11 @@ async function handleLogin(event) {
 
 async function signInWithFallback(email, password) {
   try {
-    return await supabaseClient.auth.signInWithPassword({ email, password });
+    const result = await supabaseClient.auth.signInWithPassword({ email, password });
+    if (result?.error && isFetchFailure(result.error) && window.location.protocol !== "file:") {
+      return signInViaNetlifyFunction(email, password);
+    }
+    return result;
   } catch (error) {
     if (!isFetchFailure(error) || window.location.protocol === "file:") {
       throw error;
