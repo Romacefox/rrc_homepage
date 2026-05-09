@@ -968,6 +968,13 @@ body.modal-open {
   }
 }
 
+@media (max-width: 640px) {
+  .challenge-entry-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
 .nav-admin-link {
   border-color: rgba(255, 164, 103, 0.52) !important;
   color: #ffd8ba !important;
