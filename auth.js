@@ -1788,6 +1788,12 @@ async function renderMyActivityState(me, selectedMonth, raffleRecords, attendanc
     attendanceLogs,
     pointAwards
   });
+  const pointBreakdown = calculatePersonalMonthlyPointBreakdown({
+    me,
+    photoCount: photos.length,
+    commentCount: comments.length,
+    pointAwards
+  });
   const rewardBalance = calculateRewardBalance({
     selectedMonth,
     monthlyPointTotal: pointTotal,
@@ -1824,9 +1830,10 @@ async function renderMyActivityState(me, selectedMonth, raffleRecords, attendanc
     myNextReward.textContent = nextReward.label;
   }
   if (myPointNote) {
+    const breakdownText = formatPointBreakdown(pointBreakdown);
     myPointNote.textContent = nextReward.remaining > 0
-      ? `${nextReward.remaining}P 더 모으면 ${nextReward.label} 신청권에 가까워집니다. 운영 환산 기준은 10P=100원입니다.`
-      : `${nextReward.label} 구간입니다. 현재 기준 약 ${Number(nextReward.won || 0).toLocaleString("ko-KR")}원 상당이며 운영진 승인 후 RRC샵 보조 신청이 가능합니다.`;
+      ? `${breakdownText} · ${nextReward.remaining}P 더 모으면 ${nextReward.label} 신청권에 가까워집니다.`
+      : `${breakdownText} · ${nextReward.label} 구간입니다. 현재 기준 약 ${Number(nextReward.won || 0).toLocaleString("ko-KR")}원 상당입니다.`;
   }
   renderRewardLoungeState(rewardBalance);
 
@@ -3217,6 +3224,41 @@ function calculatePersonalMonthlyPoints({ me, selectedMonth, photoCount, comment
   const commentPoints = Math.min(Number(commentCount || 0), POINT_POLICY.commentMonthlyCap) * POINT_POLICY.comment;
   const awardPoints = (Array.isArray(pointAwards) ? pointAwards : []).reduce((sum, award) => sum + Number(award.points || 0), 0);
   return monthlyRunnerPoints + photoPoints + commentPoints + awardPoints;
+}
+
+function calculatePersonalMonthlyPointBreakdown({ me, photoCount, commentCount, pointAwards }) {
+  const monthlyRunnerPoints = Number(me?.basePoints || 0);
+  const photoEligibleCount = Math.min(Number(photoCount || 0), POINT_POLICY.photoMonthlyCap);
+  const commentEligibleCount = Math.min(Number(commentCount || 0), POINT_POLICY.commentMonthlyCap);
+  const photoPoints = photoEligibleCount * POINT_POLICY.photo;
+  const commentPoints = commentEligibleCount * POINT_POLICY.comment;
+  const awardPoints = sumPointAwardRows(pointAwards);
+  return {
+    monthlyRunnerPoints,
+    photoEligibleCount,
+    photoPoints,
+    commentEligibleCount,
+    commentPoints,
+    awardPoints,
+    total: monthlyRunnerPoints + photoPoints + commentPoints + awardPoints
+  };
+}
+
+function formatPointBreakdown(breakdown) {
+  const parts = [];
+  if (Number(breakdown?.awardPoints || 0) > 0) {
+    parts.push(`지급 ${Number(breakdown.awardPoints).toLocaleString("ko-KR")}P`);
+  }
+  if (Number(breakdown?.monthlyRunnerPoints || 0) > 0) {
+    parts.push(`이달의 러너 ${Number(breakdown.monthlyRunnerPoints).toLocaleString("ko-KR")}P`);
+  }
+  if (Number(breakdown?.photoPoints || 0) > 0) {
+    parts.push(`사진 ${Number(breakdown.photoEligibleCount || 0)}회 ${Number(breakdown.photoPoints).toLocaleString("ko-KR")}P`);
+  }
+  if (Number(breakdown?.commentPoints || 0) > 0) {
+    parts.push(`댓글 ${Number(breakdown.commentEligibleCount || 0)}일 ${Number(breakdown.commentPoints).toLocaleString("ko-KR")}P`);
+  }
+  return parts.length ? `산식: ${parts.join(" + ")} = ${Number(breakdown?.total || 0).toLocaleString("ko-KR")}P` : "산식: 아직 적립된 포인트가 없습니다";
 }
 
 function getMemberPointTotal(member) {
