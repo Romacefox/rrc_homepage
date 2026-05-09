@@ -765,6 +765,33 @@ body.modal-open {
   gap: 1rem;
 }
 
+.activity-section-label {
+  display: grid;
+  gap: 0.25rem;
+  margin-top: 1.35rem;
+}
+
+.activity-section-label h3 {
+  margin: 0;
+  color: var(--text);
+}
+
+.activity-section-label + .board-engagement-grid {
+  margin-top: 0.7rem;
+}
+
+.reward-board-grid {
+  align-items: start;
+}
+
+.challenge-board-grid {
+  align-items: start;
+}
+
+.suggestion-board-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .board-public-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -773,6 +800,10 @@ body.modal-open {
 
 .reward-guide-panel {
   border-color: rgba(255, 157, 95, 0.24);
+}
+
+.reward-shop-panel {
+  border-color: rgba(255, 177, 112, 0.22);
 }
 
 .reward-preview-list {

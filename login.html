@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=SUIT:wght@300;400;500;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20260509b" />
+  <link rel="stylesheet" href="styles.css?v=20260510b" />
 </head>
 <body>
   <header class="site-header">
@@ -193,13 +193,17 @@
                 <ul id="my-point-award-history" class="list small"></ul>
               </article>
             </div>
-            <div class="board-engagement-grid" style="margin-top:1rem;">
+            <div class="activity-section-label">
+              <h3>포인트 리워드</h3>
+              <p class="list-meta">월간 랭킹, 누적 포인트, RRC샵 보조권 신청을 한곳에서 확인합니다.</p>
+            </div>
+            <div class="board-engagement-grid reward-board-grid">
               <article class="panel board-highlight reward-guide-panel">
                 <div class="section-head">
-                  <h3>포인트 랭킹 & 리워드</h3>
-                  <span class="badge">활동 허브</span>
+                  <h3>월간 포인트 랭킹</h3>
+                  <span class="badge">월간 기준</span>
                 </div>
-                <p class="list-meta">포인트 랭킹으로 활동 흐름을 보고, 커뮤니티 활동과 챌린지로 모은 포인트를 운영진 승인 후 RRC샵 결제 보조로 사용하는 흐름입니다. 운영 환산 기준은 10P=100원입니다.</p>
+                <p class="list-meta">이달의 러너, 정기런 배지, 사진/댓글, 운영진 지급, 챌린지 정산 포인트를 월별로 모아 보여줍니다. 운영 환산 기준은 10P=100원입니다.</p>
                 <div class="point-guide-grid">
                   <div class="point-guide-card"><strong>신규 가입 · 20P</strong><span>운영진 승인과 동시에 웰컴 포인트 지급</span></div>
                   <div class="point-guide-card"><strong>이달의 러너 · 100P</strong><span>선택 월 정기런 최다 참여자 자동 선정</span></div>
@@ -212,11 +216,13 @@
                   <div class="point-guide-card"><strong>운영진 배지</strong><span>낭만러너, 이달의 번개왕 100P, 분기 등산킹 300P 등</span></div>
                 </div>
                 <div class="section-head" style="margin-top:1rem;">
-                  <h3>월간 포인트 랭킹</h3>
+                  <h3>랭킹 Top 10</h3>
                   <span class="badge">전체 포인트</span>
                 </div>
                 <ul id="point-ranking-board" class="list small" style="margin-top:0.7rem;"></ul>
                 <p class="list-meta" style="margin-top:0.8rem;">출석 1회 자체에는 포인트를 붙이지 않고, 매주 정기런 참여 30P, 한강러버/올공러버 50P, 추첨 후보 연속 2개월 30P·3개월 이상 50P, 선택 월 정기런 최다 참여 이달의 러너 100P, 사진/댓글/운영진 선정/챌린지 정산 포인트로 계산합니다.</p>
+              </article>
+              <article class="panel reward-shop-panel">
                 <div class="section-head" style="margin-top:1rem;">
                   <h3>RRC샵 보조권</h3>
                   <span class="badge">누적 기준</span>
@@ -256,6 +262,13 @@
                 <p id="reward-request-status" class="list-meta" style="margin-top:0.7rem;">포인트는 신청 기준 안내용이며, 실제 보조는 월 예산과 운영진 승인 후 진행됩니다.</p>
                 <ul id="reward-request-list" class="list small" style="margin-top:0.8rem;"></ul>
               </article>
+            </div>
+
+            <div class="activity-section-label">
+              <h3>포인트 챌린지</h3>
+              <p class="list-meta">카톡 인증형 챌린지와 운영진 월간 포인트 지급 기능을 분리해서 관리합니다.</p>
+            </div>
+            <div class="board-engagement-grid challenge-board-grid">
               <article class="panel challenge-panel">
                 <div class="section-head">
                   <h3>포인트 챌린지</h3>
@@ -316,6 +329,13 @@
                 <p id="point-award-status" class="list-meta" style="margin-top:0.7rem;">운영진 로그인 후 사용할 수 있습니다.</p>
                 <ul id="point-award-list" class="list small" style="margin-top:0.8rem;"></ul>
               </article>
+            </div>
+
+            <div class="activity-section-label">
+              <h3>회원 건의함</h3>
+              <p class="list-meta">챌린지나 리워드와 섞이지 않도록 의견 제안과 처리 상태만 따로 모았습니다.</p>
+            </div>
+            <div class="board-engagement-grid suggestion-board-grid">
               <article class="panel suggestion-panel">
                 <div class="section-head">
                   <h3>회원 건의함</h3>
@@ -348,6 +368,6 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="auth.js?v=20260510a"></script>
+  <script src="auth.js?v=20260510b"></script>
 </body>
 </html>

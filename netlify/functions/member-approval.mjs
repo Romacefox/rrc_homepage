@@ -15,13 +15,15 @@ export default async (request) => {
       const action = url.searchParams.get("action") || "list";
 
       if (action === "list") {
+        const signupBonusGranted = await grantMissingSignupBonuses(auth);
         const items = await supabaseSelect(`${TABLE}?approval_status=eq.pending&order=created_at.desc&select=user_id,email,name,birth_year,intro,approval_status,role,created_at`);
-        return json(200, { ok: true, items, can_manage_roles: auth.isOwner });
+        return json(200, { ok: true, items, can_manage_roles: auth.isOwner, signup_bonus_granted: signupBonusGranted });
       }
 
       if (action === "list-all") {
+        const signupBonusGranted = await grantMissingSignupBonuses(auth);
         const items = await supabaseSelect(`${TABLE}?order=created_at.desc&select=user_id,email,name,birth_year,intro,approval_status,role,created_at&limit=300`);
-        return json(200, { ok: true, items, can_manage_roles: auth.isOwner });
+        return json(200, { ok: true, items, can_manage_roles: auth.isOwner, signup_bonus_granted: signupBonusGranted });
       }
 
       return json(400, { ok: false, error: "invalid action" });
@@ -118,7 +120,7 @@ function shouldGrantSignupBonus(targetProfile, patch) {
   return patch?.approval_status === "approved" && targetProfile?.approval_status !== "approved";
 }
 
-async function tryInsertSignupBonus(auth, targetProfile) {
+async function tryInsertSignupBonus(auth, targetProfile, onInserted = null) {
   if (!targetProfile?.user_id) {
     return;
   }
@@ -138,12 +140,43 @@ async function tryInsertSignupBonus(auth, targetProfile) {
       granted_by_user_id: auth.user?.id || null,
       granted_by_name: String(auth.user?.email || "admin").slice(0, 120)
     });
+    if (typeof onInserted === "function") {
+      onInserted();
+    }
   } catch (error) {
     const message = String(error?.message || error || "");
     const missingAwardTable = message.includes(POINT_AWARD_TABLE) && (message.includes("schema cache") || message.includes("does not exist"));
     if (!missingAwardTable) {
       throw error;
     }
+  }
+}
+
+async function grantMissingSignupBonuses(auth) {
+  try {
+    const approvedProfiles = await supabaseSelect(`${TABLE}?approval_status=eq.approved&select=user_id,email,name&limit=500`);
+    const rows = Array.isArray(approvedProfiles) ? approvedProfiles : [];
+    let granted = 0;
+    for (const profile of rows) {
+      if (!profile?.user_id) {
+        continue;
+      }
+      const before = granted;
+      await tryInsertSignupBonus(auth, profile, () => {
+        granted += 1;
+      });
+      if (granted > before) {
+        await tryInsertOperationLog(auth, profile, { approval_status: "signup_bonus_backfill" }).catch(() => {});
+      }
+    }
+    return granted;
+  } catch (error) {
+    const message = String(error?.message || error || "");
+    const missingAwardTable = message.includes(POINT_AWARD_TABLE) && (message.includes("schema cache") || message.includes("does not exist"));
+    if (missingAwardTable) {
+      return 0;
+    }
+    throw error;
   }
 }
 

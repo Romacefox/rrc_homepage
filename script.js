@@ -3852,7 +3852,9 @@ async function loadRoleList() {
     }
 
     if (roleStatus) {
-      roleStatus.textContent = buildAdminRoleStatusText("admin", "approved", currentAdminCanManageRoles);
+      const grantedCount = Number(result.signup_bonus_granted || 0);
+      const bonusText = grantedCount > 0 ? ` / 신규 가입 20P 누락 ${grantedCount}명 보정 완료` : " / 신규 가입 20P 지급 확인 완료";
+      roleStatus.textContent = `${buildAdminRoleStatusText("admin", "approved", currentAdminCanManageRoles)}${bonusText}`;
     }
 
     items.slice(0, 200).forEach((item) => {
