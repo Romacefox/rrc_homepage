@@ -4,6 +4,8 @@ const PHOTO_BUCKET = "rrc-photos";
 const PENDING_SIGNUP_PREFIX = "rrc-pending-signup:";
 const ADMIN_SNAPSHOT_META_KEY = "rrc-admin-snapshot-meta-v1";
 const LOCAL_ADMIN_SNAPSHOT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+const LOGIN_REQUEST_TIMEOUT_MS = 15000;
+const AUTH_REFRESH_TIMEOUT_MS = 15000;
 const BIRTH_YEAR_MIN = 1989;
 const BIRTH_YEAR_MAX = 2004;
 const POINT_WON_RATE = 10;
@@ -435,17 +437,21 @@ async function hydrateAuthState(forcedUser = undefined) {
   }
 
   if (forcedUser === undefined) {
-    const sessionResult = await supabaseClient.auth.getSession();
+    const sessionResult = await withTimeout(
+      supabaseClient.auth.getSession(),
+      AUTH_REFRESH_TIMEOUT_MS,
+      "세션 확인 시간이 초과되었습니다."
+    );
     authUser = sessionResult.data?.session?.user || null;
   } else {
     authUser = forcedUser;
   }
 
-  await ensurePendingProfile();
-  await loadMyProfile();
+  await withTimeout(ensurePendingProfile(), AUTH_REFRESH_TIMEOUT_MS, "회원 프로필 확인 시간이 초과되었습니다.");
+  await withTimeout(loadMyProfile(), AUTH_REFRESH_TIMEOUT_MS, "회원 승인 상태 확인 시간이 초과되었습니다.");
   renderAuthState();
   publishAuthState();
-  await Promise.allSettled([loadPhotos(), loadActivityBoard()]);
+  void Promise.allSettled([loadPhotos(), loadActivityBoard()]);
 }
 
 async function handleSignup(event) {
@@ -549,15 +555,24 @@ async function handleLogin(event) {
     return;
   }
 
+  if (!supabaseClient) {
+    setStatus(loginStatus, "Supabase 연결이 아직 준비되지 않았습니다. 새로고침 후 다시 시도해 주세요.");
+    return;
+  }
+
   if (loginSubmitButton) {
     loginSubmitButton.disabled = true;
   }
   setStatus(loginStatus, "로그인 중...");
 
   try {
-    const loginResult = await supabaseClient.auth.signInWithPassword({ email, password });
+    const loginResult = await withTimeout(
+      supabaseClient.auth.signInWithPassword({ email, password }),
+      LOGIN_REQUEST_TIMEOUT_MS,
+      "로그인 요청 시간이 초과되었습니다. 배포 URL에서 다시 시도해 주세요."
+    );
     if (loginResult.error) {
-      setStatus(loginStatus, `로그인 실패: ${loginResult.error.message}`);
+      setStatus(loginStatus, `로그인 실패: ${formatLoginErrorMessage(loginResult.error)}`);
       return;
     }
 
@@ -570,6 +585,8 @@ async function handleLogin(event) {
     }
 
     setStatus(loginStatus, `로그인됨: ${authUser.email}`);
+  } catch (error) {
+    setStatus(loginStatus, `로그인 실패: ${formatLoginErrorMessage(error)}`);
   } finally {
     if (loginSubmitButton) {
       loginSubmitButton.disabled = false;
@@ -3684,6 +3701,35 @@ function setStatus(node, message) {
   if (node && typeof message === "string") {
     node.textContent = message;
   }
+}
+
+function withTimeout(promise, timeoutMs, timeoutMessage) {
+  let timerId = null;
+  const timeout = new Promise((_, reject) => {
+    timerId = setTimeout(() => reject(new Error(timeoutMessage || "요청 시간이 초과되었습니다.")), timeoutMs);
+  });
+  return Promise.race([Promise.resolve(promise), timeout]).finally(() => {
+    if (timerId) {
+      clearTimeout(timerId);
+    }
+  });
+}
+
+function formatLoginErrorMessage(error) {
+  const message = String(error?.message || error || "").trim();
+  if (!message) {
+    return "알 수 없는 오류가 발생했습니다.";
+  }
+  if (/invalid login credentials/i.test(message)) {
+    return "이메일 또는 비밀번호를 확인해 주세요.";
+  }
+  if (/email not confirmed/i.test(message)) {
+    return "이메일 인증을 먼저 완료해 주세요.";
+  }
+  if (/failed to fetch|network|fetch/i.test(message)) {
+    return "네트워크 연결 또는 배포 URL 접속 상태를 확인해 주세요.";
+  }
+  return message;
 }
 
 async function notifySignupRequest(payload) {
