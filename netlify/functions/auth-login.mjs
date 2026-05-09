@@ -15,7 +15,8 @@ export default async (request) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        apikey: env("SUPABASE_ANON_KEY")
+        apikey: env("SUPABASE_ANON_KEY"),
+        Authorization: `Bearer ${env("SUPABASE_ANON_KEY")}`
       },
       body: JSON.stringify({ email, password })
     });
