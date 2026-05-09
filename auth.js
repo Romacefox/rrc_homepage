@@ -570,6 +570,8 @@ async function handleLogin(event) {
     }
 
     setStatus(loginStatus, `로그인됨: ${authUser.email}`);
+  } catch (error) {
+    setStatus(loginStatus, `로그인 실패: ${formatAuthNetworkError(error)}`);
   } finally {
     if (loginSubmitButton) {
       loginSubmitButton.disabled = false;
@@ -3684,6 +3686,17 @@ function setStatus(node, message) {
   if (node && typeof message === "string") {
     node.textContent = message;
   }
+}
+
+function formatAuthNetworkError(error) {
+  const message = String(error?.message || error || "").trim();
+  if (window.location.protocol === "file:") {
+    return "현재 로컬 파일로 열린 상태라 인증 요청이 브라우저에서 막힐 수 있습니다. Netlify 배포 주소 또는 로컬 서버 주소에서 다시 열어 주세요.";
+  }
+  if (/failed to fetch|network|fetch/i.test(message)) {
+    return "Supabase 인증 서버 요청이 막혔습니다. 인터넷 연결, 브라우저 차단, 배포 주소를 확인해 주세요.";
+  }
+  return message || "알 수 없는 오류가 발생했습니다.";
 }
 
 async function notifySignupRequest(payload) {
