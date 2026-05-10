@@ -147,11 +147,13 @@ function normalizeName(name) {
 
 async function buildPublicPointRanking(monthKey, awardRows, period = "month") {
   const range = period === "year" ? getYearDateRange(monthKey) : getMonthDateRange(monthKey);
-  const [profiles, photos, comments] = await Promise.all([
+  const [profiles, activeMembers, photos, comments] = await Promise.all([
     supabaseSelect(`${PROFILE_TABLE}?approval_status=eq.approved&select=user_id,name,created_at&limit=1000`).catch(() => []),
+    loadActiveMembers(),
     supabaseSelect(`${PHOTO_TABLE}?created_at=gte.${encodeURIComponent(range.start)}&created_at=lt.${encodeURIComponent(range.end)}&select=user_id,created_at&limit=1000`).catch(() => []),
     supabaseSelect(`${COMMENT_TABLE}?created_at=gte.${encodeURIComponent(range.start)}&created_at=lt.${encodeURIComponent(range.end)}&select=user_id,created_at&limit=1000`).catch(() => [])
   ]);
+  const activeNameKeys = new Set((Array.isArray(activeMembers) ? activeMembers : []).map((member) => normalizeName(member.name)).filter(Boolean));
   const profileByUserId = new Map(
     (Array.isArray(profiles) ? profiles : []).map((profile) => [String(profile.user_id || ""), String(profile.name || "회원")])
   );
@@ -160,7 +162,7 @@ async function buildPublicPointRanking(monthKey, awardRows, period = "month") {
   const ensureGroup = (name) => {
     const memberName = String(name || "회원");
     const key = normalizeName(memberName);
-    if (!key) {
+    if (!key || !activeNameKeys.has(key)) {
       return null;
     }
     const previous = grouped.get(key) || {
@@ -184,7 +186,7 @@ async function buildPublicPointRanking(monthKey, awardRows, period = "month") {
     group.award_points += points;
   });
 
-  addVirtualSignupBonuses({ profiles, awardRows, grouped, period, monthKey });
+  addVirtualSignupBonuses({ profiles, awardRows, grouped, period, monthKey, activeNameKeys });
 
   const photoCounts = period === "year"
     ? countMonthlyCappedDailyPointEventsByUserId(photos, PHOTO_MONTHLY_CAP)
@@ -217,7 +219,7 @@ async function buildPublicPointRanking(monthKey, awardRows, period = "month") {
     .slice(0, 50);
 }
 
-function addVirtualSignupBonuses({ profiles, awardRows, grouped, period, monthKey }) {
+function addVirtualSignupBonuses({ profiles, awardRows, grouped, period, monthKey, activeNameKeys = new Set() }) {
   const existingSignupUserIds = new Set(
     (Array.isArray(awardRows) ? awardRows : [])
       .filter((row) => row.award_code === "signup_bonus")
@@ -242,7 +244,7 @@ function addVirtualSignupBonuses({ profiles, awardRows, grouped, period, monthKe
     }
     const memberName = String(profile.name || "회원");
     const key = normalizeName(memberName);
-    if (!key) {
+    if (!key || !activeNameKeys.has(key)) {
       return;
     }
     const group = grouped.get(key) || {
@@ -256,6 +258,22 @@ function addVirtualSignupBonuses({ profiles, awardRows, grouped, period, monthKe
     group.award_points += 20;
     grouped.set(key, group);
   });
+}
+
+async function loadActiveMembers() {
+  const attempts = [
+    "members?select=name,is_active&limit=1000",
+    "members?select=name&limit=1000"
+  ];
+  for (const path of attempts) {
+    try {
+      const rows = await supabaseSelect(path);
+      return (Array.isArray(rows) ? rows : []).filter((member) => member?.is_active !== false);
+    } catch (_error) {
+      // Try next schema-compatible select shape.
+    }
+  }
+  return [];
 }
 
 function countDailyPointEventsByUserId(rows) {

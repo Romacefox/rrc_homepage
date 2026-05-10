@@ -1310,10 +1310,19 @@ async function loadActivityBoard() {
     loadPublicPointAwardRanking(selectedMonth, "month"),
     loadPublicPointAwardRanking(selectedMonth, "year")
   ]);
+  const activeMemberNameKeys = new Set(
+    members
+      .filter((member) => member?.is_active !== false && member?.isActive !== false)
+      .map((member) => normalizeName(member.name))
+      .filter(Boolean)
+  );
+  const activePublicPointAwards = publicPointAwards.filter((entry) => activeMemberNameKeys.has(normalizeName(entry.member_name)));
+  const activeAnnualPointAwards = annualPointAwards.filter((entry) => activeMemberNameKeys.has(normalizeName(entry.member_name)));
   const pointSummaryByName = new Map(
-    publicPointAwards.map((entry) => [normalizeName(entry.member_name), entry])
+    activePublicPointAwards.map((entry) => [normalizeName(entry.member_name), entry])
   );
   let rows = members
+    .filter((member) => member?.is_active !== false && member?.isActive !== false)
     .map((member) => buildActivityRowFromMember(member, selectedMonth, pointSummaryByName, attendanceLogs))
     .sort((a, b) => compareActivityRowsForMonthlyBoard(a, b, selectedMonth));
   const profileBirthYear = Number(authProfile.birth_year || 0);
@@ -1353,8 +1362,8 @@ async function loadActivityBoard() {
   renderPublicTicketBoard(rows, selectedMonth);
   renderCandidatePreviewBoard(rows, selectedMonth);
   renderBadgeShowcase(rows, selectedMonth);
-  renderPointRankingBoard(pointRankingBoard, mergePointRankingRows(rows, publicPointAwards), selectedMonth, "월간");
-  renderPointRankingBoard(pointRankingYearBoard, annualPointAwards, selectedMonth, "연간");
+  renderPointRankingBoard(pointRankingBoard, mergePointRankingRows(rows, activePublicPointAwards), selectedMonth, "월간");
+  renderPointRankingBoard(pointRankingYearBoard, activeAnnualPointAwards, selectedMonth, "연간");
   renderRunnerCard(runner, selectedMonth);
   renderBoardPulseSummary(rows, runner, selectedMonth);
   renderBoardRaffleHistory(raffleRecords.slice(0, 4));
