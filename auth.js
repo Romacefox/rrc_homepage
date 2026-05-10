@@ -1,6 +1,7 @@
 ﻿const SUPABASE_URL = "https://aqpszgycsfpxtlsuaqrt.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_C20xXZZRWdjmkzGneCcpjw_mrRnXucq";
 const PHOTO_BUCKET = "rrc-photos";
+const PUBLIC_LOGIN_URL = "https://rrc-seoul.netlify.app/login.html";
 const PENDING_SIGNUP_PREFIX = "rrc-pending-signup:";
 const ADMIN_SNAPSHOT_META_KEY = "rrc-admin-snapshot-meta-v1";
 const LOCAL_ADMIN_SNAPSHOT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
@@ -2978,7 +2979,8 @@ async function loadChallenges() {
   }
 
   try {
-    const result = await callMemberChallenges("?limit=12");
+    const limit = getRequestedChallengeId() ? 50 : 12;
+    const result = await callMemberChallenges(`?limit=${limit}`);
     const items = Array.isArray(result?.items) ? result.items : [];
     if (result?.available === false) {
       renderChallengeLocked("챌린지 테이블 준비 중입니다. Supabase 패치를 먼저 적용해 주세요.");
@@ -3027,6 +3029,8 @@ function renderChallengeList(items, canManage) {
     const recruitEnd = item.recruit_end_date || item.start_date || "-";
     const node = document.createElement("li");
     node.className = "list-item";
+    node.id = `challenge-${item.id}`;
+    node.dataset.challengeId = String(item.id || "");
     node.innerHTML = `
       <div class="list-top">
         <span class="list-title">${escapeHtml(item.title || "포인트 챌린지")}</span>
@@ -3057,6 +3061,7 @@ function renderChallengeList(items, canManage) {
       node.appendChild(buildChallengeJoinForm(item));
     }
     actions.appendChild(buildActionButton("공지 복사", () => copyChallengeNotice(item)));
+    actions.appendChild(buildActionButton("링크 복사", () => copyChallengeShareLink(item)));
     if (canManage) {
       if (item.status === "submitted") {
         actions.appendChild(buildActionButton("모집 시작", () => updateChallengeStatus(item.id, "recruiting", "모집 시작")));
@@ -3085,6 +3090,7 @@ function renderChallengeList(items, canManage) {
     }
     challengeList.appendChild(node);
   });
+  focusRequestedChallenge();
 }
 
 function calculateMyChallengeLockedPoints(items) {
@@ -3131,6 +3137,7 @@ async function copyChallengeNotice(item) {
   const recruitStart = item?.recruit_start_date || item?.created_at?.slice(0, 10) || "-";
   const recruitEnd = item?.recruit_end_date || item?.start_date || "-";
   const tag = item?.verification_tag ? `\n인증 해시태그: ${item.verification_tag}` : "";
+  const shareUrl = getChallengeShareUrl(item?.id);
   const text = [
     `[RRC 포인트 챌린지 모집]`,
     `챌린지명: ${item?.title || "포인트 챌린지"}`,
@@ -3138,7 +3145,8 @@ async function copyChallengeNotice(item) {
     `모집 기간: ${recruitStart} ~ ${recruitEnd}`,
     `진행 기간: ${item?.start_date || "-"} ~ ${item?.end_date || "-"}`,
     `인증: RRC 카카오톡 채팅방${tag}`,
-    `성공 조건: ${item?.rule_text || "-"}`
+    `성공 조건: ${item?.rule_text || "-"}`,
+    `참여 링크: ${shareUrl}`
   ].join("\n");
   try {
     await navigator.clipboard.writeText(text);
@@ -3146,6 +3154,60 @@ async function copyChallengeNotice(item) {
   } catch (_error) {
     window.prompt("카톡방에 붙여넣을 공지 문구입니다.", text);
   }
+}
+
+async function copyChallengeShareLink(item) {
+  const shareUrl = getChallengeShareUrl(item?.id);
+  try {
+    await navigator.clipboard.writeText(shareUrl);
+    setStatus(challengeStatus, "챌린지 참여 링크를 복사했습니다.");
+  } catch (_error) {
+    window.prompt("카톡방에 붙여넣을 챌린지 참여 링크입니다.", shareUrl);
+  }
+}
+
+function getChallengeShareUrl(challengeId) {
+  const fallback = new URL(PUBLIC_LOGIN_URL);
+  try {
+    const current = new URL(window.location.href);
+    const base = current.protocol === "file:" ? fallback : current;
+    base.searchParams.set("challenge", String(challengeId || ""));
+    base.hash = "challenge-list";
+    return base.toString();
+  } catch (_error) {
+    fallback.searchParams.set("challenge", String(challengeId || ""));
+    fallback.hash = "challenge-list";
+    return fallback.toString();
+  }
+}
+
+function getRequestedChallengeId() {
+  try {
+    return String(new URLSearchParams(window.location.search).get("challenge") || "").trim();
+  } catch (_error) {
+    return "";
+  }
+}
+
+function focusRequestedChallenge() {
+  const challengeId = getRequestedChallengeId();
+  if (!challengeId || !challengeList) {
+    return;
+  }
+  const target = challengeList.querySelector(`[data-challenge-id="${escapeCssIdentifier(challengeId)}"]`);
+  if (!target) {
+    setStatus(challengeStatus, "공유된 챌린지를 찾지 못했습니다. 목록 새로고침 후 다시 확인해 주세요.");
+    return;
+  }
+  target.classList.add("challenge-share-target");
+  setTimeout(() => target.scrollIntoView({ behavior: "smooth", block: "center" }), 150);
+}
+
+function escapeCssIdentifier(value) {
+  if (window.CSS?.escape) {
+    return window.CSS.escape(String(value || ""));
+  }
+  return String(value || "").replace(/["\\]/g, "\\$&");
 }
 
 async function joinChallenge(challengeId, defaultStake = 0, explicitStake = null) {

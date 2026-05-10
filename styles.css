@@ -933,6 +933,11 @@ body.modal-open {
   border-color: rgba(255, 187, 115, 0.22);
 }
 
+.challenge-share-target {
+  border-color: rgba(255, 126, 45, 0.78);
+  box-shadow: 0 0 0 2px rgba(255, 126, 45, 0.24), 0 0 24px rgba(255, 126, 45, 0.18);
+}
+
 .point-award-panel {
   border-color: rgba(255, 211, 143, 0.22);
 }
