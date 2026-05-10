@@ -237,6 +237,18 @@
             </article>
 
             <article class="panel">
+              <h3>회원별 출석 확인</h3>
+              <p class="list-meta">회원이 특정 날짜 출석 누락을 문의하면 이름과 월을 넣어 반영된 출석 로그를 바로 확인합니다.</p>
+              <div class="inline-form" style="margin-top:0.7rem;">
+                <input id="attendance-check-name" type="text" placeholder="회원 이름" />
+                <input id="attendance-check-month" type="month" />
+                <button id="attendance-check-run" class="btn ghost" type="button">출석 확인</button>
+              </div>
+              <p id="attendance-check-summary" class="list-meta"></p>
+              <ul id="attendance-check-list" class="list small"></ul>
+            </article>
+
+            <article class="panel">
               <h3>회비 관리</h3>
               <div class="inline-form">
                 <select id="fee-month"></select>
@@ -342,7 +354,7 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="script.js?v=20260510f"></script>
+    <script src="script.js?v=20260510g"></script>
 </body>
 </html>
 

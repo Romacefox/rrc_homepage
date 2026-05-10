@@ -177,6 +177,28 @@
             </div>
             <div class="board-record-grid" style="margin-top:1rem;">
               <article class="panel">
+                <h3>내 출석 기록</h3>
+                <p id="my-attendance-note" class="list-meta">선택한 월의 출석 반영 내역을 확인할 수 있습니다.</p>
+                <ul id="my-attendance-history" class="list small"></ul>
+              </article>
+              <article class="panel">
+                <h3>출석 누락 신고</h3>
+                <p class="list-meta">정기런에 참여했는데 누락된 것 같다면 날짜와 내용을 남겨 주세요. 운영진이 확인 후 처리합니다.</p>
+                <form id="attendance-report-form" class="form compact" style="margin-top:0.8rem;">
+                  <div class="inline-form">
+                    <input id="attendance-report-date" type="date" aria-label="누락 신고 날짜" />
+                    <select id="attendance-report-type" aria-label="누락 신고 유형">
+                      <option value="정기런">정기런</option>
+                      <option value="번개런">번개런</option>
+                      <option value="공식 행사">공식 행사</option>
+                    </select>
+                  </div>
+                  <textarea id="attendance-report-note" rows="3" maxlength="400" placeholder="예: 5월 7일 목요일 올림픽공원 정기런 참석했는데 누락된 것 같아요"></textarea>
+                  <button id="attendance-report-submit" class="btn ghost" type="submit">누락 신고 등록</button>
+                </form>
+                <p id="attendance-report-status" class="list-meta" style="margin-top:0.7rem;">신고 내용은 회원 건의함에 출석 누락 건으로 등록됩니다.</p>
+              </article>
+              <article class="panel">
                 <h3>내 사진 업로드 기록</h3>
                 <ul id="my-photo-history" class="list small"></ul>
               </article>
@@ -379,6 +401,6 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="auth.js?v=20260510d"></script>
+  <script src="auth.js?v=20260510e"></script>
 </body>
 </html>

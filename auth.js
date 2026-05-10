@@ -129,6 +129,14 @@ const myPhotoHistory = document.getElementById("my-photo-history");
 const myCommentHistory = document.getElementById("my-comment-history");
 const myRaffleHistory = document.getElementById("my-raffle-history");
 const myPointAwardHistory = document.getElementById("my-point-award-history");
+const myAttendanceNote = document.getElementById("my-attendance-note");
+const myAttendanceHistory = document.getElementById("my-attendance-history");
+const attendanceReportForm = document.getElementById("attendance-report-form");
+const attendanceReportDateInput = document.getElementById("attendance-report-date");
+const attendanceReportTypeInput = document.getElementById("attendance-report-type");
+const attendanceReportNoteInput = document.getElementById("attendance-report-note");
+const attendanceReportSubmitButton = document.getElementById("attendance-report-submit");
+const attendanceReportStatus = document.getElementById("attendance-report-status");
 const suggestionForm = document.getElementById("suggestion-form");
 const suggestionTitleInput = document.getElementById("suggestion-title");
 const suggestionContentInput = document.getElementById("suggestion-content");
@@ -277,6 +285,8 @@ function init() {
   activityRefreshButton?.addEventListener("click", loadActivityBoard);
   activityMonthSelect?.addEventListener("change", loadActivityBoard);
   configureActivityBoardTabs();
+  attendanceReportForm?.addEventListener("submit", handleAttendanceReportSubmit);
+  attachDatePickerOpen(attendanceReportDateInput);
   suggestionForm?.addEventListener("submit", handleSuggestionSubmit);
   suggestionRefreshButton?.addEventListener("click", loadSuggestionBoard);
   rewardRequestForm?.addEventListener("submit", handleRewardRequestSubmit);
@@ -1248,6 +1258,9 @@ async function loadActivityBoard() {
     return;
   }
   const selectedMonth = activityMonthSelect?.value || currentMonthKey();
+  if (attendanceReportDateInput && !attendanceReportDateInput.value) {
+    attendanceReportDateInput.value = `${selectedMonth}-01`;
+  }
   if (runnerMonthLabel) {
     runnerMonthLabel.textContent = `${monthKeyToLabel(selectedMonth)} 기준`;
   }
@@ -1894,7 +1907,8 @@ async function loadMemberActivityData() {
   if (!accessToken) {
     throw new Error("로그인이 필요합니다.");
   }
-  const response = await fetch("/.netlify/functions/member-activity", {
+  const response = await fetch(`/.netlify/functions/member-activity?t=${Date.now()}`, {
+    cache: "no-store",
     headers: { Authorization: `Bearer ${accessToken}` }
   });
   const result = await response.json().catch(() => ({ ok: false, error: "invalid response" }));
@@ -2004,6 +2018,7 @@ async function renderMyActivityState(me, selectedMonth, raffleRecords, attendanc
     photoCount: photos.length,
     commentCount: comments.length
   }));
+  renderMyAttendanceHistory(me, selectedMonth, attendanceLogs);
   renderMissionBoardCache(me, selectedMonth, photos.length, comments.length);
 
   renderSimpleHistory(
@@ -2075,7 +2090,109 @@ function renderPersonalBoardEmpty() {
   renderSimpleHistory(myCommentHistory, [], "로그인 후 내 댓글 기록이 표시됩니다.");
   renderSimpleHistory(myRaffleHistory, [], "로그인 후 내 추첨 기록이 표시됩니다.");
   renderSimpleHistory(myPointAwardHistory, [], "로그인 후 포인트 지급 기록이 표시됩니다.");
+  renderMyAttendanceHistory(null, currentMonthKey(), []);
   renderRewardLoungeState({ earnedPoints: 0, usedPoints: 0, pendingPoints: 0, availablePoints: 0 });
+}
+
+function renderMyAttendanceHistory(me, selectedMonth, attendanceLogs = []) {
+  if (!myAttendanceHistory) {
+    return;
+  }
+  const logs = getMemberAttendanceLogs(me, attendanceLogs)
+    .filter((log) => toMonthKey(log.attendance_date || log.date || "") === selectedMonth)
+    .sort((a, b) => String(a.attendance_date || a.date || "").localeCompare(String(b.attendance_date || b.date || "")));
+
+  if (myAttendanceNote) {
+    myAttendanceNote.textContent = `${monthKeyToLabel(selectedMonth)} 기준 ${logs.length}건이 출석 로그에 반영되어 있습니다. 누락이 있으면 아래 신고를 남겨 주세요.`;
+  }
+  if (!logs.length) {
+    myAttendanceHistory.innerHTML = '<li class="list-item"><p class="list-meta">선택한 월에 반영된 내 출석 로그가 없습니다.</p></li>';
+    return;
+  }
+
+  myAttendanceHistory.innerHTML = "";
+  logs.forEach((log) => {
+    const date = String(log.attendance_date || log.date || "");
+    const eventType = String(log.event_type || log.eventType || "출석");
+    const item = document.createElement("li");
+    item.className = "list-item";
+    item.innerHTML = `
+      <div class="list-top">
+        <span class="list-title">${escapeHtml(formatDate(date))} ${escapeHtml(eventType)}</span>
+        <span class="status-chip">반영됨</span>
+      </div>
+      <p class="list-meta">${escapeHtml(getAttendanceVenueLabel(date, eventType))}</p>
+    `;
+    myAttendanceHistory.appendChild(item);
+  });
+}
+
+function getAttendanceVenueLabel(dateValue, eventType = "") {
+  const date = parseIsoDateOnly(dateValue);
+  const weekday = date ? date.getDay() : null;
+  if (String(eventType).includes("정기")) {
+    if (weekday === 2) {
+      return "화요일 한강 정기런";
+    }
+    if (weekday === 4) {
+      return "목요일 올림픽공원 정기런";
+    }
+    return "정기런";
+  }
+  return eventType || "출석";
+}
+
+async function handleAttendanceReportSubmit(event) {
+  event?.preventDefault();
+  if (!supabaseClient || !authUser || !authProfile || authProfile.approval_status !== "approved") {
+    setStatus(attendanceReportStatus, "승인 회원 로그인 후 출석 누락 신고를 남길 수 있습니다.");
+    return;
+  }
+
+  const date = String(attendanceReportDateInput?.value || "").trim();
+  const eventType = String(attendanceReportTypeInput?.value || "정기런").trim();
+  const note = String(attendanceReportNoteInput?.value || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !note) {
+    setStatus(attendanceReportStatus, "누락된 날짜와 내용을 함께 입력해 주세요.");
+    return;
+  }
+
+  const title = `[출석 누락] ${date} ${eventType}`;
+  const content = [
+    `신고자: ${authProfile.name || authUser.email || "회원"}`,
+    `출석일: ${date}`,
+    `유형: ${eventType}`,
+    `내용: ${note}`
+  ].join("\n");
+
+  if (attendanceReportSubmitButton) {
+    attendanceReportSubmitButton.disabled = true;
+  }
+  setStatus(attendanceReportStatus, "출석 누락 신고를 등록하는 중입니다...");
+  try {
+    const result = await callMemberSuggestions("", {
+      method: "POST",
+      body: JSON.stringify({
+        title,
+        content,
+        is_anonymous: false
+      })
+    });
+    if (!result?.ok) {
+      throw new Error(result?.error || "attendance report failed");
+    }
+    if (attendanceReportNoteInput) {
+      attendanceReportNoteInput.value = "";
+    }
+    setStatus(attendanceReportStatus, "출석 누락 신고를 등록했습니다. 운영진이 확인 후 처리합니다.");
+    await loadSuggestionBoard();
+  } catch (error) {
+    setStatus(attendanceReportStatus, `출석 누락 신고 실패: ${String(error?.message || error)}`);
+  } finally {
+    if (attendanceReportSubmitButton) {
+      attendanceReportSubmitButton.disabled = false;
+    }
+  }
 }
 
 function calculateRewardBalance({ monthlyPointTotal, pointAwards, allPointAwards, rewardRequests, allPhotos, allComments, attendanceLogs }) {

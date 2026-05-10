@@ -67,6 +67,11 @@ const bulkAttendanceInput = document.getElementById("bulk-attendance-input");
 const bulkAttendanceApplyButton = document.getElementById("bulk-attendance-apply");
 const bulkAttendanceResult = document.getElementById("bulk-attendance-result");
 const attendanceLogList = document.getElementById("attendance-log-list");
+const attendanceCheckNameInput = document.getElementById("attendance-check-name");
+const attendanceCheckMonthInput = document.getElementById("attendance-check-month");
+const attendanceCheckRunButton = document.getElementById("attendance-check-run");
+const attendanceCheckSummary = document.getElementById("attendance-check-summary");
+const attendanceCheckList = document.getElementById("attendance-check-list");
 
 const feeMonthSelect = document.getElementById("fee-month");
 const feeList = document.getElementById("fee-list");
@@ -147,6 +152,7 @@ function init() {
   configureAdminTabs();
   populateFeeMonthOptions();
   setDefaultBulkDate();
+  setDefaultAttendanceCheckMonth();
   renderAll();
   loadPublicRaffleData();
   attachAdminSessionListeners();
@@ -166,6 +172,13 @@ function init() {
   });
 
   bulkAttendanceApplyButton.addEventListener("click", handleBulkAttendanceApply);
+  attendanceCheckRunButton?.addEventListener("click", renderAttendanceCheck);
+  attendanceCheckNameInput?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      renderAttendanceCheck();
+    }
+  });
 
   feeMonthSelect.addEventListener("change", () => {
     renderFees();
@@ -1174,6 +1187,75 @@ function setDefaultBulkDate() {
   }
   const now = new Date();
   bulkAttendanceDateInput.value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+function setDefaultAttendanceCheckMonth() {
+  if (!attendanceCheckMonthInput) {
+    return;
+  }
+  attendanceCheckMonthInput.value = currentMonthKey();
+}
+
+function renderAttendanceCheck() {
+  if (!attendanceCheckList || !attendanceCheckSummary) {
+    return;
+  }
+
+  const rawName = String(attendanceCheckNameInput?.value || "").trim();
+  const monthKey = String(attendanceCheckMonthInput?.value || currentMonthKey()).trim();
+  const normalizedName = normalizeName(rawName);
+  if (!normalizedName || !/^\d{4}-\d{2}$/.test(monthKey)) {
+    attendanceCheckSummary.textContent = "확인할 회원 이름과 조회 월을 입력해 주세요.";
+    attendanceCheckList.innerHTML = "";
+    return;
+  }
+
+  const memberMatches = db.members.filter((member) => normalizeName(member.name) === normalizedName);
+  const member = memberMatches[0] || null;
+  const logs = (Array.isArray(db.attendanceLogs) ? db.attendanceLogs : [])
+    .filter((log) => String(log.date || "").startsWith(monthKey))
+    .filter((log) => Array.isArray(log.matched) && log.matched.some((name) => normalizeName(name) === normalizedName))
+    .sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
+  const unmatchedLogs = (Array.isArray(db.attendanceLogs) ? db.attendanceLogs : [])
+    .filter((log) => String(log.date || "").startsWith(monthKey))
+    .filter((log) => Array.isArray(log.unmatched) && log.unmatched.some((name) => normalizeName(name) === normalizedName));
+  const monthlyRuns = member ? getMonthlyRuns(member, monthKey) : logs.length;
+
+  attendanceCheckSummary.textContent = member
+    ? `${member.name} (${member.birthYear}) · ${monthKeyToLabel(monthKey)} 회원 월 출석 ${monthlyRuns}회 · 날짜 로그 ${logs.length}건`
+    : `${rawName} · 회원 목록에서는 찾지 못했지만 출석 로그 ${logs.length}건을 확인했습니다.`;
+
+  attendanceCheckList.innerHTML = "";
+  if (!logs.length && !unmatchedLogs.length) {
+    attendanceCheckList.innerHTML = '<li class="list-item"><p class="list-meta">선택한 월에 이 이름으로 반영된 출석 로그가 없습니다.</p></li>';
+    return;
+  }
+
+  logs.forEach((log) => {
+    const item = document.createElement("li");
+    item.className = "list-item";
+    item.innerHTML = `
+      <div class="list-top">
+        <span class="list-title">${escapeHtml(formatDate(log.date))} ${escapeHtml(log.eventType || "출석")}</span>
+        <span class="status-chip">반영됨</span>
+      </div>
+      <p class="list-meta">${log.source === "bulk" ? "일괄 등록" : "빠른 등록"} · 전체 반영 ${Array.isArray(log.matched) ? log.matched.length : 0}명</p>
+    `;
+    attendanceCheckList.appendChild(item);
+  });
+
+  unmatchedLogs.forEach((log) => {
+    const item = document.createElement("li");
+    item.className = "list-item";
+    item.innerHTML = `
+      <div class="list-top">
+        <span class="list-title">${escapeHtml(formatDate(log.date))} ${escapeHtml(log.eventType || "출석")}</span>
+        <span class="status-chip danger">미일치</span>
+      </div>
+      <p class="list-meta">이 날짜 명단에는 있었지만 회원 이름 매칭에 실패했습니다. 이름 표기를 확인해 주세요.</p>
+    `;
+    attendanceCheckList.appendChild(item);
+  });
 }
 
 async function handleGuestSubmit(event) {
