@@ -2372,7 +2372,12 @@ async function revertAttendanceLog(logId) {
 
   if (currentAdminToken) {
     try {
-      await callAdminWrite("revert_attendance_log", { log_id: logId });
+      await callAdminWrite("revert_attendance_log", {
+        log_id: logId,
+        date: log.date,
+        event_type: log.eventType,
+        source: log.source || "bulk"
+      });
       await loadAdminSnapshot();
       renderAll();
       if (syncStatus) {

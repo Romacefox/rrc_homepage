@@ -406,20 +406,23 @@ export default async (request) => {
 
     if (action === "revert_attendance_log") {
       const logId = String(body?.log_id || "").trim();
-      if (!logId) {
-        return json(400, { ok: false, error: "missing log_id" });
+      const attendanceDate = String(body?.date || "").trim();
+      const eventType = String(body?.event_type || "").trim();
+      const source = String(body?.source || "bulk").trim() || "bulk";
+      if (!logId && (!attendanceDate || !eventType)) {
+        return json(400, { ok: false, error: "missing attendance log target" });
       }
 
-      const rpcResult = await tryAttendanceMutationRpc({
+      const rpcResult = logId ? await tryAttendanceMutationRpc({
         action,
         log_id: logId
-      });
-      if (rpcResult) {
+      }) : null;
+      if (rpcResult?.ok) {
         await tryInsertOperationLog(auth, "attendance_revert", logId);
         return json(200, rpcResult);
       }
 
-      return json(200, await revertAttendanceFallback(auth, { logId }));
+      return json(200, await revertAttendanceFallback(auth, { logId, attendanceDate, eventType, source }));
     }
 
     if (action === "adjust_member_attendance") {
@@ -506,8 +509,12 @@ async function replaceAttendanceFallback(auth, { logId, names, attendanceDate, e
   return summary;
 }
 
-async function revertAttendanceFallback(auth, { logId }) {
-  const log = await loadAttendanceLogById(logId);
+async function revertAttendanceFallback(auth, { logId, attendanceDate = "", eventType = "", source = "bulk" }) {
+  let log = logId ? await loadAttendanceLogById(logId) : null;
+  if (!log && attendanceDate && eventType) {
+    const logs = await loadAttendanceLogs();
+    log = findAttendanceLogByScope(logs, attendanceDate, eventType, source) || null;
+  }
   if (!log) {
     throw new Error("attendance log not found");
   }
