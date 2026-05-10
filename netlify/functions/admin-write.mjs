@@ -156,6 +156,22 @@ export default async (request) => {
       return json(200, { ok: true, message: "member updated" });
     }
 
+    if (action === "delete_member") {
+      const memberId = String(body?.member_id || "").trim();
+      if (!memberId) {
+        return json(400, { ok: false, error: "missing member_id" });
+      }
+
+      const member = await loadMemberById(memberId);
+      if (!member) {
+        return json(404, { ok: false, error: "member not found" });
+      }
+
+      await supabaseDelete(`members?id=eq.${encodeURIComponent(memberId)}`);
+      await tryInsertOperationLog(auth, "member_delete", `${member.name} (${member.birth_year || ""})`);
+      return json(200, { ok: true, message: "member deleted" });
+    }
+
     if (action === "run_raffle") {
       const targetMonthKey = normalizeMonthKey(body?.target_month_key) || previousMonthKey(new Date());
       const threshold = Math.max(1, Number(body?.threshold || thresholdForMonthKey(targetMonthKey)));

@@ -1655,6 +1655,34 @@ async function handleMemberActiveToggle(member, nextActive) {
   renderAll();
 }
 
+async function handleMemberDelete(member) {
+  if (!confirmMemberDeletion(member)) {
+    return;
+  }
+
+  if (currentAdminToken) {
+    try {
+      await callAdminWrite("delete_member", {
+        member_id: member.id
+      });
+      await loadAdminSnapshot();
+      renderAll();
+      if (syncStatus) {
+        syncStatus.textContent = `${member.name} 삭제 완료: 서버에 바로 반영했습니다.`;
+      }
+      return;
+    } catch (error) {
+      alert(`회원 삭제 실패: ${String(error?.message || error)}`);
+      return;
+    }
+  }
+
+  db.members = db.members.filter((entry) => entry.id !== member.id);
+  saveDb();
+  logAdminAction("회원 삭제", `${member.name} (${member.birthYear})`);
+  renderAll();
+}
+
 async function handleAttendanceLogEdit(log) {
   const nextDate = prompt("출석일을 수정해 주세요. (YYYY-MM-DD)", String(log?.date || ""));
   if (nextDate === null) {
@@ -2282,6 +2310,9 @@ function renderMembers() {
     }));
     actions.appendChild(buildTinyButton(member.isActive === false ? "활성화" : "휴면", () => {
       handleMemberActiveToggle(member, member.isActive === false);
+    }));
+    actions.appendChild(buildTinyButton("삭제", () => {
+      handleMemberDelete(member);
     }));
 
     item.appendChild(actions);
