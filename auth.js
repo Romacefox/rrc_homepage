@@ -2766,6 +2766,20 @@ async function handleChallengeSubmit(event) {
     setStatus(challengeStatus, `현재 사용 가능 포인트는 ${rewardAvailablePointCache}P입니다. 보유 포인트보다 큰 챌린지는 제안할 수 없습니다.`);
     return;
   }
+  const confirmText = [
+    "이 내용으로 챌린지 모집을 시작할까요?",
+    "",
+    `챌린지명: ${title}`,
+    `베팅 포인트: ${stakePoints}P`,
+    `모집 기간: ${recruitStartDate} ~ ${recruitEndDate}`,
+    `진행 기간: ${startDate} ~ ${endDate}`,
+    verificationTag ? `인증 태그: ${verificationTag}` : "",
+    "",
+    "모집 종료 후 참가자 3명 이상이면 자동으로 진행됩니다."
+  ].filter(Boolean).join("\n");
+  if (!confirm(confirmText)) {
+    return;
+  }
 
   challengeSubmitButton && (challengeSubmitButton.disabled = true);
   setStatus(challengeStatus, "챌린지 제안을 등록하는 중입니다...");
@@ -2911,6 +2925,7 @@ function renderChallengeList(items, canManage) {
       if (item.status !== "settled" && item.status !== "cancelled") {
         actions.appendChild(buildActionButton("취소", () => updateChallengeStatus(item.id, "cancelled", "취소")));
       }
+      actions.appendChild(buildActionButton("삭제", () => deleteChallenge(item.id, item.title || "포인트 챌린지")));
     }
     if (actions.childElementCount) {
       node.appendChild(actions);
@@ -3061,6 +3076,25 @@ async function settleChallenge(challengeId) {
     await loadChallenges();
   } catch (error) {
     setStatus(challengeStatus, `정산 실패: ${String(error?.message || error)}`);
+  }
+}
+
+async function deleteChallenge(challengeId, title = "포인트 챌린지") {
+  if (!confirm(`"${title}" 챌린지를 삭제할까요?\n\n참가 내역도 함께 삭제됩니다. 테스트/오등록 정리용으로만 사용해 주세요.`)) {
+    return;
+  }
+  try {
+    const result = await callMemberChallenges("", {
+      method: "PATCH",
+      body: JSON.stringify({ action: "delete", challenge_id: challengeId })
+    });
+    if (!result?.ok) {
+      throw new Error(result?.error || "delete failed");
+    }
+    setStatus(challengeStatus, "챌린지를 삭제했습니다.");
+    await loadChallenges();
+  } catch (error) {
+    setStatus(challengeStatus, `챌린지 삭제 실패: ${String(error?.message || error)}`);
   }
 }
 

@@ -195,6 +195,17 @@ export default async (request) => {
         return json(200, { ok: true, success_count: successEntries.length, payout_points: payoutTotal, payout_total: payoutTotal, pot_points: pot });
       }
 
+      if (action === "delete") {
+        const challengeId = String(body?.challenge_id || "").trim();
+        const challenge = await loadChallenge(challengeId);
+        if (!challenge) {
+          return json(404, { ok: false, error: "challenge not found" });
+        }
+        await supabaseDelete(`${CHALLENGE_TABLE}?id=eq.${encodeURIComponent(challengeId)}`);
+        await tryInsertOperationLog(auth, "챌린지 삭제", `${challenge.title} / ${challengeId}`);
+        return json(200, { ok: true });
+      }
+
       return json(400, { ok: false, error: "invalid action" });
     }
 
@@ -425,6 +436,19 @@ async function supabasePatch(path, payload) {
       Authorization: `Bearer ${env("SUPABASE_SERVICE_ROLE_KEY")}`
     },
     body: JSON.stringify(payload)
+  });
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+}
+
+async function supabaseDelete(path) {
+  const response = await fetch(`${env("SUPABASE_URL")}/rest/v1/${path}`, {
+    method: "DELETE",
+    headers: {
+      apikey: env("SUPABASE_SERVICE_ROLE_KEY"),
+      Authorization: `Bearer ${env("SUPABASE_SERVICE_ROLE_KEY")}`
+    }
   });
   if (!response.ok) {
     throw new Error(await response.text());
