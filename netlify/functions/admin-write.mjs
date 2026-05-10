@@ -411,20 +411,12 @@ export default async (request) => {
       const attendanceDate = String(body?.date || "").trim();
       const eventType = String(body?.event_type || "").trim();
       const source = String(body?.source || "bulk").trim() || "bulk";
+      const matched = Array.isArray(body?.matched) ? body.matched.map((name) => String(name || "").trim()).filter(Boolean) : [];
       if (!logId && (!attendanceDate || !eventType)) {
         return json(400, { ok: false, error: "missing attendance log target" });
       }
 
-      const rpcResult = logId ? await tryAttendanceMutationRpc({
-        action,
-        log_id: logId
-      }, { allowNotFoundFallback: true }) : null;
-      if (rpcResult?.ok) {
-        await tryInsertOperationLog(auth, "attendance_revert", logId);
-        return json(200, rpcResult);
-      }
-
-      return json(200, await revertAttendanceFallback(auth, { logId, attendanceDate, eventType, source }));
+      return json(200, await revertAttendanceFallback(auth, { logId, attendanceDate, eventType, source, matched }));
     }
 
     if (action === "adjust_member_attendance") {
@@ -511,11 +503,11 @@ async function replaceAttendanceFallback(auth, { logId, names, attendanceDate, e
   return summary;
 }
 
-async function revertAttendanceFallback(auth, { logId, attendanceDate = "", eventType = "", source = "bulk" }) {
+async function revertAttendanceFallback(auth, { logId, attendanceDate = "", eventType = "", source = "bulk", matched = [] }) {
   let log = logId ? await loadAttendanceLogById(logId) : null;
   if (!log && attendanceDate && eventType) {
     const logs = await loadAttendanceLogs();
-    log = findAttendanceLogByScope(logs, attendanceDate, eventType, source) || null;
+    log = findAttendanceLogForRevert(logs, { attendanceDate, eventType, source, matched }) || null;
   }
   if (!log) {
     throw new Error("attendance log not found");
@@ -634,14 +626,22 @@ async function loadMemberById(memberId) {
 async function loadMemberByIdentity(name, birthYear) {
   const normalizedName = normalizeName(name);
   const normalizedBirthYear = Number(birthYear || 0);
-  if (!normalizedName || !normalizedBirthYear) {
+  if (!normalizedName) {
     return null;
   }
   const members = await loadMembers();
-  return members.find((member) => (
+  const exact = members.find((member) => (
     normalizeName(member.name) === normalizedName
     && Number(member.birth_year || 0) === normalizedBirthYear
-  )) || null;
+  ));
+  if (exact) {
+    return exact;
+  }
+  if (normalizedBirthYear) {
+    return null;
+  }
+  const sameName = members.filter((member) => normalizeName(member.name) === normalizedName);
+  return sameName.length === 1 ? sameName[0] : null;
 }
 
 async function loadAttendanceLogs() {
@@ -708,6 +708,42 @@ function findAttendanceLogByScope(logs, attendanceDate, eventType, source) {
     && String(entry?.event_type || "") === String(eventType || "")
     && String(entry?.source || "bulk") === String(source || "bulk")
   )) || null;
+}
+
+function findAttendanceLogForRevert(logs, { attendanceDate, eventType, source, matched = [] }) {
+  const sameDateType = (Array.isArray(logs) ? logs : []).filter((entry) => (
+    String(entry?.attendance_date || "") === String(attendanceDate || "")
+    && String(entry?.event_type || "") === String(eventType || "")
+  ));
+  if (!sameDateType.length) {
+    return null;
+  }
+
+  const sameSource = sameDateType.find((entry) => String(entry?.source || "bulk") === String(source || "bulk"));
+  const matchedKeys = new Set((Array.isArray(matched) ? matched : []).map(normalizeName).filter(Boolean));
+  if (!matchedKeys.size) {
+    return sameSource || sameDateType[0] || null;
+  }
+
+  const exactByNames = sameDateType.find((entry) => {
+    const entryKeys = new Set((Array.isArray(entry?.matched) ? entry.matched : []).map(normalizeName).filter(Boolean));
+    if (entryKeys.size !== matchedKeys.size) {
+      return false;
+    }
+    return [...matchedKeys].every((key) => entryKeys.has(key));
+  });
+  if (exactByNames) {
+    return exactByNames;
+  }
+
+  const overlapByNames = sameDateType
+    .map((entry) => {
+      const entryKeys = new Set((Array.isArray(entry?.matched) ? entry.matched : []).map(normalizeName).filter(Boolean));
+      const overlap = [...matchedKeys].filter((key) => entryKeys.has(key)).length;
+      return { entry, overlap };
+    })
+    .sort((a, b) => b.overlap - a.overlap)[0];
+  return overlapByNames?.overlap > 0 ? overlapByNames.entry : sameSource || sameDateType[0] || null;
 }
 
 async function revertAttendanceMatches(log, members, monthKey) {

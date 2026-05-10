@@ -1665,7 +1665,7 @@ async function handleMemberDelete(member) {
       await callAdminWrite("delete_member", {
         member_id: member.id,
         name: member.name,
-        birth_year: member.birthYear
+        birth_year: member.birthYear || member.birth_year
       });
       await loadAdminSnapshot();
       renderAll();
@@ -2378,7 +2378,8 @@ async function revertAttendanceLog(logId) {
         log_id: logId,
         date: log.date,
         event_type: log.eventType,
-        source: log.source || "bulk"
+        source: log.source || "bulk",
+        matched: log.matched || []
       });
       await loadAdminSnapshot();
       renderAll();
