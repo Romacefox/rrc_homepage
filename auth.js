@@ -3758,8 +3758,8 @@ function countRegularRunsForMember(member, monthKey, attendanceLogs = []) {
 function getAttendanceBonusState(member, monthKey, attendanceLogs = []) {
   const memberLogs = getMemberAttendanceLogs(member, attendanceLogs);
   return {
-    hangangLover: crossedVenueMilestone(memberLogs, monthKey, 2, 10),
-    olympicLover: crossedVenueMilestone(memberLogs, monthKey, 4, 10),
+    hangangLover: crossedVenueStreakMilestone(memberLogs, monthKey, 2, 10),
+    olympicLover: crossedVenueStreakMilestone(memberLogs, monthKey, 4, 10),
     candidateStreak: getCandidateStreakFromMonth(member, monthKey)
   };
 }
@@ -3789,26 +3789,45 @@ function hasEveryRegularWeek(memberLogs, monthKey) {
   return Array.from(requiredWeeks).every((weekKey) => attendedWeeks.has(weekKey));
 }
 
-function crossedVenueMilestone(memberLogs, monthKey, weekday, threshold) {
+function crossedVenueStreakMilestone(memberLogs, monthKey, weekday, threshold) {
+  const streakThroughMonth = getVenueConsecutiveAttendanceCount(memberLogs, monthKey, weekday);
+  const previousMonthKey = shiftMonthKey(monthKey, -1);
+  const streakBeforeMonth = getVenueConsecutiveAttendanceCount(memberLogs, previousMonthKey, weekday);
+  return streakBeforeMonth < threshold && streakThroughMonth >= threshold;
+}
+
+function getVenueConsecutiveAttendanceCount(memberLogs, monthKey, weekday) {
+  const attended = new Set(
+    (Array.isArray(memberLogs) ? memberLogs : [])
+      .filter(isRegularVenueLog)
+      .map((log) => parseIsoDateOnly(log.attendance_date || log.date || ""))
+      .filter((date) => date && date.getDay() === weekday)
+      .map((date) => toIsoDateOnly(date))
+  );
+  let count = 0;
+  const venueDates = getVenueRunDatesThroughMonth(monthKey, weekday);
+  for (let index = venueDates.length - 1; index >= 0; index -= 1) {
+    const dateKey = toIsoDateOnly(venueDates[index]);
+    if (!attended.has(dateKey)) {
+      break;
+    }
+    count += 1;
+  }
+  return count;
+}
+
+function getVenueRunDatesThroughMonth(monthKey, weekday) {
   const range = getMonthDateBoundary(monthKey);
-  let beforeCount = 0;
-  let throughMonthCount = 0;
-  memberLogs.forEach((log) => {
-    if (!isRegularVenueLog(log)) {
-      return;
+  const today = new Date();
+  const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+  const end = range.start > tomorrow ? range.start : new Date(Math.min(range.end.getTime(), tomorrow.getTime()));
+  const dates = [];
+  for (const date = new Date(ATTENDANCE_STREAK_START_MONTH + "-01"); date < end; date.setDate(date.getDate() + 1)) {
+    if (date.getDay() === weekday) {
+      dates.push(new Date(date));
     }
-    const date = parseIsoDateOnly(log.attendance_date);
-    if (!date || date.getDay() !== weekday) {
-      return;
-    }
-    if (date < range.start) {
-      beforeCount += 1;
-    }
-    if (date < range.end) {
-      throughMonthCount += 1;
-    }
-  });
-  return beforeCount < threshold && throughMonthCount >= threshold;
+  }
+  return dates;
 }
 
 function getRegularRunDatesInMonth(monthKey) {
@@ -3840,6 +3859,13 @@ function parseIsoDateOnly(value) {
     return null;
   }
   return new Date(year, month - 1, day);
+}
+
+function toIsoDateOnly(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
 function getWeekKey(date) {
