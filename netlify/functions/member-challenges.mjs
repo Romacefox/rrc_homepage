@@ -1,8 +1,10 @@
 const CHALLENGE_TABLE = "member_challenges";
 const ENTRY_TABLE = "member_challenge_entries";
 const AWARD_TABLE = "member_point_awards";
+const REWARD_TABLE = "reward_requests";
 const PROFILE_TABLE = "member_profiles";
 const LOG_TABLE = "operation_logs";
+const MIN_CHALLENGE_PARTICIPANTS = 3;
 
 export default async (request) => {
   try {
@@ -34,6 +36,8 @@ export default async (request) => {
       const body = await request.json();
       const title = String(body?.title || "").trim().slice(0, 80);
       const stakePoints = Math.max(1, Math.min(Number(body?.stake_points || 0), 2000));
+      const recruitStartDate = normalizeDate(body?.recruit_start_date);
+      const recruitEndDate = normalizeDate(body?.recruit_end_date);
       const startDate = normalizeDate(body?.start_date);
       const endDate = normalizeDate(body?.end_date);
       const verificationTag = String(body?.verification_tag || "").trim().slice(0, 40);
@@ -42,21 +46,29 @@ export default async (request) => {
       if (!title || !stakePoints || !startDate || !endDate || !ruleText) {
         return json(400, { ok: false, error: "invalid payload" });
       }
+      if (stakePoints > await calculateAvailablePoints(auth)) {
+        return json(400, { ok: false, error: "insufficient points" });
+      }
+      if ((recruitStartDate && recruitEndDate && recruitEndDate < recruitStartDate) || (recruitEndDate && startDate < recruitEndDate)) {
+        return json(400, { ok: false, error: "invalid recruit date range" });
+      }
       if (endDate < startDate) {
         return json(400, { ok: false, error: "invalid date range" });
       }
 
-      await supabaseInsert(CHALLENGE_TABLE, {
+      await insertChallengePayload({
         creator_user_id: auth.user.id,
         creator_name: auth.profile?.name || auth.user.email || "member",
         title,
         stake_points: stakePoints,
+        recruit_start_date: recruitStartDate || startDate,
+        recruit_end_date: recruitEndDate || startDate,
         start_date: startDate,
         end_date: endDate,
         verification_tag: verificationTag,
         kakao_room: "RRC 카카오톡 채팅방",
         rule_text: ruleText,
-        status: "submitted"
+        status: "recruiting"
       });
       await tryInsertOperationLog(auth, "챌린지 제안", `${title} / 기본 ${stakePoints}P`);
       return json(200, { ok: true });
@@ -75,6 +87,9 @@ export default async (request) => {
         }
         if (!Number.isFinite(stakePoints) || stakePoints <= 0) {
           return json(400, { ok: false, error: "invalid stake points" });
+        }
+        if (stakePoints > await calculateAvailablePoints(auth)) {
+          return json(400, { ok: false, error: "insufficient points" });
         }
         const existingEntry = await loadEntryForUser(challengeId, auth.user.id);
         if (existingEntry) {
@@ -208,17 +223,53 @@ async function requireApprovedMember(request) {
 }
 
 async function listChallenges(limit) {
-  const challenges = await supabaseSelect(`${CHALLENGE_TABLE}?order=created_at.desc&limit=${limit}&select=id,creator_user_id,creator_name,title,stake_points,start_date,end_date,verification_tag,kakao_room,rule_text,status,payout_points,created_at,updated_at,settled_at`);
+  const challenges = await selectChallenges(limit);
   const entries = await supabaseSelect(`${ENTRY_TABLE}?order=created_at.asc&limit=500&select=id,challenge_id,user_id,member_name,stake_points,result,payout_points,created_at,judged_at`);
   const entriesByChallenge = new Map();
   (Array.isArray(entries) ? entries : []).forEach((entry) => {
     const key = String(entry.challenge_id || "");
     entriesByChallenge.set(key, [...(entriesByChallenge.get(key) || []), entry]);
   });
-  return (Array.isArray(challenges) ? challenges : []).map((challenge) => ({
+  const items = (Array.isArray(challenges) ? challenges : []).map((challenge) => ({
     ...challenge,
     entries: entriesByChallenge.get(String(challenge.id || "")) || []
   }));
+  await autoTransitionChallenges(items);
+  return items;
+}
+
+async function selectChallenges(limit) {
+  const withRecruitDates = `${CHALLENGE_TABLE}?order=created_at.desc&limit=${limit}&select=id,creator_user_id,creator_name,title,stake_points,recruit_start_date,recruit_end_date,start_date,end_date,verification_tag,kakao_room,rule_text,status,payout_points,created_at,updated_at,settled_at`;
+  const legacy = `${CHALLENGE_TABLE}?order=created_at.desc&limit=${limit}&select=id,creator_user_id,creator_name,title,stake_points,start_date,end_date,verification_tag,kakao_room,rule_text,status,payout_points,created_at,updated_at,settled_at`;
+  try {
+    return await supabaseSelect(withRecruitDates);
+  } catch (error) {
+    if (isMissingColumnError(error, "recruit_start_date") || isMissingColumnError(error, "recruit_end_date")) {
+      return supabaseSelect(legacy);
+    }
+    throw error;
+  }
+}
+
+async function autoTransitionChallenges(items) {
+  const today = new Date().toISOString().slice(0, 10);
+  for (const item of Array.isArray(items) ? items : []) {
+    if (item.status !== "recruiting") {
+      continue;
+    }
+    const recruitEnd = item.recruit_end_date || item.start_date;
+    if (!recruitEnd || today <= recruitEnd) {
+      continue;
+    }
+    const nextStatus = (Array.isArray(item.entries) ? item.entries.length : 0) >= MIN_CHALLENGE_PARTICIPANTS
+      ? "in_progress"
+      : "cancelled";
+    await supabasePatch(`${CHALLENGE_TABLE}?id=eq.${encodeURIComponent(item.id)}`, {
+      status: nextStatus,
+      updated_at: new Date().toISOString()
+    });
+    item.status = nextStatus;
+  }
 }
 
 async function loadChallenge(id) {
@@ -236,6 +287,42 @@ async function loadEntries(challengeId) {
 async function loadEntryForUser(challengeId, userId) {
   const rows = await supabaseSelect(`${ENTRY_TABLE}?challenge_id=eq.${encodeURIComponent(challengeId)}&user_id=eq.${encodeURIComponent(userId)}&select=id&limit=1`);
   return Array.isArray(rows) ? rows[0] || null : null;
+}
+
+async function insertChallengePayload(payload) {
+  try {
+    await supabaseInsert(CHALLENGE_TABLE, payload);
+  } catch (error) {
+    if (!isMissingColumnError(error, "recruit_start_date") && !isMissingColumnError(error, "recruit_end_date")) {
+      throw error;
+    }
+    const { recruit_start_date: _recruitStart, recruit_end_date: _recruitEnd, ...legacyPayload } = payload;
+    await supabaseInsert(CHALLENGE_TABLE, legacyPayload);
+  }
+}
+
+async function calculateAvailablePoints(auth) {
+  const userId = String(auth.user?.id || "");
+  const memberName = normalizeName(auth.profile?.name || "");
+  const [awards, rewards, entries] = await Promise.all([
+    supabaseSelect(`${AWARD_TABLE}?or=(user_id.eq.${encodeURIComponent(userId)},member_name.eq.${encodeURIComponent(auth.profile?.name || "")})&select=award_code,points`).catch(() => []),
+    supabaseSelect(`${REWARD_TABLE}?user_id=eq.${encodeURIComponent(userId)}&status=in.(submitted,approved,fulfilled)&select=point_cost,status`).catch(() => []),
+    supabaseSelect(`${ENTRY_TABLE}?user_id=eq.${encodeURIComponent(userId)}&select=stake_points,challenge_id`).catch(() => [])
+  ]);
+  const earned = (Array.isArray(awards) ? awards : []).reduce((sum, row) => sum + Number(row.points || 0), 0);
+  const hasSignupBonus = (Array.isArray(awards) ? awards : []).some((row) => row.award_code === "signup_bonus");
+  const signupBonus = hasSignupBonus ? 0 : 20;
+  const used = (Array.isArray(rewards) ? rewards : []).reduce((sum, row) => sum + Number(row.point_cost || 0), 0);
+  const activeChallengeIds = await loadActiveChallengeIds();
+  const locked = (Array.isArray(entries) ? entries : [])
+    .filter((entry) => activeChallengeIds.has(String(entry.challenge_id || "")))
+    .reduce((sum, entry) => sum + Number(entry.stake_points || 0), 0);
+  return Math.max(earned + signupBonus - used - locked, 0);
+}
+
+async function loadActiveChallengeIds() {
+  const rows = await supabaseSelect(`${CHALLENGE_TABLE}?status=in.(submitted,recruiting,in_progress,judging)&select=id&limit=500`).catch(() => []);
+  return new Set((Array.isArray(rows) ? rows : []).map((row) => String(row.id || "")).filter(Boolean));
 }
 
 function allocateProportionalPayouts(successEntries, pot) {
@@ -398,6 +485,11 @@ function currentMonthKey() {
 function isMissingTableError(error, table) {
   const message = String(error?.message || error || "");
   return message.includes(table) && (message.includes("schema cache") || message.includes("does not exist") || message.includes("Could not find the table"));
+}
+
+function isMissingColumnError(error, column) {
+  const message = String(error?.message || error || "").toLowerCase();
+  return message.includes(String(column || "").toLowerCase()) && (message.includes("schema cache") || message.includes("does not exist") || message.includes("could not find"));
 }
 
 function env(name) {

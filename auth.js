@@ -153,6 +153,8 @@ const challengeForm = document.getElementById("challenge-form");
 const challengeTitleInput = document.getElementById("challenge-title");
 const challengeStakeInput = document.getElementById("challenge-stake");
 const challengeTagInput = document.getElementById("challenge-tag");
+const challengeRecruitStartInput = document.getElementById("challenge-recruit-start");
+const challengeRecruitEndInput = document.getElementById("challenge-recruit-end");
 const challengeStartInput = document.getElementById("challenge-start");
 const challengeEndInput = document.getElementById("challenge-end");
 const challengeRuleInput = document.getElementById("challenge-rule");
@@ -281,6 +283,8 @@ function init() {
   rewardRequestRefreshButton?.addEventListener("click", loadRewardRequests);
   challengeForm?.addEventListener("submit", handleChallengeSubmit);
   challengeRefreshButton?.addEventListener("click", loadChallenges);
+  attachDatePickerOpen(challengeRecruitStartInput);
+  attachDatePickerOpen(challengeRecruitEndInput);
   attachDatePickerOpen(challengeStartInput);
   attachDatePickerOpen(challengeEndInput);
   pointAwardForm?.addEventListener("submit", handlePointAwardSubmit);
@@ -2748,12 +2752,18 @@ async function handleChallengeSubmit(event) {
   const title = String(challengeTitleInput?.value || "").trim();
   const stakePoints = Number(challengeStakeInput?.value || 0);
   const verificationTag = String(challengeTagInput?.value || "").trim();
+  const recruitStartDate = String(challengeRecruitStartInput?.value || "").trim();
+  const recruitEndDate = String(challengeRecruitEndInput?.value || "").trim();
   const startDate = String(challengeStartInput?.value || "").trim();
   const endDate = String(challengeEndInput?.value || "").trim();
   const ruleText = String(challengeRuleInput?.value || "").trim();
 
-  if (!title || !stakePoints || !startDate || !endDate || !ruleText) {
-    setStatus(challengeStatus, "챌린지명, 참가 포인트, 기간, 성공 조건을 입력해 주세요.");
+  if (!title || !stakePoints || !recruitStartDate || !recruitEndDate || !startDate || !endDate || !ruleText) {
+    setStatus(challengeStatus, "챌린지명, 참가 포인트, 모집 기간, 진행 기간, 성공 조건을 입력해 주세요.");
+    return;
+  }
+  if (stakePoints > rewardAvailablePointCache) {
+    setStatus(challengeStatus, `현재 사용 가능 포인트는 ${rewardAvailablePointCache}P입니다. 보유 포인트보다 큰 챌린지는 제안할 수 없습니다.`);
     return;
   }
 
@@ -2766,6 +2776,8 @@ async function handleChallengeSubmit(event) {
         title,
         stake_points: stakePoints,
         verification_tag: verificationTag,
+        recruit_start_date: recruitStartDate,
+        recruit_end_date: recruitEndDate,
         start_date: startDate,
         end_date: endDate,
         rule_text: ruleText
@@ -2775,7 +2787,7 @@ async function handleChallengeSubmit(event) {
       throw new Error(result?.error || "challenge submit failed");
     }
     challengeForm?.reset();
-    setStatus(challengeStatus, "챌린지 제안이 접수되었습니다. 운영진이 모집 시작 여부를 결정합니다.");
+    setStatus(challengeStatus, "챌린지 모집이 시작되었습니다. 모집 종료 후 3명 이상이면 자동으로 진행됩니다.");
     await loadChallenges();
   } catch (error) {
     setStatus(challengeStatus, `챌린지 등록 실패: ${String(error?.message || error)}`);
@@ -2844,6 +2856,8 @@ function renderChallengeList(items, canManage) {
     const successCount = successEntries.length;
     const pot = entries.reduce((sum, entry) => sum + Number(entry.stake_points || item.stake_points || 0), 0);
     const successStakeTotal = successEntries.reduce((sum, entry) => sum + Number(entry.stake_points || item.stake_points || 0), 0);
+    const recruitStart = item.recruit_start_date || item.created_at?.slice(0, 10) || "-";
+    const recruitEnd = item.recruit_end_date || item.start_date || "-";
     const node = document.createElement("li");
     node.className = "list-item";
     node.innerHTML = `
@@ -2851,10 +2865,11 @@ function renderChallengeList(items, canManage) {
         <span class="list-title">${escapeHtml(item.title || "포인트 챌린지")}</span>
         <span class="status-chip ${getChallengeStatusClass(item.status)}">${escapeHtml(getChallengeStatusLabel(item.status))}</span>
       </div>
-      <p class="list-meta">${escapeHtml(item.start_date || "-")} ~ ${escapeHtml(item.end_date || "-")} · 기본 베팅 ${Number(item.stake_points || 0)}P · 팟 ${pot}P</p>
+      <p class="list-meta">모집 ${escapeHtml(recruitStart)} ~ ${escapeHtml(recruitEnd)} · 진행 ${escapeHtml(item.start_date || "-")} ~ ${escapeHtml(item.end_date || "-")}</p>
+      <p class="list-meta">기본 베팅 ${Number(item.stake_points || 0)}P · 팟 ${pot}P</p>
       <p class="list-meta">인증: RRC 카카오톡 채팅방 ${item.verification_tag ? `· ${escapeHtml(item.verification_tag)}` : ""}</p>
       <p>${escapeHtml(item.rule_text || "")}</p>
-      <p class="list-meta">참가 ${entries.length}명 · 성공 ${successCount}명${successStakeTotal ? ` · 성공 베팅 ${successStakeTotal}P` : ""}${item.status === "settled" ? ` · 총 정산 ${Number(item.payout_points || 0)}P` : ""}</p>
+      <p class="list-meta">참가 ${entries.length}명 / 최소 3명 · 성공 ${successCount}명${successStakeTotal ? ` · 성공 베팅 ${successStakeTotal}P` : ""}${item.status === "settled" ? ` · 총 정산 ${Number(item.payout_points || 0)}P` : ""}</p>
     `;
 
     const entryWrap = document.createElement("div");
@@ -2874,12 +2889,10 @@ function renderChallengeList(items, canManage) {
     if (item.status === "recruiting" && !joined) {
       node.appendChild(buildChallengeJoinForm(item));
     }
+    actions.appendChild(buildActionButton("공지 복사", () => copyChallengeNotice(item)));
     if (canManage) {
       if (item.status === "submitted") {
         actions.appendChild(buildActionButton("모집 시작", () => updateChallengeStatus(item.id, "recruiting", "모집 시작")));
-      }
-      if (item.status === "recruiting") {
-        actions.appendChild(buildActionButton("진행 중", () => updateChallengeStatus(item.id, "in_progress", "진행 중")));
       }
       if (item.status === "in_progress") {
         actions.appendChild(buildActionButton("인증 확인", () => updateChallengeStatus(item.id, "judging", "인증 확인")));
@@ -2944,6 +2957,27 @@ function buildActionButton(label, onClick) {
   button.textContent = label;
   button.addEventListener("click", onClick);
   return button;
+}
+
+async function copyChallengeNotice(item) {
+  const recruitStart = item?.recruit_start_date || item?.created_at?.slice(0, 10) || "-";
+  const recruitEnd = item?.recruit_end_date || item?.start_date || "-";
+  const tag = item?.verification_tag ? `\n인증 해시태그: ${item.verification_tag}` : "";
+  const text = [
+    `[RRC 포인트 챌린지 모집]`,
+    `챌린지명: ${item?.title || "포인트 챌린지"}`,
+    `베팅 포인트: ${Number(item?.stake_points || 0)}P`,
+    `모집 기간: ${recruitStart} ~ ${recruitEnd}`,
+    `진행 기간: ${item?.start_date || "-"} ~ ${item?.end_date || "-"}`,
+    `인증: RRC 카카오톡 채팅방${tag}`,
+    `성공 조건: ${item?.rule_text || "-"}`
+  ].join("\n");
+  try {
+    await navigator.clipboard.writeText(text);
+    setStatus(challengeStatus, "카톡 공지용 문구를 복사했습니다.");
+  } catch (_error) {
+    window.prompt("카톡방에 붙여넣을 공지 문구입니다.", text);
+  }
 }
 
 async function joinChallenge(challengeId, defaultStake = 0, explicitStake = null) {

@@ -285,9 +285,15 @@
                     <input id="challenge-stake" type="number" min="1" max="2000" placeholder="기본 베팅 포인트" />
                     <input id="challenge-tag" type="text" maxlength="40" placeholder="인증 태그 예: #RRC매일1K" />
                   </div>
+                  <p class="list-meta" style="margin:0;">모집 기간</p>
                   <div class="inline-form">
-                    <input id="challenge-start" type="date" />
-                    <input id="challenge-end" type="date" />
+                    <input id="challenge-recruit-start" type="date" aria-label="모집 시작일" />
+                    <input id="challenge-recruit-end" type="date" aria-label="모집 종료일" />
+                  </div>
+                  <p class="list-meta" style="margin:0;">진행 기간</p>
+                  <div class="inline-form">
+                    <input id="challenge-start" type="date" aria-label="진행 시작일" />
+                    <input id="challenge-end" type="date" aria-label="진행 종료일" />
                   </div>
                   <textarea id="challenge-rule" rows="4" maxlength="600" placeholder="성공 조건과 카톡 인증 방식을 적어 주세요"></textarea>
                   <div class="inline-form">

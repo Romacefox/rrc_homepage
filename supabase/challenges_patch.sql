@@ -80,3 +80,7 @@ create policy "admin manage point awards" on public.member_point_awards
 for all to authenticated
 using (public.is_admin())
 with check (public.is_admin());
+
+alter table public.member_challenges
+add column if not exists recruit_start_date date,
+add column if not exists recruit_end_date date;
