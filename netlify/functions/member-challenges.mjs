@@ -2,9 +2,15 @@ const CHALLENGE_TABLE = "member_challenges";
 const ENTRY_TABLE = "member_challenge_entries";
 const AWARD_TABLE = "member_point_awards";
 const REWARD_TABLE = "reward_requests";
+const PHOTO_TABLE = "photos";
+const COMMENT_TABLE = "photo_comments";
 const PROFILE_TABLE = "member_profiles";
 const LOG_TABLE = "operation_logs";
 const MIN_CHALLENGE_PARTICIPANTS = 3;
+const PHOTO_POINTS = 5;
+const PHOTO_MONTHLY_CAP = 5;
+const COMMENT_POINTS = 2;
+const COMMENT_MONTHLY_CAP = 10;
 
 export default async (request) => {
   try {
@@ -263,7 +269,7 @@ async function selectChallenges(limit) {
 }
 
 async function autoTransitionChallenges(items) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayKstDateKey();
   for (const item of Array.isArray(items) ? items : []) {
     if (item.status !== "recruiting") {
       continue;
@@ -314,21 +320,24 @@ async function insertChallengePayload(payload) {
 
 async function calculateAvailablePoints(auth) {
   const userId = String(auth.user?.id || "");
-  const memberName = normalizeName(auth.profile?.name || "");
-  const [awards, rewards, entries] = await Promise.all([
+  const [awards, rewards, entries, photos, comments] = await Promise.all([
     supabaseSelect(`${AWARD_TABLE}?or=(user_id.eq.${encodeURIComponent(userId)},member_name.eq.${encodeURIComponent(auth.profile?.name || "")})&select=award_code,points`).catch(() => []),
     supabaseSelect(`${REWARD_TABLE}?user_id=eq.${encodeURIComponent(userId)}&status=in.(submitted,approved,fulfilled)&select=point_cost,status`).catch(() => []),
-    supabaseSelect(`${ENTRY_TABLE}?user_id=eq.${encodeURIComponent(userId)}&select=stake_points,challenge_id`).catch(() => [])
+    supabaseSelect(`${ENTRY_TABLE}?user_id=eq.${encodeURIComponent(userId)}&select=stake_points,challenge_id`).catch(() => []),
+    supabaseSelect(`${PHOTO_TABLE}?user_id=eq.${encodeURIComponent(userId)}&select=created_at&limit=1000`).catch(() => []),
+    supabaseSelect(`${COMMENT_TABLE}?user_id=eq.${encodeURIComponent(userId)}&select=created_at&limit=1000`).catch(() => [])
   ]);
   const earned = (Array.isArray(awards) ? awards : []).reduce((sum, row) => sum + Number(row.points || 0), 0);
   const hasSignupBonus = (Array.isArray(awards) ? awards : []).some((row) => row.award_code === "signup_bonus");
   const signupBonus = hasSignupBonus ? 0 : 20;
+  const photoPoints = countMonthlyCappedDailyEvents(photos, PHOTO_MONTHLY_CAP) * PHOTO_POINTS;
+  const commentPoints = countMonthlyCappedDailyEvents(comments, COMMENT_MONTHLY_CAP) * COMMENT_POINTS;
   const used = (Array.isArray(rewards) ? rewards : []).reduce((sum, row) => sum + Number(row.point_cost || 0), 0);
   const activeChallengeIds = await loadActiveChallengeIds();
   const locked = (Array.isArray(entries) ? entries : [])
     .filter((entry) => activeChallengeIds.has(String(entry.challenge_id || "")))
     .reduce((sum, entry) => sum + Number(entry.stake_points || 0), 0);
-  return Math.max(earned + signupBonus - used - locked, 0);
+  return Math.max(earned + signupBonus + photoPoints + commentPoints - used - locked, 0);
 }
 
 async function loadActiveChallengeIds() {
@@ -376,6 +385,47 @@ function allocateProportionalPayouts(successEntries, pot) {
 function normalizeDate(value) {
   const match = String(value || "").match(/^\d{4}-\d{2}-\d{2}$/);
   return match ? match[0] : "";
+}
+
+function countMonthlyCappedDailyEvents(rows, monthlyCap) {
+  const daysByMonth = new Map();
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    const monthKey = toMonthKey(row.created_at);
+    const dayKey = toDateKey(row.created_at);
+    if (!monthKey || !dayKey) {
+      return;
+    }
+    const days = daysByMonth.get(monthKey) || new Set();
+    days.add(dayKey);
+    daysByMonth.set(monthKey, days);
+  });
+  return [...daysByMonth.values()].reduce((sum, days) => sum + Math.min(days.size, Number(monthlyCap || 0)), 0);
+}
+
+function toMonthKey(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function toDateKey(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function todayKstDateKey() {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  });
+  return formatter.format(new Date());
 }
 
 function extractBearerToken(header) {
