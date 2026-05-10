@@ -13,7 +13,7 @@ export default async (request) => {
       loadExistingMembers(),
       supabaseSelect("notices?select=id,title,content,created_at&order=created_at.desc&limit=300"),
       supabaseSelect("guests?select=id,name,birth_year,phone,message,status,created_at&order=created_at.desc&limit=500"),
-      supabaseSelect("attendance_logs?select=id,source,event_type,attendance_date,raw_count,matched,unmatched,ambiguous,created_at&order=created_at.desc&limit=200"),
+      supabaseSelect("attendance_logs?select=id,source,event_type,attendance_date,raw_count,matched,unmatched,ambiguous,created_at&order=created_at.desc&limit=1000"),
       supabaseSelect("raffle_history?select=draw_id,target_month_key,threshold,winner_count,winners,created_at&order=created_at.desc&limit=100"),
       loadOptionalRows("operation_logs?select=id,actor_name,action,detail,created_at&order=created_at.desc&limit=100", "operation_logs"),
       supabaseSelect("member_profiles?select=user_id,email,name,birth_year,approval_status,role&order=created_at.desc&limit=500"),
@@ -159,7 +159,8 @@ function json(statusCode, payload) {
   return new Response(JSON.stringify(payload), {
     status: statusCode,
     headers: {
-      "Content-Type": "application/json; charset=utf-8"
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store"
     }
   });
 }

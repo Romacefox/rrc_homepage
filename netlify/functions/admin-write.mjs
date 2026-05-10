@@ -178,7 +178,22 @@ export default async (request) => {
         return json(404, { ok: false, error: "member not found" });
       }
 
-      await supabaseDelete(`members?id=eq.${encodeURIComponent(member.id)}`);
+      const deletedMembers = await supabaseDeleteReturning(`members?id=eq.${encodeURIComponent(member.id)}&select=id,name`);
+      if (!Array.isArray(deletedMembers) || deletedMembers.length < 1) {
+        return json(409, {
+          ok: false,
+          error: "member delete did not affect any rows",
+          target: { id: member.id, name: member.name, birth_year: member.birth_year }
+        });
+      }
+      const stillExists = await loadMemberById(member.id);
+      if (stillExists) {
+        return json(409, {
+          ok: false,
+          error: "member still exists after delete",
+          target: { id: member.id, name: member.name, birth_year: member.birth_year }
+        });
+      }
       await tryInsertOperationLog(auth, "member_delete", `${member.name} (${member.birth_year || ""})`);
       return json(200, { ok: true, message: "member deleted", deleted_member: { id: member.id, name: member.name } });
     }
@@ -533,9 +548,32 @@ async function revertAttendanceFallback(auth, { logId, attendanceDate = "", even
     throw new Error("attendance log not found");
   }
 
+  const deletedLogs = await supabaseDeleteReturning(`attendance_logs?id=eq.${encodeURIComponent(log.id)}&select=id`);
+  if (!Array.isArray(deletedLogs) || deletedLogs.length < 1) {
+    return {
+      ok: false,
+      error: "attendance log delete did not affect any rows",
+      target: {
+        id: log.id,
+        attendance_date: log.attendance_date,
+        event_type: log.event_type
+      }
+    };
+  }
+  const stillExists = await loadAttendanceLogById(log.id);
+  if (stillExists) {
+    return {
+      ok: false,
+      error: "attendance log still exists after delete",
+      target: {
+        id: log.id,
+        attendance_date: log.attendance_date,
+        event_type: log.event_type
+      }
+    };
+  }
   const members = await loadMembers();
   await revertAttendanceMatches(log, members, monthKeyFromDate(log.attendance_date));
-  await supabaseDelete(`attendance_logs?id=eq.${encodeURIComponent(log.id)}`);
   await tryInsertOperationLog(auth, "attendance_revert", `${log.attendance_date} ${log.event_type}`);
   return { ok: true, message: "attendance reverted" };
 }
@@ -986,6 +1024,24 @@ async function supabaseDelete(path) {
   }
 }
 
+async function supabaseDeleteReturning(path) {
+  const response = await fetch(`${env("SUPABASE_URL")}/rest/v1/${path}`, {
+    method: "DELETE",
+    headers: {
+      Prefer: "return=representation",
+      apikey: env("SUPABASE_SERVICE_ROLE_KEY"),
+      Authorization: `Bearer ${env("SUPABASE_SERVICE_ROLE_KEY")}`
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  const text = await response.text();
+  return text ? JSON.parse(text) : [];
+}
+
 async function supabaseRpc(name, payload) {
   const response = await fetch(`${env("SUPABASE_URL")}/rest/v1/rpc/${name}`, {
     method: "POST",
@@ -1066,7 +1122,8 @@ function json(statusCode, payload) {
   return new Response(JSON.stringify(payload), {
     status: statusCode,
     headers: {
-      "Content-Type": "application/json; charset=utf-8"
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store"
     }
   });
 }

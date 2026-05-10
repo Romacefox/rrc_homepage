@@ -3581,7 +3581,8 @@ function updateSyncOverviewWithRemoteCount(remoteCount, localCount = null) {
 }
 
 async function fetchAdminSnapshot() {
-  const response = await fetch("/.netlify/functions/admin-snapshot", {
+  const response = await fetch(`/.netlify/functions/admin-snapshot?t=${Date.now()}`, {
+    cache: "no-store",
     headers: {
       Authorization: `Bearer ${currentAdminToken}`
     }
@@ -3596,8 +3597,9 @@ async function fetchAdminSnapshot() {
 }
 
 async function callAdminWrite(action, payload = {}) {
-  const response = await fetch("/.netlify/functions/admin-write", {
+  const response = await fetch(`/.netlify/functions/admin-write?t=${Date.now()}`, {
     method: "POST",
+    cache: "no-store",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${currentAdminToken}`
