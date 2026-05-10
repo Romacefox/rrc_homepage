@@ -160,18 +160,27 @@ export default async (request) => {
       const memberId = String(body?.member_id || "").trim();
       const name = String(body?.name || "").trim();
       const birthYear = Number(body?.birth_year || 0);
-      if (!memberId && (!name || !birthYear)) {
+      if (!memberId && !name) {
         return json(400, { ok: false, error: "missing member target" });
       }
 
-      const member = await loadMemberById(memberId) || await loadMemberByIdentity(name, birthYear);
+      const members = await loadMembers();
+      const memberResult = findMemberForDeletion(members, { memberId, name, birthYear });
+      if (memberResult.ambiguous) {
+        return json(409, {
+          ok: false,
+          error: "member target is ambiguous",
+          candidates: memberResult.candidates
+        });
+      }
+      const member = memberResult.member;
       if (!member) {
         return json(404, { ok: false, error: "member not found" });
       }
 
       await supabaseDelete(`members?id=eq.${encodeURIComponent(member.id)}`);
       await tryInsertOperationLog(auth, "member_delete", `${member.name} (${member.birth_year || ""})`);
-      return json(200, { ok: true, message: "member deleted" });
+      return json(200, { ok: true, message: "member deleted", deleted_member: { id: member.id, name: member.name } });
     }
 
     if (action === "run_raffle") {
@@ -505,11 +514,22 @@ async function replaceAttendanceFallback(auth, { logId, names, attendanceDate, e
 
 async function revertAttendanceFallback(auth, { logId, attendanceDate = "", eventType = "", source = "bulk", matched = [] }) {
   let log = logId ? await loadAttendanceLogById(logId) : null;
-  if (!log && attendanceDate && eventType) {
+  if (!log && attendanceDate) {
     const logs = await loadAttendanceLogs();
     log = findAttendanceLogForRevert(logs, { attendanceDate, eventType, source, matched }) || null;
   }
   if (!log) {
+    if (attendanceDate && matched.length) {
+      const members = await loadMembers();
+      const manualLog = {
+        attendance_date: attendanceDate,
+        event_type: eventType || "attendance",
+        matched
+      };
+      await revertAttendanceMatches(manualLog, members, monthKeyFromDate(attendanceDate));
+      await tryInsertOperationLog(auth, "attendance_revert_manual", `${attendanceDate} ${eventType || ""} / ${matched.length}`);
+      return { ok: true, message: "attendance reverted by matched names", mode: "manual_without_log" };
+    }
     throw new Error("attendance log not found");
   }
 
@@ -645,7 +665,7 @@ async function loadMemberByIdentity(name, birthYear) {
 }
 
 async function loadAttendanceLogs() {
-  return supabaseSelect("attendance_logs?select=id,source,event_type,attendance_date,matched,unmatched,ambiguous,created_at&order=created_at.desc&limit=200");
+  return supabaseSelect("attendance_logs?select=id,source,event_type,attendance_date,matched,unmatched,ambiguous,created_at&order=created_at.desc&limit=1000");
 }
 
 async function loadAttendanceLogById(logId) {
@@ -711,39 +731,91 @@ function findAttendanceLogByScope(logs, attendanceDate, eventType, source) {
 }
 
 function findAttendanceLogForRevert(logs, { attendanceDate, eventType, source, matched = [] }) {
-  const sameDateType = (Array.isArray(logs) ? logs : []).filter((entry) => (
+  const sameDate = (Array.isArray(logs) ? logs : []).filter((entry) => (
     String(entry?.attendance_date || "") === String(attendanceDate || "")
-    && String(entry?.event_type || "") === String(eventType || "")
   ));
-  if (!sameDateType.length) {
+  if (!sameDate.length) {
     return null;
   }
 
-  const sameSource = sameDateType.find((entry) => String(entry?.source || "bulk") === String(source || "bulk"));
   const matchedKeys = new Set((Array.isArray(matched) ? matched : []).map(normalizeName).filter(Boolean));
-  if (!matchedKeys.size) {
-    return sameSource || sameDateType[0] || null;
-  }
-
-  const exactByNames = sameDateType.find((entry) => {
+  const targetEventType = normalizeLoose(eventType);
+  const targetSource = normalizeLoose(source || "bulk");
+  const scored = sameDate.map((entry) => {
     const entryKeys = new Set((Array.isArray(entry?.matched) ? entry.matched : []).map(normalizeName).filter(Boolean));
-    if (entryKeys.size !== matchedKeys.size) {
-      return false;
-    }
-    return [...matchedKeys].every((key) => entryKeys.has(key));
-  });
-  if (exactByNames) {
-    return exactByNames;
+    const overlap = [...matchedKeys].filter((key) => entryKeys.has(key)).length;
+    const exactNames = matchedKeys.size > 0
+      && entryKeys.size === matchedKeys.size
+      && [...matchedKeys].every((key) => entryKeys.has(key));
+    const eventScore = targetEventType && normalizeLoose(entry?.event_type) === targetEventType ? 40 : 0;
+    const sourceScore = targetSource && normalizeLoose(entry?.source || "bulk") === targetSource ? 10 : 0;
+    const exactScore = exactNames ? 80 : 0;
+    const overlapScore = overlap * 12;
+    const hasNameSignal = matchedKeys.size > 0 ? overlapScore + exactScore : 0;
+    const createdAt = Date.parse(entry?.created_at || "") || 0;
+    return {
+      entry,
+      score: eventScore + sourceScore + hasNameSignal,
+      overlap,
+      createdAt
+    };
+  }).sort((a, b) => (
+    b.score - a.score
+    || b.overlap - a.overlap
+    || b.createdAt - a.createdAt
+  ));
+
+  const best = scored[0];
+  if (!best) {
+    return null;
+  }
+  if (matchedKeys.size && best.overlap === 0 && targetEventType) {
+    const eventMatch = scored.find((item) => normalizeLoose(item.entry?.event_type) === targetEventType);
+    return eventMatch?.entry || best.entry;
+  }
+  return best.entry;
+}
+
+function findMemberForDeletion(members, { memberId, name, birthYear }) {
+  const allMembers = Array.isArray(members) ? members : [];
+  const byId = memberId
+    ? allMembers.find((member) => String(member?.id || "") === String(memberId))
+    : null;
+  if (byId) {
+    return { member: byId, ambiguous: false, candidates: [] };
   }
 
-  const overlapByNames = sameDateType
-    .map((entry) => {
-      const entryKeys = new Set((Array.isArray(entry?.matched) ? entry.matched : []).map(normalizeName).filter(Boolean));
-      const overlap = [...matchedKeys].filter((key) => entryKeys.has(key)).length;
-      return { entry, overlap };
-    })
-    .sort((a, b) => b.overlap - a.overlap)[0];
-  return overlapByNames?.overlap > 0 ? overlapByNames.entry : sameSource || sameDateType[0] || null;
+  const normalizedName = normalizeName(name);
+  if (!normalizedName) {
+    return { member: null, ambiguous: false, candidates: [] };
+  }
+
+  const sameName = allMembers.filter((member) => normalizeName(member?.name) === normalizedName);
+  if (birthYear) {
+    const exact = sameName.find((member) => Number(member?.birth_year || 0) === birthYear);
+    if (exact) {
+      return { member: exact, ambiguous: false, candidates: [] };
+    }
+  }
+  if (sameName.length === 1) {
+    return { member: sameName[0], ambiguous: false, candidates: [] };
+  }
+  if (sameName.length > 1) {
+    return {
+      member: null,
+      ambiguous: true,
+      candidates: sameName.map((member) => ({
+        id: member.id,
+        name: member.name,
+        birth_year: member.birth_year
+      }))
+    };
+  }
+  return { member: null, ambiguous: false, candidates: [] };
+}
+
+function normalizeLoose(value) {
+  return String(value || "").replace(/\s+/g, "").toLowerCase();
 }
 
 async function revertAttendanceMatches(log, members, monthKey) {

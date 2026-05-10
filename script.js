@@ -666,7 +666,7 @@ async function loadSyncMetadata() {
 }
 
 
-async function loadAdminSnapshot() {
+async function loadAdminSnapshot({ preserveLocal = true } = {}) {
   if (!currentAdminToken) {
     return;
   }
@@ -739,11 +739,11 @@ async function loadAdminSnapshot() {
     const localGuests = Array.isArray(db.guests) ? db.guests : [];
     const localAttendanceLogs = Array.isArray(db.attendanceLogs) ? db.attendanceLogs : [];
     const localAuditLogs = Array.isArray(db.auditLogs) ? db.auditLogs : [];
-    const preserveLocalMembers = shouldPreserveLocalMembers(localMembers, remoteSnapshot.members);
-    const preserveLocalNotices = shouldPreserveLocalCollection(localNotices, remoteSnapshot.notices);
-    const preserveLocalGuests = shouldPreserveLocalCollection(localGuests, remoteSnapshot.guests);
-    const preserveLocalAttendanceLogs = shouldPreserveLocalCollection(localAttendanceLogs, remoteSnapshot.attendanceLogs);
-    const preserveLocalAuditLogs = shouldPreserveLocalCollection(localAuditLogs, remoteSnapshot.auditLogs);
+    const preserveLocalMembers = preserveLocal && shouldPreserveLocalMembers(localMembers, remoteSnapshot.members);
+    const preserveLocalNotices = preserveLocal && shouldPreserveLocalCollection(localNotices, remoteSnapshot.notices);
+    const preserveLocalGuests = preserveLocal && shouldPreserveLocalCollection(localGuests, remoteSnapshot.guests);
+    const preserveLocalAttendanceLogs = preserveLocal && shouldPreserveLocalCollection(localAttendanceLogs, remoteSnapshot.attendanceLogs);
+    const preserveLocalAuditLogs = preserveLocal && shouldPreserveLocalCollection(localAuditLogs, remoteSnapshot.auditLogs);
     const preservedMembers = preserveLocalMembers
       ? mergeMemberCollections(localMembers, remoteSnapshot.members)
       : remoteSnapshot.members;
@@ -1369,7 +1369,7 @@ async function handleMemberAdd(event) {
   if (currentAdminToken) {
     try {
       await callAdminWrite("add_member", { name, birth_year: birthYear });
-      await loadAdminSnapshot();
+      await loadAdminSnapshot({ preserveLocal: false });
       renderAll();
       memberForm.reset();
       if (syncStatus) {
@@ -1667,7 +1667,7 @@ async function handleMemberDelete(member) {
         name: member.name,
         birth_year: member.birthYear || member.birth_year
       });
-      await loadAdminSnapshot();
+      await loadAdminSnapshot({ preserveLocal: false });
       renderAll();
       if (syncStatus) {
         syncStatus.textContent = `${member.name} 삭제 완료: 서버에 바로 반영했습니다.`;
@@ -2381,7 +2381,7 @@ async function revertAttendanceLog(logId) {
         source: log.source || "bulk",
         matched: log.matched || []
       });
-      await loadAdminSnapshot();
+      await loadAdminSnapshot({ preserveLocal: false });
       renderAll();
       if (syncStatus) {
         syncStatus.textContent = "출석 되돌리기 완료: 서버에 바로 반영했습니다.";
