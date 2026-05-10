@@ -1315,7 +1315,7 @@ async function loadActivityBoard() {
   );
   let rows = members
     .map((member) => buildActivityRowFromMember(member, selectedMonth, pointSummaryByName, attendanceLogs))
-    .sort((a, b) => (b.monthRuns - a.monthRuns) || (Number(b.total_runs || 0) - Number(a.total_runs || 0)) || String(a.name || "").localeCompare(String(b.name || ""), "ko"));
+    .sort((a, b) => compareActivityRowsForMonthlyBoard(a, b, selectedMonth));
   const profileBirthYear = Number(authProfile.birth_year || 0);
   let me = rows.find((member) => {
     const sameName = normalizeName(member.name) === normalizeName(authProfile.name);
@@ -1436,6 +1436,7 @@ function renderAttendanceBoard(rows, monthKey) {
   rows.forEach((member, index) => {
     const item = document.createElement("li");
     item.className = "list-item board-ranking-item";
+    const streakRunTotal = getStreakQualifiedRunTotal(member, monthKey);
     const badge = index === 0 && member.monthRuns > 0
       ? '<span class="status-chip">선두</span>'
       : member.monthRuns >= getMonthThreshold(monthKey)
@@ -1447,7 +1448,7 @@ function renderAttendanceBoard(rows, monthKey) {
         <span class="list-title">${index + 1}. ${escapeHtml(member.name || "이름없음")}${badge}${ticketChip}</span>
         <span class="list-meta">${monthKeyToLabel(monthKey)} ${member.monthRuns}회</span>
       </div>
-      <p class="list-meta">누적 ${Number(member.total_runs || 0)}회 / 연속 출석 ${member.streak}개월 / 활동 포인트 ${getMemberPointTotal(member)}P</p>
+      <p class="list-meta">연속 누적 ${streakRunTotal}회 / 연속 출석 ${member.streak}개월 / 활동 포인트 ${getMemberPointTotal(member)}P</p>
     `;
     attendanceBoard.appendChild(item);
   });
@@ -1519,9 +1520,9 @@ function renderPublicTicketBoard(rows, monthKey) {
     return;
   }
 
-  const visibleRows = rows
+  const visibleRows = [...rows]
     .filter((member) => member.monthRuns > 0 || member.tickets > 0 || getMemberPointTotal(member) > 0)
-    .sort((a, b) => (b.tickets - a.tickets) || (getMemberPointTotal(b) - getMemberPointTotal(a)) || (b.monthRuns - a.monthRuns))
+    .sort((a, b) => compareActivityRowsForMonthlyBoard(a, b, monthKey))
     .slice(0, 6);
 
   visibleRows.forEach((member, index) => {
@@ -1537,10 +1538,36 @@ function renderPublicTicketBoard(rows, monthKey) {
         <span class="list-title">${index + 1}. ${escapeHtml(member.name || "이름없음")}${titleChip}</span>
         <span class="list-meta">추첨권 ${member.tickets}장</span>
       </div>
-      <p class="list-meta">이번 달 출석 ${member.monthRuns}회 / 활동 포인트 ${getMemberPointTotal(member)}P / 연속 출석 ${member.streak}개월</p>
+      <p class="list-meta">이번 달 출석 ${member.monthRuns}회 / 연속 누적 ${getStreakQualifiedRunTotal(member, monthKey)}회 / 활동 포인트 ${getMemberPointTotal(member)}P / 연속 출석 ${member.streak}개월</p>
     `;
     publicTicketBoard.appendChild(item);
   });
+}
+
+function compareActivityRowsForMonthlyBoard(a, b, monthKey) {
+  return (Number(b?.monthRuns || 0) - Number(a?.monthRuns || 0))
+    || (getStreakQualifiedRunTotal(b, monthKey) - getStreakQualifiedRunTotal(a, monthKey))
+    || (Number(b?.total_runs || 0) - Number(a?.total_runs || 0))
+    || String(a?.name || "").localeCompare(String(b?.name || ""), "ko");
+}
+
+function getStreakQualifiedRunTotal(member, startMonthKey) {
+  if (!member || !startMonthKey) {
+    return 0;
+  }
+  let total = 0;
+  for (let i = 0; i < 24; i += 1) {
+    const key = shiftMonthKey(startMonthKey, -i);
+    if (compareMonthKey(key, ATTENDANCE_STREAK_START_MONTH) < 0) {
+      break;
+    }
+    const runs = getMonthlyRuns(member, key);
+    if (runs <= 0) {
+      break;
+    }
+    total += runs;
+  }
+  return total;
 }
 
 function renderCandidatePreviewBoard(rows, monthKey) {
