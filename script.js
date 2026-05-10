@@ -1663,7 +1663,9 @@ async function handleMemberDelete(member) {
   if (currentAdminToken) {
     try {
       await callAdminWrite("delete_member", {
-        member_id: member.id
+        member_id: member.id,
+        name: member.name,
+        birth_year: member.birthYear
       });
       await loadAdminSnapshot();
       renderAll();

@@ -158,16 +158,18 @@ export default async (request) => {
 
     if (action === "delete_member") {
       const memberId = String(body?.member_id || "").trim();
-      if (!memberId) {
-        return json(400, { ok: false, error: "missing member_id" });
+      const name = String(body?.name || "").trim();
+      const birthYear = Number(body?.birth_year || 0);
+      if (!memberId && (!name || !birthYear)) {
+        return json(400, { ok: false, error: "missing member target" });
       }
 
-      const member = await loadMemberById(memberId);
+      const member = await loadMemberById(memberId) || await loadMemberByIdentity(name, birthYear);
       if (!member) {
         return json(404, { ok: false, error: "member not found" });
       }
 
-      await supabaseDelete(`members?id=eq.${encodeURIComponent(memberId)}`);
+      await supabaseDelete(`members?id=eq.${encodeURIComponent(member.id)}`);
       await tryInsertOperationLog(auth, "member_delete", `${member.name} (${member.birth_year || ""})`);
       return json(200, { ok: true, message: "member deleted" });
     }
@@ -416,7 +418,7 @@ export default async (request) => {
       const rpcResult = logId ? await tryAttendanceMutationRpc({
         action,
         log_id: logId
-      }) : null;
+      }, { allowNotFoundFallback: true }) : null;
       if (rpcResult?.ok) {
         await tryInsertOperationLog(auth, "attendance_revert", logId);
         return json(200, rpcResult);
@@ -606,6 +608,9 @@ async function loadMembers() {
 }
 
 async function loadMemberById(memberId) {
+  if (!memberId) {
+    return null;
+  }
   const attempts = [
     `members?id=eq.${encodeURIComponent(memberId)}&select=id,name,birth_year,total_runs,monthly_runs,fee_status,aliases,is_active&limit=1`,
     `members?id=eq.${encodeURIComponent(memberId)}&select=id,name,birth_year,total_runs,monthly_runs,fee_status,is_active&limit=1`,
@@ -624,6 +629,19 @@ async function loadMemberById(memberId) {
   }
 
   return null;
+}
+
+async function loadMemberByIdentity(name, birthYear) {
+  const normalizedName = normalizeName(name);
+  const normalizedBirthYear = Number(birthYear || 0);
+  if (!normalizedName || !normalizedBirthYear) {
+    return null;
+  }
+  const members = await loadMembers();
+  return members.find((member) => (
+    normalizeName(member.name) === normalizedName
+    && Number(member.birth_year || 0) === normalizedBirthYear
+  )) || null;
 }
 
 async function loadAttendanceLogs() {
@@ -878,12 +896,15 @@ async function supabaseRpc(name, payload) {
   return response.json();
 }
 
-async function tryAttendanceMutationRpc(payload) {
+async function tryAttendanceMutationRpc(payload, options = {}) {
   try {
     const result = await supabaseRpc(ATTENDANCE_RPC_NAME, { payload });
     return result && typeof result === "object" ? result : null;
   } catch (error) {
     if (isMissingFunctionError(error, ATTENDANCE_RPC_NAME)) {
+      return null;
+    }
+    if (options.allowNotFoundFallback && isRpcNotFoundError(error)) {
       return null;
     }
     throw error;
@@ -918,6 +939,11 @@ function isMissingTableError(error, tableName) {
 function isMissingFunctionError(error, functionName) {
   const message = String(error?.message || error || "").toLowerCase();
   return message.includes(String(functionName || "").toLowerCase()) && (message.includes("function") || message.includes("could not find"));
+}
+
+function isRpcNotFoundError(error) {
+  const message = String(error?.message || error || "").toLowerCase();
+  return message.includes("p0001") || message.includes("not found");
 }
 
 function env(name) {
