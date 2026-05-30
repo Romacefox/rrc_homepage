@@ -217,9 +217,134 @@ create table if not exists public.member_point_awards (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.member_mission_claims (
+  id uuid primary key default gen_random_uuid(),
+  member_id uuid not null,
+  mission_key text not null,
+  period_key text not null,
+  points integer not null default 0,
+  status text not null default 'claimed',
+  metadata jsonb,
+  claimed_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  unique (member_id, mission_key, period_key)
+);
+
 alter table public.member_challenges enable row level security;
 alter table public.member_challenge_entries enable row level security;
 alter table public.member_point_awards enable row level security;
+alter table public.member_mission_claims enable row level security;
+
+create or replace function public.claim_activity_mission(
+  p_member_id uuid,
+  p_member_name text,
+  p_mission_key text,
+  p_period_key text,
+  p_points integer,
+  p_award_label text,
+  p_metadata jsonb default '{}'::jsonb
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_claim public.member_mission_claims%rowtype;
+  v_inserted boolean := false;
+begin
+  if p_member_id is null or coalesce(p_mission_key, '') = '' or coalesce(p_period_key, '') = '' then
+    raise exception 'invalid mission claim payload';
+  end if;
+
+  insert into public.member_mission_claims (
+    member_id,
+    mission_key,
+    period_key,
+    points,
+    status,
+    metadata
+  )
+  values (
+    p_member_id,
+    p_mission_key,
+    p_period_key,
+    greatest(coalesce(p_points, 0), 0),
+    'claimed',
+    coalesce(p_metadata, '{}'::jsonb)
+  )
+  on conflict (member_id, mission_key, period_key) do nothing
+  returning * into v_claim;
+
+  v_inserted := v_claim.id is not null;
+
+  if not v_inserted then
+    select * into v_claim
+    from public.member_mission_claims
+    where member_id = p_member_id
+      and mission_key = p_mission_key
+      and period_key = p_period_key
+    limit 1;
+
+    return jsonb_build_object(
+      'ok', true,
+      'claimed', false,
+      'already_claimed', true,
+      'claim_id', v_claim.id
+    );
+  end if;
+
+  if greatest(coalesce(p_points, 0), 0) > 0 then
+    insert into public.member_point_awards (
+      user_id,
+      member_name,
+      month_key,
+      award_code,
+      award_label,
+      points,
+      note,
+      granted_by_user_id,
+      granted_by_name
+    )
+    values (
+      p_member_id,
+      coalesce(nullif(p_member_name, ''), 'RRC 회원'),
+      case
+        when p_period_key ~ '^\d{4}-\d{2}$' then p_period_key
+        else to_char(now(), 'YYYY-MM')
+      end,
+      ('mission_' || p_mission_key),
+      left(coalesce(nullif(p_award_label, ''), '미션 포인트'), 80),
+      greatest(coalesce(p_points, 0), 0),
+      left(
+        concat(
+          'activity mission: ',
+          p_mission_key,
+          ' / period: ',
+          p_period_key,
+          ' / points: ',
+          greatest(coalesce(p_points, 0), 0)::text
+        ),
+        300
+      ),
+      null,
+      'activity-missions'
+    );
+  end if;
+
+  return jsonb_build_object(
+    'ok', true,
+    'claimed', true,
+    'already_claimed', false,
+    'claim_id', v_claim.id
+  );
+end;
+$$;
+
+revoke execute on function public.claim_activity_mission(uuid, text, text, text, integer, text, jsonb) from public;
+revoke execute on function public.claim_activity_mission(uuid, text, text, text, integer, text, jsonb) from anon;
+revoke execute on function public.claim_activity_mission(uuid, text, text, text, integer, text, jsonb) from authenticated;
+grant execute on function public.claim_activity_mission(uuid, text, text, text, integer, text, jsonb) to service_role;
 
 create or replace function public.admin_attendance_mutation(payload jsonb)
 returns jsonb

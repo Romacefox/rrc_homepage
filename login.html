@@ -74,6 +74,34 @@
               <select id="activity-month"></select>
               <button id="activity-refresh" class="btn ghost" type="button">새로고침</button>
             </div>
+            <article id="activity-mission-card" class="panel board-highlight activity-mission-card" style="margin-top:1rem;">
+              <div class="section-head">
+                <h3>이번 달 내 미션</h3>
+                <span id="activity-mission-month" class="badge">미션 확인 중</span>
+              </div>
+              <div class="mission-reward-summary">
+                <div>
+                  <span>현재 사용 가능 포인트</span>
+                  <strong id="activity-mission-current-points">0P</strong>
+                </div>
+                <div>
+                  <span>다음 보조권 달성률</span>
+                  <strong id="activity-mission-progress-label">0%</strong>
+                </div>
+                <div>
+                  <span>이번 달 남은 미션 포인트</span>
+                  <strong id="activity-mission-remaining-points">0P</strong>
+                </div>
+              </div>
+              <div class="reward-progress mission-progress" aria-label="다음 RRC샵 보조권 진행률">
+                <span id="activity-mission-progress-bar" style="width:0%"></span>
+              </div>
+              <p id="activity-mission-reward-note" class="list-meta">RRC샵 보조권까지 남은 포인트를 계산하고 있습니다.</p>
+              <ul id="activity-mission-list" class="list small mission-check-list"></ul>
+              <p id="activity-mission-status" class="list-meta" style="margin-top:0.75rem;">미션 상태를 불러오는 중입니다.</p>
+              <p class="list-meta mission-policy-note">RRC 포인트는 현금 지급 수단이 아니라, RRC 활동 참여를 기록하고 RRC샵 보조권 신청 및 챌린지 참여에 활용하는 활동 포인트입니다. 보조권은 운영 예산과 운영진 승인 기준에 따라 처리됩니다.</p>
+              <p class="list-meta mission-policy-note">오픈 이벤트 미션 포인트는 활동보드 적응을 위한 1회성 이벤트이며, 운영 상황에 따라 기준이 조정될 수 있습니다.</p>
+            </article>
             <div class="stats-grid member-board-stats" style="margin-top:0.8rem;">
               <div class="stat-card"><span>이번 달 출석</span><strong id="my-month-runs">0회</strong></div>
               <div class="stat-card"><span>누적 출석</span><strong id="my-total-runs">0회</strong></div>
@@ -225,7 +253,7 @@
                   <h3>월간 포인트 랭킹</h3>
                   <span class="badge">월간 기준</span>
                 </div>
-                <p class="list-meta">이달의 러너, 정기런 배지, 사진/댓글, 운영진 지급, 챌린지 정산 포인트를 월별로 모아 보여줍니다. 운영 환산 기준은 10P=100원입니다.</p>
+                <p class="list-meta">이달의 러너, 정기런 배지, 사진/댓글, 운영진 지급, 챌린지 정산 포인트를 월별로 모아 보여줍니다. 포인트는 RRC샵 보조권 신청과 챌린지 참여에 쓰는 활동 기록 기준입니다.</p>
                 <div class="point-guide-grid">
                   <div class="point-guide-card"><strong>신규 가입 · 20P</strong><span>운영진 승인과 동시에 웰컴 포인트 지급</span></div>
                   <div class="point-guide-card"><strong>이달의 러너 · 100P</strong><span>출석 입력 마감 후 운영진이 월별로 확정 지급</span></div>

@@ -9,6 +9,7 @@ alter table public.photos enable row level security;
 alter table public.member_challenges enable row level security;
 alter table public.member_challenge_entries enable row level security;
 alter table public.member_point_awards enable row level security;
+alter table public.member_mission_claims enable row level security;
 alter table public.member_profiles enable row level security;
 alter table public.running_hub_posts enable row level security;
 alter table public.photo_comments enable row level security;
@@ -133,6 +134,17 @@ using (
 
 drop policy if exists "admin manage point awards" on public.member_point_awards;
 create policy "admin manage point awards" on public.member_point_awards
+for all to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
+drop policy if exists "approved member read own mission claims" on public.member_mission_claims;
+create policy "approved member read own mission claims" on public.member_mission_claims
+for select to authenticated
+using (public.is_admin() or (public.is_approved_member() and auth.uid() = member_id));
+
+drop policy if exists "admin manage mission claims" on public.member_mission_claims;
+create policy "admin manage mission claims" on public.member_mission_claims
 for all to authenticated
 using (public.is_admin())
 with check (public.is_admin());

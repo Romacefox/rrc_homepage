@@ -124,6 +124,15 @@ const boardPointLeader = document.getElementById("board-point-leader");
 const boardPointLeaderNote = document.getElementById("board-point-leader-note");
 const boardMissionProgress = document.getElementById("board-mission-progress");
 const boardMissionNote = document.getElementById("board-mission-note");
+const activityMissionCard = document.getElementById("activity-mission-card");
+const activityMissionMonth = document.getElementById("activity-mission-month");
+const activityMissionCurrentPoints = document.getElementById("activity-mission-current-points");
+const activityMissionProgressLabel = document.getElementById("activity-mission-progress-label");
+const activityMissionRemainingPoints = document.getElementById("activity-mission-remaining-points");
+const activityMissionProgressBar = document.getElementById("activity-mission-progress-bar");
+const activityMissionRewardNote = document.getElementById("activity-mission-reward-note");
+const activityMissionList = document.getElementById("activity-mission-list");
+const activityMissionStatus = document.getElementById("activity-mission-status");
 const pointRankingBoard = document.getElementById("point-ranking-board");
 const pointRankingYearBoard = document.getElementById("point-ranking-year-board");
 const myPhotoHistory = document.getElementById("my-photo-history");
@@ -1370,6 +1379,7 @@ async function loadActivityBoard() {
   renderBoardRaffleHistory(raffleRecords.slice(0, 4));
   renderBoardRaffleReplayState(raffleRecords);
   await renderMyActivityState(me, selectedMonth, raffleRecords, attendanceLogs);
+  await loadActivityMissions();
   await loadSuggestionBoard();
   await loadRewardRequests();
   await loadChallenges();
@@ -1385,6 +1395,7 @@ function renderBoardLocked(message) {
   }
   setVisibility(memberFeatureGuide, true);
   renderPersonalBoardEmpty();
+  renderActivityMissionLocked("승인 회원 로그인 후 이번 달 내 미션을 확인할 수 있습니다.");
   renderSuggestionBoardLocked("승인 회원 로그인 후 건의사항을 남길 수 있습니다.");
   renderRewardRequestLocked("승인 회원 로그인 후 RRC샵 보조 신청을 할 수 있습니다.");
   renderChallengeLocked("승인 회원 로그인 후 포인트 챌린지를 볼 수 있습니다.");
@@ -2386,6 +2397,168 @@ function renderMissionBoardCache(me, selectedMonth, photoCount, commentCount) {
   }
   const existingRows = window.__RRC_ACTIVITY_ROWS || [];
   renderMissionBoard(existingRows, me, selectedMonth, photoCount, commentCount);
+}
+
+async function loadActivityMissions() {
+  if (!activityMissionCard) {
+    return;
+  }
+  if (!supabaseClient || !authUser || !authProfile || authProfile.approval_status !== "approved") {
+    renderActivityMissionLocked("승인 회원 로그인 후 이번 달 내 미션을 확인할 수 있습니다.");
+    return;
+  }
+
+  setStatus(activityMissionStatus, "이번 달 미션 상태를 확인하는 중입니다...");
+  try {
+    const result = await callActivityMissions();
+    renderActivityMissionCard(result);
+  } catch (error) {
+    renderActivityMissionLocked(`미션 상태를 불러오지 못했습니다: ${String(error?.message || error)}`);
+  }
+}
+
+function renderActivityMissionLocked(message) {
+  if (activityMissionList) {
+    activityMissionList.innerHTML = `<li class="list-item"><p class="list-meta">${escapeHtml(message)}</p></li>`;
+  }
+  if (activityMissionMonth) {
+    activityMissionMonth.textContent = "로그인 필요";
+  }
+  if (activityMissionCurrentPoints) {
+    activityMissionCurrentPoints.textContent = "0P";
+  }
+  if (activityMissionProgressLabel) {
+    activityMissionProgressLabel.textContent = "0%";
+  }
+  if (activityMissionRemainingPoints) {
+    activityMissionRemainingPoints.textContent = "0P";
+  }
+  if (activityMissionProgressBar) {
+    activityMissionProgressBar.style.width = "0%";
+  }
+  if (activityMissionRewardNote) {
+    activityMissionRewardNote.textContent = message;
+  }
+  setStatus(activityMissionStatus, message);
+}
+
+function renderActivityMissionCard(result) {
+  const missions = Array.isArray(result?.missions) ? result.missions : [];
+  const summary = result?.summary || {};
+  const currentPoints = Number(summary.current_points || 0);
+  const nextReward = summary.next_reward || {};
+  const progressPercent = Number(nextReward.progress_percent || 0);
+  const claimedPoints = Number(summary.claimed_mission_points || 0);
+  const totalMissionPoints = Number(summary.total_mission_points || 0);
+  const remainingMissionPoints = Number(summary.remaining_mission_points || 0);
+
+  if (activityMissionMonth) {
+    activityMissionMonth.textContent = result?.month_key ? `${monthKeyToLabel(result.month_key)} 기준` : "이번 달 기준";
+  }
+  if (activityMissionCurrentPoints) {
+    activityMissionCurrentPoints.textContent = `${currentPoints.toLocaleString("ko-KR")}P`;
+  }
+  if (activityMissionProgressLabel) {
+    activityMissionProgressLabel.textContent = `${progressPercent}%`;
+  }
+  if (activityMissionRemainingPoints) {
+    activityMissionRemainingPoints.textContent = `${remainingMissionPoints.toLocaleString("ko-KR")}P`;
+  }
+  if (activityMissionProgressBar) {
+    activityMissionProgressBar.style.width = `${Math.max(0, Math.min(progressPercent, 100))}%`;
+  }
+  if (activityMissionRewardNote) {
+    const remaining = Number(nextReward.remaining_points || 0);
+    const nextLabel = String(nextReward.label || "다음 RRC샵 보조권");
+    const rewardText = remaining > 0
+      ? `${nextLabel}까지 ${remaining.toLocaleString("ko-KR")}P 남았어요.`
+      : "최고 보조권 신청 가능 구간입니다.";
+    activityMissionRewardNote.textContent = `현재 ${currentPoints.toLocaleString("ko-KR")}P. ${rewardText} 이번 달 미션으로 최대 ${totalMissionPoints.toLocaleString("ko-KR")}P를 받을 수 있고, 이미 ${claimedPoints.toLocaleString("ko-KR")}P를 받았습니다.`;
+  }
+
+  if (!activityMissionList) {
+    return;
+  }
+  activityMissionList.innerHTML = "";
+  if (!missions.length) {
+    activityMissionList.innerHTML = '<li class="list-item"><p class="list-meta">표시할 미션이 없습니다.</p></li>';
+    setStatus(activityMissionStatus, "미션 목록이 비어 있습니다.");
+    return;
+  }
+
+  missions.forEach((mission) => {
+    const item = document.createElement("li");
+    const complete = Boolean(mission.complete);
+    const claimed = Boolean(mission.claimed);
+    const claimable = Boolean(mission.claimable);
+    const progressText = `${Number(mission.progress || 0)}/${Number(mission.target || 1)}`;
+    const statusClass = claimed || complete ? "" : "warn";
+    const buttonLabel = claimed ? "받기 완료" : claimable ? "포인트 받기" : "조건 미달";
+    item.className = "list-item activity-mission-item";
+    item.innerHTML = `
+      <div class="list-top">
+        <span class="list-title">${claimed || complete ? "✓ " : ""}${escapeHtml(mission.title || "미션")}</span>
+        <span class="status-chip ${statusClass}">${escapeHtml(claimed ? "받기 완료" : (mission.status || "확인 중"))}</span>
+      </div>
+      <div class="mission-item-row">
+        <p class="list-meta">${escapeHtml(progressText)} · ${Number(mission.points || 0).toLocaleString("ko-KR")}P</p>
+        <button class="btn tiny ${claimable ? "primary" : "ghost"}" type="button" data-activity-mission="${escapeHtml(mission.key || "")}" ${claimable ? "" : "disabled"}>${buttonLabel}</button>
+      </div>
+      <p class="list-meta">${escapeHtml(mission.helper || "")}</p>
+    `;
+    const button = item.querySelector("[data-activity-mission]");
+    button?.addEventListener("click", () => claimActivityMission(mission.key, button));
+    activityMissionList.appendChild(item);
+  });
+  setStatus(activityMissionStatus, "미션 조건은 서버에서 확인하고, 포인트 지급도 서버에서만 처리됩니다.");
+}
+
+async function claimActivityMission(missionKey, button) {
+  if (!missionKey) {
+    return;
+  }
+  if (button) {
+    button.disabled = true;
+    button.textContent = "처리 중";
+  }
+  setStatus(activityMissionStatus, "미션 포인트를 지급하는 중입니다...");
+  try {
+    const result = await callActivityMissions("", {
+      method: "POST",
+      body: JSON.stringify({ mission_key: missionKey })
+    });
+    renderActivityMissionCard(result);
+    await Promise.all([
+      loadPointAwards(),
+      refreshRewardBalanceOverview()
+    ]);
+    setStatus(activityMissionStatus, result?.status === "already_claimed" ? "이미 받은 미션입니다." : "미션 포인트를 받았습니다.");
+  } catch (error) {
+    setStatus(activityMissionStatus, `미션 포인트 지급 실패: ${String(error?.message || error)}`);
+    await loadActivityMissions();
+  }
+}
+
+async function callActivityMissions(query = "", options = {}) {
+  const sessionResult = await supabaseClient.auth.getSession();
+  const accessToken = sessionResult.data?.session?.access_token;
+  if (!accessToken) {
+    throw new Error("로그인이 필요합니다.");
+  }
+
+  const response = await fetch(`/.netlify/functions/activity-missions${query}`, {
+    method: options.method || "GET",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`
+    },
+    body: options.body
+  });
+  const result = await response.json().catch(() => ({ ok: false, error: "invalid response" }));
+  if (!response.ok || !result?.ok) {
+    throw new Error(result?.error || `mission request failed (${response.status})`);
+  }
+  return result;
 }
 
 async function handleSuggestionSubmit(event) {
