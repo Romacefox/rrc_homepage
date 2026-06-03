@@ -364,7 +364,7 @@ export default async (request) => {
     if (action === "apply_attendance") {
       const names = parseNames(body?.names);
       const attendanceDate = String(body?.date || "").trim();
-      const eventType = String(body?.event_type || "정기런").trim() || "정기런";
+      const eventType = normalizeAttendanceEventType(body?.event_type);
       const source = String(body?.source || "bulk").trim() || "bulk";
 
       if (!names.length) {
@@ -389,6 +389,30 @@ export default async (request) => {
       return json(200, await applyAttendanceFallback(auth, { names, attendanceDate, eventType, source }));
     }
 
+    if (action === "append_attendance_member") {
+      const name = String(body?.name || "").trim();
+      const attendanceDate = String(body?.date || "").trim();
+      const eventType = normalizeAttendanceEventType(body?.event_type);
+      const source = String(body?.source || "quick").trim() || "quick";
+      if (!name || !attendanceDate) {
+        return json(400, { ok: false, error: "missing attendance payload" });
+      }
+
+      const rpcResult = await tryAttendanceMutationRpc({
+        action,
+        name,
+        date: attendanceDate,
+        event_type: eventType,
+        source
+      });
+      if (rpcResult) {
+        await tryInsertOperationLog(auth, "attendance_append", `${attendanceDate} ${eventType} ${name}`);
+        return json(200, rpcResult);
+      }
+
+      return json(200, await appendAttendanceMemberFallback(auth, { name, attendanceDate, eventType, source }));
+    }
+
     if (action === "replace_attendance_log") {
       const logId = String(body?.log_id || "").trim();
       const names = parseNames(body?.names);
@@ -402,7 +426,7 @@ export default async (request) => {
       }
 
       const attendanceDate = String(body?.date || existingLog.attendance_date || "").trim();
-      const eventType = String(body?.event_type || existingLog.event_type || "정기런").trim() || "정기런";
+      const eventType = normalizeAttendanceEventType(body?.event_type || existingLog.event_type);
       const source = String(body?.source || existingLog.source || "bulk").trim() || "bulk";
       if (!attendanceDate) {
         return json(400, { ok: false, error: "missing date" });
@@ -484,16 +508,73 @@ async function applyAttendanceFallback(auth, { names, attendanceDate, eventType,
   const uniqueNames = dedupeNormalized(names);
   const monthKey = monthKeyFromDate(attendanceDate);
   const existingLogs = await loadAttendanceLogs();
-  const existingLog = findAttendanceLogByScope(existingLogs, attendanceDate, eventType, source);
+  const conflictingLogs = findAttendanceLogsByScope(existingLogs, attendanceDate, eventType);
 
-  if (existingLog) {
-    await revertAttendanceMatches(existingLog, members, monthKey);
-    await supabaseDelete(`attendance_logs?id=eq.${encodeURIComponent(existingLog.id)}`);
+  for (const log of conflictingLogs) {
+    await revertAttendanceMatches(log, members, monthKeyFromDate(log.attendance_date || attendanceDate));
+    await supabaseDelete(`attendance_logs?id=eq.${encodeURIComponent(log.id)}`);
   }
 
   const summary = await createAttendanceLogRecord({ names, uniqueNames, members, attendanceDate, eventType, source, monthKey });
+  summary.summary.replaced_existing = conflictingLogs.length > 0;
   await tryInsertOperationLog(auth, "attendance_apply", `${attendanceDate} ${eventType} / ${summary.summary.matched.length}`);
   return summary;
+}
+
+async function appendAttendanceMemberFallback(auth, { name, attendanceDate, eventType, source }) {
+  const members = await loadMembers();
+  const monthKey = monthKeyFromDate(attendanceDate);
+  const result = findMemberByName(name, members);
+  if (result.type === "ambiguous") {
+    return {
+      ok: true,
+      summary: { matched: [], unmatched: [], ambiguous: [name], already_present: [] }
+    };
+  }
+  if (result.type !== "unique") {
+    return {
+      ok: true,
+      summary: { matched: [], unmatched: [name], ambiguous: [], already_present: [] }
+    };
+  }
+
+  const logs = await loadAttendanceLogs();
+  const sameScopeLogs = findAttendanceLogsByScope(logs, attendanceDate, eventType);
+  const alreadyPresent = sameScopeLogs.some((log) => (
+    (Array.isArray(log?.matched) ? log.matched : []).some((matchedName) => normalizeName(matchedName) === normalizeName(result.member.name))
+  ));
+  if (alreadyPresent) {
+    return {
+      ok: true,
+      summary: { matched: [], unmatched: [], ambiguous: [], already_present: [result.member.name] }
+    };
+  }
+
+  const existingLog = sameScopeLogs[0] || null;
+  const matched = Array.isArray(existingLog?.matched) ? existingLog.matched : [];
+  await updateMemberRuns(result.member, 1, monthKey);
+  if (existingLog) {
+    await supabasePatch(`attendance_logs?id=eq.${encodeURIComponent(existingLog.id)}`, {
+      matched: [...matched, result.member.name],
+      raw_count: Number(existingLog.raw_count || matched.length || 0) + 1
+    });
+  } else {
+    await supabaseInsert("attendance_logs", {
+      source: source.slice(0, 20),
+      event_type: eventType.slice(0, 20),
+      attendance_date: attendanceDate,
+      raw_count: 1,
+      matched: [result.member.name],
+      unmatched: [],
+      ambiguous: [],
+      created_at: new Date().toISOString()
+    });
+  }
+  await tryInsertOperationLog(auth, "attendance_append", `${attendanceDate} ${eventType} / ${result.member.name}`);
+  return {
+    ok: true,
+    summary: { matched: [result.member.name], unmatched: [], ambiguous: [], already_present: [] }
+  };
 }
 
 async function replaceAttendanceFallback(auth, { logId, names, attendanceDate, eventType, source }) {
@@ -506,17 +587,16 @@ async function replaceAttendanceFallback(auth, { logId, names, attendanceDate, e
   const uniqueNames = dedupeNormalized(names);
   const monthKey = monthKeyFromDate(attendanceDate);
   const existingLogs = await loadAttendanceLogs();
-  const conflictingLog = existingLogs.find((entry) => (
+  const conflictingLogs = existingLogs.filter((entry) => (
     String(entry?.id || "") !== String(logId)
     && String(entry?.attendance_date || "") === attendanceDate
     && String(entry?.event_type || "") === eventType
-    && String(entry?.source || "bulk") === source
-  )) || null;
+  ));
 
   await revertAttendanceMatches(existingLog, members, monthKeyFromDate(existingLog.attendance_date));
   await supabaseDelete(`attendance_logs?id=eq.${encodeURIComponent(existingLog.id)}`);
 
-  if (conflictingLog) {
+  for (const conflictingLog of conflictingLogs) {
     await revertAttendanceMatches(conflictingLog, members, monthKeyFromDate(conflictingLog.attendance_date));
     await supabaseDelete(`attendance_logs?id=eq.${encodeURIComponent(conflictingLog.id)}`);
   }
@@ -703,11 +783,11 @@ async function loadMemberByIdentity(name, birthYear) {
 }
 
 async function loadAttendanceLogs() {
-  return supabaseSelect("attendance_logs?select=id,source,event_type,attendance_date,matched,unmatched,ambiguous,created_at&order=created_at.desc&limit=1000");
+  return supabaseSelect("attendance_logs?select=id,source,event_type,attendance_date,raw_count,matched,unmatched,ambiguous,created_at&order=created_at.desc&limit=1000");
 }
 
 async function loadAttendanceLogById(logId) {
-  const rows = await supabaseSelect(`attendance_logs?id=eq.${encodeURIComponent(logId)}&select=id,source,event_type,attendance_date,matched,unmatched,ambiguous,created_at&limit=1`);
+  const rows = await supabaseSelect(`attendance_logs?id=eq.${encodeURIComponent(logId)}&select=id,source,event_type,attendance_date,raw_count,matched,unmatched,ambiguous,created_at&limit=1`);
   return Array.isArray(rows) ? rows[0] || null : null;
 }
 
@@ -760,12 +840,20 @@ function findMemberByName(inputName, members) {
   return { type: "not_found" };
 }
 
-function findAttendanceLogByScope(logs, attendanceDate, eventType, source) {
+function findAttendanceLogByScope(logs, attendanceDate, eventType, source = "") {
   return (Array.isArray(logs) ? logs : []).find((entry) => (
     String(entry?.attendance_date || "") === String(attendanceDate || "")
     && String(entry?.event_type || "") === String(eventType || "")
-    && String(entry?.source || "bulk") === String(source || "bulk")
+    && (!source || String(entry?.source || "bulk") === String(source || "bulk"))
   )) || null;
+}
+
+function findAttendanceLogsByScope(logs, attendanceDate, eventType, source = "") {
+  return (Array.isArray(logs) ? logs : []).filter((entry) => (
+    String(entry?.attendance_date || "") === String(attendanceDate || "")
+    && String(entry?.event_type || "") === String(eventType || "")
+    && (!source || String(entry?.source || "bulk") === String(source || "bulk"))
+  ));
 }
 
 function findAttendanceLogForRevert(logs, { attendanceDate, eventType, source, matched = [] }) {
@@ -915,6 +1003,21 @@ function pickWinners(candidates, count) {
 function labelMonth(monthKey) {
   const [year, month] = String(monthKey || "").split("-");
   return `${year}년 ${month}월`;
+}
+
+function normalizeAttendanceEventType(value) {
+  const raw = String(value || "").trim();
+  const compact = raw.replace(/\s+/g, "").toLowerCase();
+  if (!raw || compact === "regular" || raw.includes("정기")) {
+    return "정기런";
+  }
+  if (compact === "flash" || raw.includes("번개")) {
+    return "번개런";
+  }
+  if (compact === "official" || raw.includes("공식")) {
+    return "공식 행사";
+  }
+  return raw.slice(0, 20);
 }
 
 function normalizeName(name) {

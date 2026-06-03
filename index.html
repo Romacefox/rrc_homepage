@@ -202,8 +202,8 @@
                 <button class="btn primary" type="submit">회원 추가</button>
               </form>
               <div class="inline-form" style="margin-top:0.6rem;">
-                <input id="attendance-name" type="text" placeholder="출석 이름 입력 (예: 김철수, 박민지)" />
-                <button id="attendance-add" class="btn primary" type="button">이름 출석 +1</button>
+                <input id="attendance-name" type="text" placeholder="이름 1명 입력" />
+                <button id="attendance-add" class="btn primary" type="button">한 명 추가 반영</button>
               </div>
               <p id="attendance-result" class="list-meta"></p>
               <div class="admin-filter-row">
@@ -220,18 +220,19 @@
             </article>
 
             <article class="panel">
-              <h3>이름 목록 붙여넣기 출석</h3>
+              <h3>참석자 명단 전체 반영</h3>
               <label for="bulk-attendance-date">출석일</label>
               <input id="bulk-attendance-date" type="date" />
               <label for="bulk-attendance-type">유형</label>
               <select id="bulk-attendance-type">
-                <option value="정기런">정기런</option>
-                <option value="번개런">번개런</option>
-                <option value="공식 행사">공식 행사(마라톤, 등산 등)</option>
+                <option value="regular">정기런</option>
+                <option value="flash">번개런</option>
+                <option value="official">공식 행사</option>
               </select>
-              <label for="bulk-attendance-input">참석자 명단 (쉼표/줄바꿈 구분)</label>
-              <textarea id="bulk-attendance-input" rows="6" placeholder="김철수, 박민지"></textarea>
-              <button id="bulk-attendance-apply" class="btn primary" type="button">명단 출석 +1 반영</button>
+              <label for="bulk-attendance-input">참석자 명단</label>
+              <textarea id="bulk-attendance-input" rows="6" placeholder="참석자 명단을 줄바꿈, 쉼표, 공백으로 붙여넣기"></textarea>
+              <button id="bulk-attendance-apply" class="btn primary" type="button">명단 전체 반영</button>
+              <p class="list-meta">같은 날짜와 유형의 기존 출석 기록이 있으면 이 명단으로 교체됩니다.</p>
               <p id="bulk-attendance-result" class="list-meta"></p>
               <ul id="attendance-log-list" class="list small"></ul>
             </article>

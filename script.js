@@ -1491,14 +1491,24 @@ async function handleAttendanceByName() {
   }
 
   const names = parseNames(rawInput);
-  const date = toIsoDate(new Date());
+  if (names.length !== 1) {
+    attendanceResult.textContent = "빠른 출석은 이름 1명만 입력해 주세요. 여러 명은 명단 전체 반영을 사용해 주세요.";
+    return;
+  }
+  const date = getSelectedAttendanceDate();
+  const eventType = normalizeAttendanceEventType(bulkAttendanceTypeInput?.value || "정기런");
+
+  if (attendanceAddButton) {
+    attendanceAddButton.disabled = true;
+  }
+  attendanceResult.textContent = "출석을 반영하는 중입니다...";
 
   if (currentAdminToken) {
     try {
-      const result = await callAdminWrite("apply_attendance", {
-        names,
+      const result = await callAdminWrite("append_attendance_member", {
+        name: names[0],
         date,
-        event_type: "정기런",
+        event_type: eventType,
         source: "quick"
       });
       await loadAdminSnapshot();
@@ -1512,13 +1522,20 @@ async function handleAttendanceByName() {
     } catch (error) {
       attendanceResult.textContent = `출석 반영 실패: ${String(error?.message || error)}`;
       return;
+    } finally {
+      if (attendanceAddButton) {
+        attendanceAddButton.disabled = false;
+      }
     }
   }
 
-  const summary = applyAttendanceByNames(names, { date, eventType: "정기런", source: "quick" });
+  const summary = appendAttendanceByName(names[0], { date, eventType, source: "quick" });
 
   attendanceNameInput.value = "";
   attendanceResult.textContent = summary.message;
+  if (attendanceAddButton) {
+    attendanceAddButton.disabled = false;
+  }
 }
 
 async function handleBulkAttendanceApply() {
@@ -1530,7 +1547,11 @@ async function handleBulkAttendanceApply() {
 
   const names = parseNames(raw);
   const date = bulkAttendanceDateInput.value || toIsoDate(new Date());
-  const eventType = bulkAttendanceTypeInput.value || "정기런";
+  const eventType = normalizeAttendanceEventType(bulkAttendanceTypeInput.value || "정기런");
+  if (bulkAttendanceApplyButton) {
+    bulkAttendanceApplyButton.disabled = true;
+  }
+  bulkAttendanceResult.textContent = "명단을 반영하는 중입니다. 같은 날짜/유형의 기존 명단은 교체됩니다...";
 
   if (currentAdminToken) {
     try {
@@ -1550,12 +1571,19 @@ async function handleBulkAttendanceApply() {
     } catch (error) {
       bulkAttendanceResult.textContent = `출석 반영 실패: ${String(error?.message || error)}`;
       return;
+    } finally {
+      if (bulkAttendanceApplyButton) {
+        bulkAttendanceApplyButton.disabled = false;
+      }
     }
   }
 
   const summary = applyAttendanceByNames(names, { date, eventType, source: "bulk" });
 
   bulkAttendanceResult.textContent = summary.message;
+  if (bulkAttendanceApplyButton) {
+    bulkAttendanceApplyButton.disabled = false;
+  }
 }
 
 function buildAttendanceSummaryMessage(summary) {
@@ -1569,6 +1597,9 @@ function buildAttendanceSummaryMessage(summary) {
   }
   if (Array.isArray(summary.ambiguous) && summary.ambiguous.length) {
     parts.push(`중복 후보 ${summary.ambiguous.length}명`);
+  }
+  if (Array.isArray(summary.already_present) && summary.already_present.length) {
+    parts.push(`이미 반영 ${summary.already_present.length}명`);
   }
   if (summary.replaced_existing) {
     parts.push("기존 같은 날짜 로그 교체");
@@ -1782,7 +1813,7 @@ async function handleAttendanceLogEdit(log) {
   if (nextType === null) {
     return;
   }
-  const eventType = String(nextType || "").trim() || "정기런";
+  const eventType = normalizeAttendanceEventType(nextType);
 
   const nextNames = prompt("참석자 명단을 쉼표나 줄바꿈으로 입력해 주세요.", getAttendanceLogNames(log).join(", "));
   if (nextNames === null) {
@@ -1833,11 +1864,11 @@ function applyAttendanceByNames(names, options) {
     return { message: "반영할 이름이 없습니다." };
   }
 
-  const existingLog = findAttendanceLogByScope(options.date, options.eventType, options.source);
-  if (existingLog) {
+  const existingLogs = findAttendanceLogsByScope(options.date, options.eventType);
+  existingLogs.forEach((existingLog) => {
     revertAttendanceMatches(existingLog);
     db.attendanceLogs = db.attendanceLogs.filter((entry) => entry.id !== existingLog.id);
-  }
+  });
 
   const matched = [];
   const unmatched = [];
@@ -1884,12 +1915,78 @@ function applyAttendanceByNames(names, options) {
   if (ambiguous.length) {
     parts.push(`중복 후보 ${ambiguous.length}명`);
   }
-  if (existingLog) {
+  if (existingLogs.length) {
     parts.push("기존 같은 날짜 로그 교체");
   }
 
   return { message: parts.join(" | ") };
 }
+
+function appendAttendanceByName(name, options) {
+  const cleanName = String(name || "").trim();
+  if (!cleanName) {
+    return { message: "이름을 입력해 주세요." };
+  }
+
+  const result = findMemberByName(cleanName);
+  const matched = [];
+  const unmatched = [];
+  const ambiguous = [];
+  const alreadyPresent = [];
+
+  if (result.type === "ambiguous") {
+    ambiguous.push(cleanName);
+  } else if (result.type !== "unique") {
+    unmatched.push(cleanName);
+  } else {
+    const sameScopeLogs = findAttendanceLogsByScope(options.date, options.eventType);
+    const exists = sameScopeLogs.some((log) => (
+      (Array.isArray(log?.matched) ? log.matched : []).some((matchedName) => normalizeName(matchedName) === normalizeName(result.member.name))
+    ));
+    if (exists) {
+      alreadyPresent.push(result.member.name);
+    } else {
+      updateMemberRuns(result.member.id, 1, monthKeyFromDate(options.date));
+      matched.push(result.member.name);
+      const existingLog = sameScopeLogs[0] || null;
+      const existingMatched = Array.isArray(existingLog?.matched) ? existingLog.matched : [];
+      if (existingLog) {
+        existingLog.matched = [...existingMatched, result.member.name];
+        existingLog.rawCount = Number(existingLog.rawCount || existingMatched.length || 0) + 1;
+      } else {
+        db.attendanceLogs.unshift({
+          id: makeId(),
+          source: options.source,
+          eventType: options.eventType,
+          date: options.date,
+          rawCount: 1,
+          matched: [result.member.name],
+          unmatched: [],
+          ambiguous: [],
+          createdAt: new Date().toISOString()
+        });
+        db.attendanceLogs = db.attendanceLogs.slice(0, 50);
+      }
+    }
+  }
+
+  saveDb();
+  renderAll();
+
+  const parts = [];
+  parts.push(`반영 ${matched.length}명`);
+  if (unmatched.length) {
+    parts.push(`미일치 ${unmatched.length}명`);
+  }
+  if (ambiguous.length) {
+    parts.push(`중복 후보 ${ambiguous.length}명`);
+  }
+  if (alreadyPresent.length) {
+    parts.push(`이미 반영 ${alreadyPresent.length}명`);
+  }
+  return { message: parts.join(" | ") };
+}
+
 function findMemberByName(inputName) {
   const normalized = normalizeName(inputName);
 
@@ -1924,7 +2021,7 @@ function findMemberByName(inputName) {
 
 function parseNames(raw) {
   return raw
-    .split(/[\n,;/|]+/)
+    .split(/[\s,;/|]+/)
     .map((name) => name.trim())
     .filter(Boolean);
 }
@@ -2496,12 +2593,20 @@ function revertAttendanceMatches(log) {
   });
 }
 
-function findAttendanceLogByScope(date, eventType, source = "bulk") {
+function findAttendanceLogByScope(date, eventType, source = "") {
   return (Array.isArray(db.attendanceLogs) ? db.attendanceLogs : []).find((entry) => (
     String(entry?.date || "") === String(date || "")
     && String(entry?.eventType || "") === String(eventType || "")
-    && String(entry?.source || "bulk") === String(source || "bulk")
+    && (!source || String(entry?.source || "bulk") === String(source || "bulk"))
   )) || null;
+}
+
+function findAttendanceLogsByScope(date, eventType, source = "") {
+  return (Array.isArray(db.attendanceLogs) ? db.attendanceLogs : []).filter((entry) => (
+    String(entry?.date || "") === String(date || "")
+    && String(entry?.eventType || "") === String(eventType || "")
+    && (!source || String(entry?.source || "bulk") === String(source || "bulk"))
+  ));
 }
 
 function renderAuditLogs() {
@@ -3434,6 +3539,21 @@ function severityScore(level) {
 
 function normalizeName(name) {
   return String(name || "").replaceAll(" ", "").toLowerCase();
+}
+
+function normalizeAttendanceEventType(value) {
+  const raw = String(value || "").trim();
+  const compact = raw.replace(/\s+/g, "").toLowerCase();
+  if (!raw || compact === "regular" || raw.includes("정기")) {
+    return "정기런";
+  }
+  if (compact === "flash" || raw.includes("번개")) {
+    return "번개런";
+  }
+  if (compact === "official" || raw.includes("공식")) {
+    return "공식 행사";
+  }
+  return raw;
 }
 
 function toIsoDate(date) {

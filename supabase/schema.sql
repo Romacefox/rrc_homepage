@@ -376,7 +376,143 @@ declare
   v_log record;
   v_conflict record;
   v_member record;
+  v_has_log boolean := false;
 begin
+  if v_action = 'append_attendance_member' then
+    v_name := btrim(coalesce(payload->>'name', ''));
+    v_date := nullif(payload->>'date', '')::date;
+    v_event_type := coalesce(nullif(payload->>'event_type', ''), '정기런');
+    v_source := coalesce(nullif(payload->>'source', ''), 'quick');
+    if v_name = '' or v_date is null then
+      raise exception 'invalid attendance append payload';
+    end if;
+
+    v_month_key := to_char(v_date, 'YYYY-MM');
+    perform pg_advisory_xact_lock(hashtextextended(v_event_type || '|' || v_date::text, 0));
+    v_name_norm := lower(replace(v_name, ' ', ''));
+
+    select count(*)
+    into v_exact_count
+    from public.members m
+    where lower(replace(coalesce(m.name, ''), ' ', '')) = v_name_norm
+       or exists (
+         select 1
+         from jsonb_array_elements_text(coalesce(m.aliases, '[]'::jsonb)) alias_name
+         where lower(replace(alias_name, ' ', '')) = v_name_norm
+       );
+
+    if v_exact_count = 1 then
+      select *
+      into v_member
+      from public.members m
+      where lower(replace(coalesce(m.name, ''), ' ', '')) = v_name_norm
+         or exists (
+           select 1
+           from jsonb_array_elements_text(coalesce(m.aliases, '[]'::jsonb)) alias_name
+           where lower(replace(alias_name, ' ', '')) = v_name_norm
+         )
+      limit 1;
+    elsif v_exact_count > 1 then
+      return jsonb_build_object(
+        'ok', true,
+        'summary', jsonb_build_object('matched', '[]'::jsonb, 'unmatched', '[]'::jsonb, 'ambiguous', jsonb_build_array(v_name), 'already_present', '[]'::jsonb)
+      );
+    else
+      select count(*)
+      into v_partial_count
+      from public.members m
+      where lower(replace(coalesce(m.name, ''), ' ', '')) like '%' || v_name_norm || '%'
+         or v_name_norm like '%' || lower(replace(coalesce(m.name, ''), ' ', '')) || '%';
+
+      if v_partial_count = 1 then
+        select *
+        into v_member
+        from public.members m
+        where lower(replace(coalesce(m.name, ''), ' ', '')) like '%' || v_name_norm || '%'
+           or v_name_norm like '%' || lower(replace(coalesce(m.name, ''), ' ', '')) || '%'
+        limit 1;
+      elsif v_partial_count > 1 then
+        return jsonb_build_object(
+          'ok', true,
+          'summary', jsonb_build_object('matched', '[]'::jsonb, 'unmatched', '[]'::jsonb, 'ambiguous', jsonb_build_array(v_name), 'already_present', '[]'::jsonb)
+        );
+      else
+        return jsonb_build_object(
+          'ok', true,
+          'summary', jsonb_build_object('matched', '[]'::jsonb, 'unmatched', jsonb_build_array(v_name), 'ambiguous', '[]'::jsonb, 'already_present', '[]'::jsonb)
+        );
+      end if;
+    end if;
+
+    if exists (
+      select 1
+      from public.attendance_logs existing_log,
+        jsonb_array_elements_text(coalesce(existing_log.matched, '[]'::jsonb)) matched_name
+      where existing_log.attendance_date = v_date
+        and existing_log.event_type = v_event_type
+        and lower(replace(matched_name, ' ', '')) = lower(replace(v_member.name, ' ', ''))
+    ) then
+      return jsonb_build_object(
+        'ok', true,
+        'summary', jsonb_build_object('matched', '[]'::jsonb, 'unmatched', '[]'::jsonb, 'ambiguous', '[]'::jsonb, 'already_present', jsonb_build_array(v_member.name))
+      );
+    end if;
+
+    select * into v_log
+    from public.attendance_logs
+    where attendance_date = v_date
+      and event_type = v_event_type
+    order by created_at desc
+    limit 1;
+    v_has_log := found;
+
+    v_next_total := greatest(0, coalesce(v_member.total_runs, 0) + 1);
+    v_next_monthly := greatest(
+      0,
+      coalesce((coalesce(v_member.monthly_runs, '{}'::jsonb)->>v_month_key)::integer, 0) + 1
+    );
+
+    update public.members
+    set total_runs = v_next_total,
+        monthly_runs = jsonb_set(
+          coalesce(monthly_runs, '{}'::jsonb),
+          array[v_month_key],
+          to_jsonb(v_next_monthly),
+          true
+        )
+    where id = v_member.id;
+
+    if v_has_log then
+      update public.attendance_logs
+      set matched = coalesce(matched, '[]'::jsonb) || jsonb_build_array(v_member.name),
+          raw_count = coalesce(raw_count, 0) + 1
+      where id = v_log.id;
+    else
+      insert into public.attendance_logs (
+        source,
+        event_type,
+        attendance_date,
+        raw_count,
+        matched,
+        unmatched,
+        ambiguous
+      ) values (
+        left(v_source, 20),
+        left(v_event_type, 20),
+        v_date,
+        1,
+        jsonb_build_array(v_member.name),
+        '[]'::jsonb,
+        '[]'::jsonb
+      );
+    end if;
+
+    return jsonb_build_object(
+      'ok', true,
+      'summary', jsonb_build_object('matched', jsonb_build_array(v_member.name), 'unmatched', '[]'::jsonb, 'ambiguous', '[]'::jsonb, 'already_present', '[]'::jsonb)
+    );
+  end if;
+
   if v_action = 'adjust_member_attendance' then
     v_member_id := nullif(payload->>'member_id', '')::uuid;
     v_date := nullif(payload->>'date', '')::date;
@@ -473,33 +609,30 @@ begin
     raise exception 'missing attendance date';
   end if;
   v_month_key := to_char(v_date, 'YYYY-MM');
+  perform pg_advisory_xact_lock(hashtextextended(v_event_type || '|' || v_date::text, 0));
 
   if v_action = 'apply_attendance' then
-    select * into v_conflict
-    from public.attendance_logs
-    where attendance_date = v_date
-      and event_type = v_event_type
-      and source = v_source
-    limit 1;
-
-    if found then
-      payload := jsonb_set(payload, '{log_id}', to_jsonb(v_conflict.id::text), true);
-      return public.admin_attendance_mutation(jsonb_set(payload, '{action}', '"replace_attendance_log"'::jsonb, true));
-    end if;
+    for v_conflict in
+      select *
+      from public.attendance_logs
+      where attendance_date = v_date
+        and event_type = v_event_type
+    loop
+      perform public.admin_attendance_mutation(jsonb_build_object('action', 'revert_attendance_log', 'log_id', v_conflict.id::text));
+      v_replaced := true;
+    end loop;
   else
-    select * into v_conflict
-    from public.attendance_logs
-    where id <> v_log_id
-      and attendance_date = v_date
-      and event_type = v_event_type
-      and source = v_source
-    limit 1;
-
-    if found then
+    for v_conflict in
+      select *
+      from public.attendance_logs
+      where id <> v_log_id
+        and attendance_date = v_date
+        and event_type = v_event_type
+    loop
       payload := jsonb_build_object('action', 'revert_attendance_log', 'log_id', v_conflict.id::text);
       perform public.admin_attendance_mutation(payload);
       v_replaced := true;
-    end if;
+    end loop;
   end if;
 
   for v_name in
