@@ -121,6 +121,8 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 .btn.primary:hover { background: #e35e00; }
 .btn.ghost { border: 1px solid rgba(255, 107, 0, 0.65); color: #ffd7bf; background: transparent; }
 .btn.ghost:hover { background: rgba(255, 107, 0, 0.12); }
+.btn.danger { background: #8f1d1d; border-color: #ff8a8a; color: #fff3f3; }
+.btn.danger:hover { background: #a82727; }
 
 .list { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.6rem; }
 .list.small { max-height: 320px; overflow: auto; }
@@ -135,6 +137,25 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 
 .inline-form { display: flex; gap: 0.5rem; }
 .inline-form input, .inline-form select { flex: 1; }
+.signup-diagnostic-box { margin-top: 0.9rem; border-top: 1px solid var(--line); padding-top: 0.8rem; display: grid; gap: 0.55rem; }
+.attendance-danger-guard { border: 1px solid rgba(255, 138, 138, 0.45); background: rgba(143, 29, 29, 0.16); border-radius: 8px; padding: 0.7rem; display: grid; gap: 0.55rem; }
+.attendance-preview-wrap { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #101010; }
+.attendance-preview-head { display: flex; justify-content: space-between; gap: 0.6rem; padding: 0.7rem 0.8rem; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.attendance-preview-table { display: grid; }
+.attendance-preview-row { display: grid; grid-template-columns: 1fr 1fr 0.8fr 1.4fr; gap: 0.55rem; padding: 0.55rem 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 0.86rem; align-items: start; }
+.attendance-preview-row.header { color: var(--muted); font-weight: 700; background: rgba(255,255,255,0.04); }
+.attendance-preview-row.will_add { background: rgba(52, 168, 83, 0.12); }
+.attendance-preview-row.already_attended, .attendance-preview-row.unchanged, .attendance-preview-row.duplicate_input { background: rgba(255,255,255,0.035); color: var(--muted); }
+.attendance-preview-row.ambiguous_name, .attendance-preview-row.not_approved, .attendance-preview-row.inactive { background: rgba(255, 193, 7, 0.13); }
+.attendance-preview-row.not_found, .attendance-preview-row.will_remove { background: rgba(255, 92, 92, 0.14); }
+.healthcheck-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; margin-top: 0.8rem; }
+.healthcheck-card { border: 1px solid var(--line); background: #101010; border-radius: 8px; padding: 0.75rem; }
+.healthcheck-card h4 { margin: 0 0 0.55rem; font-size: 0.98rem; }
+.healthcheck-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.45rem; }
+.healthcheck-metric { border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 0.48rem; display: grid; gap: 0.15rem; background: rgba(255,255,255,0.03); }
+.healthcheck-metric span { color: var(--muted); font-size: 0.78rem; }
+.healthcheck-metric strong { font-size: 1.05rem; }
+.healthcheck-list { margin: 0.65rem 0 0; padding-left: 1rem; color: var(--muted); font-size: 0.82rem; line-height: 1.5; }
 .hidden { display: none !important; }
 [hidden] { display: none !important; }
 
@@ -979,6 +1000,16 @@ body.modal-open {
     text-align: center;
   }
 
+  .attendance-preview-row {
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+  }
+
+  .healthcheck-grid,
+  .healthcheck-metrics {
+    grid-template-columns: 1fr;
+  }
+
   .stats-grid,
   .reward-balance-grid {
     grid-template-columns: 1fr;
@@ -1012,6 +1043,10 @@ body.modal-open {
 .challenge-share-target {
   border-color: rgba(255, 126, 45, 0.78);
   box-shadow: 0 0 0 2px rgba(255, 126, 45, 0.24), 0 0 24px rgba(255, 126, 45, 0.18);
+}
+
+.challenge-progress {
+  margin: 0.55rem 0 0.35rem;
 }
 
 .point-award-panel {

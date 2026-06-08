@@ -38,6 +38,7 @@ const yearNode = document.getElementById("year");
 
 const signupEmailInput = document.getElementById("signup-email");
 const signupPasswordInput = document.getElementById("signup-password");
+const signupPasswordConfirmInput = document.getElementById("signup-password-confirm");
 const signupNameInput = document.getElementById("signup-name");
 const signupBirthYearInput = document.getElementById("signup-birth-year");
 const signupIntroInput = document.getElementById("signup-intro");
@@ -168,9 +169,15 @@ const rewardBalanceUsed = document.getElementById("reward-balance-used");
 const rewardBalanceAvailable = document.getElementById("reward-balance-available");
 const rewardBalanceNote = document.getElementById("reward-balance-note");
 const challengeForm = document.getElementById("challenge-form");
+const challengeModeInput = document.getElementById("challenge-mode");
+const challengeModeDescription = document.getElementById("challenge-mode-description");
 const challengeTitleInput = document.getElementById("challenge-title");
 const challengeStakeInput = document.getElementById("challenge-stake");
+const challengeSuccessRewardInput = document.getElementById("challenge-success-reward");
+const challengeMinParticipantsInput = document.getElementById("challenge-min-participants");
 const challengeTagInput = document.getElementById("challenge-tag");
+const challengeVerificationMethodInput = document.getElementById("challenge-verification-method");
+const challengeFailurePolicyInput = document.getElementById("challenge-failure-policy");
 const challengeRecruitStartInput = document.getElementById("challenge-recruit-start");
 const challengeRecruitEndInput = document.getElementById("challenge-recruit-end");
 const challengeStartInput = document.getElementById("challenge-start");
@@ -302,6 +309,7 @@ function init() {
   rewardRequestForm?.addEventListener("submit", handleRewardRequestSubmit);
   rewardRequestRefreshButton?.addEventListener("click", loadRewardRequests);
   challengeForm?.addEventListener("submit", handleChallengeSubmit);
+  challengeModeInput?.addEventListener("change", syncChallengeModeFields);
   challengeRefreshButton?.addEventListener("click", loadChallenges);
   attachDatePickerOpen(challengeRecruitStartInput);
   attachDatePickerOpen(challengeRecruitEndInput);
@@ -318,6 +326,7 @@ function init() {
     pointAwardMonthInput.value = currentMonthKey();
   }
   syncPointAwardDefaults();
+  syncChallengeModeFields();
 
   supabaseClient.auth.onAuthStateChange((_event, session) => {
     void hydrateAuthState(session?.user || null);
@@ -492,6 +501,7 @@ async function handleSignup(event) {
   const payload = {
     email: String(signupEmailInput?.value || "").trim(),
     password: String(signupPasswordInput?.value || "").trim(),
+    passwordConfirm: String(signupPasswordConfirmInput?.value || "").trim(),
     name: String(signupNameInput?.value || "").trim(),
     birthYear: Number(signupBirthYearInput?.value || 0),
     intro: String(signupIntroInput?.value || "").trim(),
@@ -502,8 +512,28 @@ async function handleSignup(event) {
     setStatus(signupStatus, "이메일, 비밀번호, 이름, 출생연도는 필수입니다.");
     return;
   }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) {
+    setStatus(signupStatus, "이메일 형식을 확인해 주세요.");
+    return;
+  }
+  if (payload.password.length < 6) {
+    setStatus(signupStatus, "비밀번호는 6자 이상으로 입력해 주세요.");
+    return;
+  }
+  if (payload.password !== payload.passwordConfirm) {
+    setStatus(signupStatus, "비밀번호 확인이 일치하지 않습니다.");
+    return;
+  }
+  if (payload.name.length < 2) {
+    setStatus(signupStatus, "이름은 실명 기준 2자 이상으로 입력해 주세요.");
+    return;
+  }
   if (payload.birthYear < BIRTH_YEAR_MIN || payload.birthYear > BIRTH_YEAR_MAX) {
     setStatus(signupStatus, `출생연도는 ${BIRTH_YEAR_MIN}~${BIRTH_YEAR_MAX}만 가능합니다.`);
+    return;
+  }
+  if (payload.intro.length < 10) {
+    setStatus(signupStatus, "자기소개는 러닝 경험이나 가입 이유를 10자 이상 적어 주세요.");
     return;
   }
   if (!payload.agreed) {
@@ -511,7 +541,8 @@ async function handleSignup(event) {
     return;
   }
 
-  localStorage.setItem(`${PENDING_SIGNUP_PREFIX}${payload.email.toLowerCase()}`, JSON.stringify({
+  const pendingKey = `${PENDING_SIGNUP_PREFIX}${payload.email.toLowerCase()}`;
+  localStorage.setItem(pendingKey, JSON.stringify({
     user_id: null,
     email: payload.email,
     name: payload.name,
@@ -521,36 +552,43 @@ async function handleSignup(event) {
     approval_status: "pending"
   }));
 
-  const signUpResult = await supabaseClient.auth.signUp({
-    email: payload.email,
-    password: payload.password,
-    options: {
-      emailRedirectTo: `${window.location.origin}/login.html`,
-      data: {
-        name: payload.name,
-        birth_year: payload.birthYear,
-        intro: payload.intro,
-        role: "member",
-        approval_status: "pending"
-      }
-    }
-  });
-  if (signUpResult.error) {
-    localStorage.removeItem(`${PENDING_SIGNUP_PREFIX}${payload.email.toLowerCase()}`);
-    setStatus(signupStatus, `가입 실패: ${signUpResult.error.message}`);
-    return;
+  if (signupSubmitButton) {
+    signupSubmitButton.disabled = true;
+    signupSubmitButton.textContent = "가입 신청 중...";
   }
+  setStatus(signupStatus, "가입 신청을 처리하는 중입니다...");
 
-  const createdUserId = String(signUpResult.data?.user?.id || "").trim();
-  if (createdUserId) {
-    try {
+  try {
+    const signUpResult = await supabaseClient.auth.signUp({
+      email: payload.email,
+      password: payload.password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/login.html`,
+        data: {
+          name: payload.name,
+          birth_year: payload.birthYear,
+          intro: payload.intro,
+          role: "member",
+          approval_status: "pending"
+        }
+      }
+    });
+    if (signUpResult.error) {
+      localStorage.removeItem(pendingKey);
+      setStatus(signupStatus, `가입 실패: ${formatAuthError(signUpResult.error)}`);
+      return;
+    }
+
+    const createdUserId = String(signUpResult.data?.user?.id || "").trim();
+    const accessToken = String(signUpResult.data?.session?.access_token || "").trim();
+    if (createdUserId && accessToken) {
       const profileResponse = await fetch("/.netlify/functions/create-pending-profile", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`
         },
         body: JSON.stringify({
-          user_id: createdUserId,
           email: payload.email,
           name: payload.name,
           birth_year: payload.birthYear,
@@ -561,19 +599,27 @@ async function handleSignup(event) {
       if (!profileResponse.ok || !profileResult.ok) {
         throw new Error(profileResult.error || "pending profile creation failed");
       }
+      localStorage.removeItem(pendingKey);
       await notifySignupRequest({
         email: payload.email,
         name: payload.name,
         birthYear: payload.birthYear,
         intro: payload.intro
       });
-    } catch (error) {
-      setStatus(signupStatus, `가입은 되었지만 승인 대기 등록에 실패했습니다: ${String(error?.message || error)}. 운영진에 문의해 주세요.`);
-      return;
+    }
+
+    const confirmHint = accessToken
+      ? "운영진 승인 후 활동보드와 사진첩을 이용할 수 있습니다."
+      : "이메일 인증 후 로그인하면 승인 대기 상태로 연결됩니다.";
+    setStatus(signupStatus, `가입 신청이 완료되었습니다. ${confirmHint}`);
+  } catch (error) {
+    setStatus(signupStatus, `가입 처리 중 오류가 발생했습니다: ${formatAuthError(error)}. 잠시 후 다시 시도하거나 운영진에게 문의해 주세요.`);
+  } finally {
+    if (signupSubmitButton) {
+      signupSubmitButton.disabled = false;
+      signupSubmitButton.textContent = "가입 신청";
     }
   }
-
-  setStatus(signupStatus, "가입 신청이 완료되었습니다. 이메일 인증 후 로그인하면 바로 승인 대기 상태로 연결됩니다.");
 }
 
 async function handleLogin(event) {
@@ -595,7 +641,7 @@ async function handleLogin(event) {
   try {
     const loginResult = await signInWithFallback(email, password);
     if (loginResult.error) {
-      setStatus(loginStatus, `로그인 실패: ${loginResult.error.message}`);
+      setStatus(loginStatus, `로그인 실패: ${formatAuthError(loginResult.error)}`);
       return;
     }
 
@@ -609,7 +655,7 @@ async function handleLogin(event) {
 
     setStatus(loginStatus, `로그인됨: ${authUser.email}`);
   } catch (error) {
-    setStatus(loginStatus, `로그인 실패: ${formatAuthNetworkError(error)}`);
+    setStatus(loginStatus, `로그인 실패: ${formatAuthError(error)}`);
   } finally {
     if (loginSubmitButton) {
       loginSubmitButton.disabled = false;
@@ -672,6 +718,33 @@ async function signInViaNetlifyFunction(email, password) {
 
 function isFetchFailure(error) {
   return /failed to fetch|network|fetch/i.test(String(error?.message || error || ""));
+}
+
+function formatAuthError(error) {
+  const message = String(error?.message || error || "").trim();
+  const lower = message.toLowerCase();
+  if (!message) {
+    return "알 수 없는 오류입니다.";
+  }
+  if (lower.includes("already registered") || lower.includes("already been registered") || lower.includes("user already")) {
+    return "이미 가입된 이메일입니다. 로그인하거나 운영진에게 승인 상태를 확인해 주세요.";
+  }
+  if (lower.includes("invalid login credentials")) {
+    return "이메일 또는 비밀번호가 올바르지 않습니다.";
+  }
+  if (lower.includes("email not confirmed") || lower.includes("confirm")) {
+    return "이메일 인증이 아직 완료되지 않았습니다. 받은 메일함을 확인해 주세요.";
+  }
+  if (lower.includes("password")) {
+    return "비밀번호 조건을 확인해 주세요. 최소 6자 이상으로 입력해야 합니다.";
+  }
+  if (lower.includes("rate limit") || lower.includes("too many")) {
+    return "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.";
+  }
+  if (isFetchFailure(error)) {
+    return formatAuthNetworkError(error);
+  }
+  return message;
 }
 
 async function handleLogout() {
@@ -850,9 +923,17 @@ function renderAuthState() {
   setStatus(loginStatus, loginStatus ? `로그인됨: ${authUser.email}` : null);
   setStatus(galleryAuthStatus, galleryAuthStatus ? `로그인됨: ${authUser.email}` : null);
 
+  if (!isEmailConfirmed(authUser)) {
+    setStatus(loginApprovalStatus, loginApprovalStatus ? "승인 상태: 이메일 인증 필요(받은 메일함을 확인해 주세요)" : null);
+    setStatus(galleryApprovalStatus, galleryApprovalStatus ? "승인 상태: 이메일 인증 완료 후 이용할 수 있습니다." : null);
+    disablePhotoUpload();
+    updatePhotoCommentComposer(false);
+    return;
+  }
+
   if (!authProfile) {
-    setStatus(loginApprovalStatus, loginApprovalStatus ? "승인 상태: 프로필 미등록(운영진 문의)" : null);
-    setStatus(galleryApprovalStatus, galleryApprovalStatus ? "승인 상태: 프로필 미등록(운영진 문의)" : null);
+    setStatus(loginApprovalStatus, loginApprovalStatus ? "승인 상태: 프로필 미등록. 운영진에게 가입 상태 점검을 요청해 주세요." : null);
+    setStatus(galleryApprovalStatus, galleryApprovalStatus ? "승인 상태: 프로필 미등록. 운영진 점검 후 이용할 수 있습니다." : null);
     disablePhotoUpload();
     updatePhotoCommentComposer(false);
     return;
@@ -864,6 +945,13 @@ function renderAuthState() {
 
   enablePhotoUpload(isApproved);
   updatePhotoCommentComposer(isApproved);
+}
+
+function isEmailConfirmed(user) {
+  if (!user?.email) {
+    return false;
+  }
+  return Boolean(user.email_confirmed_at || user.confirmed_at);
 }
 
 function setVisibility(node, visible) {
@@ -3069,6 +3157,76 @@ function getPointAwardOptions() {
   ];
 }
 
+function getChallengeModeOptions() {
+  return {
+    free_intro: {
+      label: "무료 입문형",
+      description: "포인트를 걸지 않고 가볍게 참여하는 챌린지입니다. 성공하면 보상 포인트를 받을 수 있고, 실패해도 포인트가 차감되지 않습니다.",
+      entryPoints: 0,
+      successRewardPoints: 30,
+      minParticipants: 1,
+      failurePolicy: "실패 패널티 없음",
+      verificationMethod: "RRC 카카오톡 채팅방 인증"
+    },
+    deposit: {
+      label: "소액 예치형",
+      description: "소량의 포인트를 잠시 잠그고 목표를 달성하는 챌린지입니다. 성공하면 예치 포인트와 보너스를 받을 수 있습니다.",
+      entryPoints: 30,
+      successRewardPoints: 30,
+      minParticipants: 2,
+      failurePolicy: "성공 시 예치 포인트 잠금 해제 + 보너스 지급, 실패 시 운영 기준에 따라 잠금 해제",
+      verificationMethod: "RRC 카카오톡 채팅방 인증"
+    },
+    team_goal: {
+      label: "팀 달성형",
+      description: "참여자들이 함께 하나의 목표를 달성하는 챌린지입니다. 전체 목표를 달성하면 참여자 전원이 보상을 받을 수 있습니다.",
+      entryPoints: 0,
+      successRewardPoints: 30,
+      minParticipants: 3,
+      failurePolicy: "팀 목표 미달성 시 포인트 차감 없음",
+      verificationMethod: "RRC 카카오톡 채팅방 인증"
+    },
+    betting_pool: {
+      label: "베팅 분배형",
+      description: "참여자가 포인트를 걸고 성공자끼리 정산하는 고급 챌린지입니다. 운영진 검토 후 개설됩니다.",
+      entryPoints: 50,
+      successRewardPoints: 0,
+      minParticipants: 3,
+      failurePolicy: "성공자끼리 참가 포인트를 비율 정산",
+      verificationMethod: "RRC 카카오톡 채팅방 인증"
+    }
+  };
+}
+
+function getChallengeModeMeta(mode) {
+  const options = getChallengeModeOptions();
+  return options[String(mode || "")] || options.free_intro;
+}
+
+function syncChallengeModeFields() {
+  const mode = challengeModeInput?.value || "free_intro";
+  const meta = getChallengeModeMeta(mode);
+  if (challengeModeDescription) {
+    challengeModeDescription.textContent = meta.description;
+  }
+  if (challengeStakeInput) {
+    challengeStakeInput.value = String(meta.entryPoints);
+    challengeStakeInput.readOnly = mode !== "betting_pool";
+  }
+  if (challengeSuccessRewardInput) {
+    challengeSuccessRewardInput.value = String(meta.successRewardPoints);
+  }
+  if (challengeMinParticipantsInput) {
+    challengeMinParticipantsInput.value = String(meta.minParticipants);
+  }
+  if (challengeVerificationMethodInput && !challengeVerificationMethodInput.value) {
+    challengeVerificationMethodInput.value = meta.verificationMethod;
+  }
+  if (challengeFailurePolicyInput) {
+    challengeFailurePolicyInput.value = meta.failurePolicy;
+  }
+}
+
 async function handleChallengeSubmit(event) {
   event?.preventDefault();
   if (!supabaseClient || !authUser || !authProfile || authProfile.approval_status !== "approved") {
@@ -3076,17 +3234,23 @@ async function handleChallengeSubmit(event) {
     return;
   }
 
+  const mode = challengeModeInput?.value || "free_intro";
+  const modeMeta = getChallengeModeMeta(mode);
   const title = String(challengeTitleInput?.value || "").trim();
-  const stakePoints = Number(challengeStakeInput?.value || 0);
+  const stakePoints = Math.max(0, Number(challengeStakeInput?.value || modeMeta.entryPoints || 0));
+  const successRewardPoints = Math.max(0, Number(challengeSuccessRewardInput?.value || modeMeta.successRewardPoints || 0));
+  const minParticipants = Math.max(1, Number(challengeMinParticipantsInput?.value || modeMeta.minParticipants || 1));
   const verificationTag = String(challengeTagInput?.value || "").trim();
+  const verificationMethod = String(challengeVerificationMethodInput?.value || modeMeta.verificationMethod || "").trim();
+  const failurePolicy = String(challengeFailurePolicyInput?.value || modeMeta.failurePolicy || "").trim();
   const recruitStartDate = String(challengeRecruitStartInput?.value || "").trim();
   const recruitEndDate = String(challengeRecruitEndInput?.value || "").trim();
   const startDate = String(challengeStartInput?.value || "").trim();
   const endDate = String(challengeEndInput?.value || "").trim();
   const ruleText = String(challengeRuleInput?.value || "").trim();
 
-  if (!title || !stakePoints || !recruitStartDate || !recruitEndDate || !startDate || !endDate || !ruleText) {
-    setStatus(challengeStatus, "챌린지명, 참가 포인트, 모집 기간, 진행 기간, 성공 조건을 입력해 주세요.");
+  if (!title || !recruitStartDate || !recruitEndDate || !startDate || !endDate || !ruleText) {
+    setStatus(challengeStatus, "챌린지명, 모집 기간, 진행 기간, 성공 조건을 입력해 주세요.");
     return;
   }
   if (stakePoints > rewardAvailablePointCache) {
@@ -3097,7 +3261,9 @@ async function handleChallengeSubmit(event) {
     "이 내용으로 챌린지 모집을 시작할까요?",
     "",
     `챌린지명: ${title}`,
-    `베팅 포인트: ${stakePoints}P`,
+    `모드: ${modeMeta.label}`,
+    `참가비/예치 포인트: ${stakePoints}P`,
+    `성공 보상: ${successRewardPoints}P`,
     `모집 기간: ${recruitStartDate} ~ ${recruitEndDate}`,
     `진행 기간: ${startDate} ~ ${endDate}`,
     verificationTag ? `인증 태그: ${verificationTag}` : "",
@@ -3115,6 +3281,12 @@ async function handleChallengeSubmit(event) {
       method: "POST",
       body: JSON.stringify({
         title,
+        mode,
+        entry_points: stakePoints,
+        success_reward_points: successRewardPoints,
+        min_participants: minParticipants,
+        verification_method: verificationMethod,
+        failure_policy: failurePolicy,
         stake_points: stakePoints,
         verification_tag: verificationTag,
         recruit_start_date: recruitStartDate,
@@ -3128,6 +3300,7 @@ async function handleChallengeSubmit(event) {
       throw new Error(result?.error || "challenge submit failed");
     }
     challengeForm?.reset();
+    syncChallengeModeFields();
     setStatus(challengeStatus, "챌린지 모집이 시작되었습니다. 모집 종료 후 3명 이상이면 자동으로 진행됩니다.");
     await loadChallenges();
   } catch (error) {
@@ -3196,24 +3369,34 @@ function renderChallengeList(items, canManage) {
     const joined = entries.some((entry) => entry.user_id === authUser?.id);
     const successEntries = entries.filter((entry) => entry.result === "success");
     const successCount = successEntries.length;
-    const pot = entries.reduce((sum, entry) => sum + Number(entry.stake_points || item.stake_points || 0), 0);
+    const mode = item.mode || "betting_pool";
+    const modeMeta = getChallengeModeMeta(mode);
+    const entryPoints = Number(item.entry_points ?? item.stake_points ?? modeMeta.entryPoints ?? 0);
+    const successRewardPoints = Number(item.success_reward_points ?? modeMeta.successRewardPoints ?? 0);
+    const minParticipants = Number(item.min_participants || modeMeta.minParticipants || 1);
+    const failurePolicy = item.failure_policy || modeMeta.failurePolicy;
+    const verificationMethod = item.verification_method || modeMeta.verificationMethod || "RRC 카카오톡 채팅방 인증";
+    const pot = entries.reduce((sum, entry) => sum + Number(entry.locked_points ?? entry.stake_points ?? entryPoints), 0);
     const successStakeTotal = successEntries.reduce((sum, entry) => sum + Number(entry.stake_points || item.stake_points || 0), 0);
     const recruitStart = item.recruit_start_date || item.created_at?.slice(0, 10) || "-";
     const recruitEnd = item.recruit_end_date || item.start_date || "-";
+    const progressPercent = getChallengeProgressPercent(item, entries, successCount);
     const node = document.createElement("li");
     node.className = "list-item";
     node.id = `challenge-${item.id}`;
     node.dataset.challengeId = String(item.id || "");
     node.innerHTML = `
       <div class="list-top">
-        <span class="list-title">${escapeHtml(item.title || "포인트 챌린지")}</span>
+        <span class="list-title"><span class="status-chip">${escapeHtml(modeMeta.label)}</span>${escapeHtml(item.title || "포인트 챌린지")}</span>
         <span class="status-chip ${getChallengeStatusClass(item.status)}">${escapeHtml(getChallengeStatusLabel(item.status))}</span>
       </div>
       <p class="list-meta">모집 ${escapeHtml(recruitStart)} ~ ${escapeHtml(recruitEnd)} · 진행 ${escapeHtml(item.start_date || "-")} ~ ${escapeHtml(item.end_date || "-")}</p>
-      <p class="list-meta">기본 베팅 ${Number(item.stake_points || 0)}P · 팟 ${pot}P</p>
-      <p class="list-meta">인증: RRC 카카오톡 채팅방 ${item.verification_tag ? `· ${escapeHtml(item.verification_tag)}` : ""}</p>
+      <p class="list-meta">참가비/예치 ${entryPoints}P · 성공 보상 ${successRewardPoints}P · 실패 처리: ${escapeHtml(failurePolicy)}</p>
+      <p class="list-meta">최소 ${minParticipants}명 · 현재 ${entries.length}명 참여 중 · 잠금 ${pot}P</p>
+      <p class="list-meta">인증: ${escapeHtml(verificationMethod)} ${item.verification_tag ? `· ${escapeHtml(item.verification_tag)}` : ""}</p>
+      <div class="reward-progress challenge-progress" aria-label="챌린지 진행률"><span style="width:${progressPercent}%"></span></div>
       <p>${escapeHtml(item.rule_text || "")}</p>
-      <p class="list-meta">참가 ${entries.length}명 / 최소 3명 · 성공 ${successCount}명${successStakeTotal ? ` · 성공 베팅 ${successStakeTotal}P` : ""}${item.status === "settled" ? ` · 총 정산 ${Number(item.payout_points || 0)}P` : ""}</p>
+      <p class="list-meta">진행률 ${progressPercent}% · 성공 ${successCount}명${mode === "betting_pool" && successStakeTotal ? ` · 성공 베팅 ${successStakeTotal}P` : ""}${item.status === "settled" ? ` · 총 정산 ${Number(item.payout_points || 0)}P` : ""}</p>
     `;
 
     const entryWrap = document.createElement("div");
@@ -3221,7 +3404,7 @@ function renderChallengeList(items, canManage) {
     entries.slice(0, 8).forEach((entry) => {
       const row = document.createElement("div");
       row.className = "challenge-entry-row";
-      row.innerHTML = `<span>${escapeHtml(entry.member_name || "회원")}</span><span>베팅 ${Number(entry.stake_points || item.stake_points || 0)}P · ${escapeHtml(getChallengeResultLabel(entry.result))}${entry.payout_points ? ` · 정산 ${Number(entry.payout_points)}P` : ""}</span>`;
+      row.innerHTML = `<span>${escapeHtml(entry.member_name || "회원")}</span><span>잠금 ${Number(entry.locked_points ?? entry.stake_points ?? 0)}P · ${escapeHtml(getChallengeResultLabel(entry.result))}${entry.payout_points ? ` · 정산 ${Number(entry.payout_points)}P` : ""}</span>`;
       entryWrap.appendChild(row);
     });
     if (entries.length) {
@@ -3274,25 +3457,33 @@ function calculateMyChallengeLockedPoints(items) {
     }
     const entries = Array.isArray(item.entries) ? item.entries : [];
     const entry = entries.find((candidate) => candidate.user_id === authUser?.id);
-    return total + Number(entry?.stake_points || 0);
+    return total + Number(entry?.locked_points ?? entry?.stake_points ?? 0);
   }, 0);
 }
 
 function buildChallengeJoinForm(item) {
   const form = document.createElement("form");
   form.className = "challenge-join-form";
-  const defaultStake = Number(item?.stake_points || 50);
+  const mode = item?.mode || "betting_pool";
+  const modeMeta = getChallengeModeMeta(mode);
+  const defaultStake = Number(item?.entry_points ?? item?.stake_points ?? modeMeta.entryPoints ?? 0);
+  const isBetting = mode === "betting_pool";
   const availableCap = rewardAvailablePointCache > 0 ? rewardAvailablePointCache : 2000;
-  const maxStake = Math.max(1, Math.min(2000, availableCap));
-  const initialStake = Math.max(1, Math.min(defaultStake, maxStake));
-  form.innerHTML = `
-    <input type="number" min="1" max="${maxStake}" value="${initialStake}" aria-label="챌린지 베팅 포인트" />
-    <button class="btn primary tiny" type="submit">참가</button>
-  `;
+  const maxStake = Math.max(isBetting ? 1 : 0, Math.min(2000, availableCap));
+  const initialStake = isBetting ? Math.max(1, Math.min(defaultStake || 50, maxStake)) : defaultStake;
+  form.innerHTML = isBetting
+    ? `
+      <input type="number" min="1" max="${maxStake}" value="${initialStake}" aria-label="챌린지 베팅 포인트" />
+      <button class="btn primary tiny" type="submit">고급 참가</button>
+    `
+    : `
+      <p class="list-meta">참가 시 ${Number(defaultStake || 0)}P가 잠금 처리됩니다.</p>
+      <button class="btn primary tiny" type="submit">참가하기</button>
+    `;
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     const input = form.querySelector("input");
-    joinChallenge(item.id, defaultStake, input?.value);
+    joinChallenge(item.id, defaultStake, isBetting ? input?.value : defaultStake);
   });
   return form;
 }
@@ -3311,10 +3502,14 @@ async function copyChallengeNotice(item) {
   const recruitEnd = item?.recruit_end_date || item?.start_date || "-";
   const tag = item?.verification_tag ? `\n인증 해시태그: ${item.verification_tag}` : "";
   const shareUrl = getChallengeShareUrl(item?.id);
+  const modeMeta = getChallengeModeMeta(item?.mode || "betting_pool");
+  const entryPoints = Number(item?.entry_points ?? item?.stake_points ?? modeMeta.entryPoints ?? 0);
+  const rewardPoints = Number(item?.success_reward_points ?? modeMeta.successRewardPoints ?? 0);
   const text = [
-    `[RRC 포인트 챌린지 모집]`,
+    `[RRC ${modeMeta.label} 챌린지 모집]`,
     `챌린지명: ${item?.title || "포인트 챌린지"}`,
-    `베팅 포인트: ${Number(item?.stake_points || 0)}P`,
+    `참가비/예치: ${entryPoints}P`,
+    `성공 보상: ${rewardPoints}P`,
     `모집 기간: ${recruitStart} ~ ${recruitEnd}`,
     `진행 기간: ${item?.start_date || "-"} ~ ${item?.end_date || "-"}`,
     `인증: RRC 카카오톡 채팅방${tag}`,
@@ -3389,8 +3584,8 @@ async function joinChallenge(challengeId, defaultStake = 0, explicitStake = null
     return;
   }
   const stakePoints = Number(rawStake || 0);
-  if (!Number.isFinite(stakePoints) || stakePoints <= 0) {
-    setStatus(challengeStatus, "베팅 포인트를 숫자로 입력해 주세요.");
+  if (!Number.isFinite(stakePoints) || stakePoints < 0) {
+    setStatus(challengeStatus, "참가 포인트를 숫자로 입력해 주세요.");
     return;
   }
   if (stakePoints > 2000) {
@@ -3409,7 +3604,7 @@ async function joinChallenge(challengeId, defaultStake = 0, explicitStake = null
     if (!result?.ok) {
       throw new Error(result?.error || "join failed");
     }
-    setStatus(challengeStatus, `챌린지에 ${stakePoints}P 베팅으로 참가했습니다. 카톡방 인증 규칙을 확인해 주세요.`);
+    setStatus(challengeStatus, `챌린지에 참가했습니다. 잠금 포인트 ${stakePoints}P · 인증 규칙을 확인해 주세요.`);
     await loadChallenges();
   } catch (error) {
     setStatus(challengeStatus, `챌린지 참가 실패: ${String(error?.message || error)}`);
@@ -3530,6 +3725,27 @@ function getChallengeStatusClass(status) {
     default:
       return "warn";
   }
+}
+
+function getChallengeProgressPercent(item, entries, successCount) {
+  const explicitTarget = Number(item?.progress_target || 0);
+  const explicitCurrent = Number(item?.progress_current || 0);
+  if (explicitTarget > 0) {
+    return Math.max(0, Math.min(Math.round((explicitCurrent / explicitTarget) * 100), 100));
+  }
+  const status = String(item?.status || "");
+  if (status === "settled") {
+    return 100;
+  }
+  if (status === "cancelled") {
+    return 0;
+  }
+  if (status === "judging") {
+    const count = Array.isArray(entries) ? entries.length : 0;
+    return count ? Math.min(Math.round((Number(successCount || 0) / count) * 100), 100) : 0;
+  }
+  const minParticipants = Number(item?.min_participants || getChallengeModeMeta(item?.mode).minParticipants || 1);
+  return Math.max(0, Math.min(Math.round(((Array.isArray(entries) ? entries.length : 0) / minParticipants) * 100), 100));
 }
 
 function getChallengeResultLabel(result) {

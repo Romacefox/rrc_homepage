@@ -330,11 +330,24 @@
                 </div>
                 <p class="list-meta">회원이 직접 챌린지를 제안하고, 참가 포인트를 걸어 카카오톡 채팅방에서 인증합니다. 운영진이 성공 여부를 확인하면 성공자별 베팅 비율에 따라 월간 포인트 지급 기록에 반영됩니다.</p>
                 <form id="challenge-form" class="form compact" style="margin-top:0.8rem;">
+                  <select id="challenge-mode" aria-label="챌린지 모드">
+                    <option value="free_intro">무료 입문형</option>
+                    <option value="deposit">소액 예치형</option>
+                    <option value="team_goal">팀 달성형</option>
+                    <option value="betting_pool">베팅 분배형 · 운영진/고급</option>
+                  </select>
+                  <p id="challenge-mode-description" class="list-meta">포인트를 걸지 않고 가볍게 참여하는 챌린지입니다. 성공하면 보상 포인트를 받을 수 있고, 실패해도 포인트가 차감되지 않습니다.</p>
                   <input id="challenge-title" type="text" maxlength="80" placeholder="챌린지명 예: 매일 1km 뛰기" />
                   <div class="inline-form">
-                    <input id="challenge-stake" type="number" min="1" max="2000" placeholder="기본 베팅 포인트" />
+                    <input id="challenge-stake" type="number" min="0" max="2000" placeholder="참가비/예치 포인트" />
+                    <input id="challenge-success-reward" type="number" min="0" max="500" placeholder="성공 보상 포인트" />
+                  </div>
+                  <div class="inline-form">
+                    <input id="challenge-min-participants" type="number" min="1" max="30" placeholder="최소 참가 인원" />
                     <input id="challenge-tag" type="text" maxlength="40" placeholder="인증 태그 예: #RRC매일1K" />
                   </div>
+                  <input id="challenge-verification-method" type="text" maxlength="120" placeholder="인증 방식 예: RRC 카카오톡 채팅방 인증" />
+                  <input id="challenge-failure-policy" type="text" maxlength="240" placeholder="실패 시 처리 방식" />
                   <p class="list-meta" style="margin:0;">모집 기간</p>
                   <div class="inline-form">
                     <input id="challenge-recruit-start" type="date" aria-label="모집 시작일" />

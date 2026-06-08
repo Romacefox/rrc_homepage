@@ -63,9 +63,15 @@ const attendanceResult = document.getElementById("attendance-result");
 
 const bulkAttendanceDateInput = document.getElementById("bulk-attendance-date");
 const bulkAttendanceTypeInput = document.getElementById("bulk-attendance-type");
+const bulkAttendanceModeInput = document.getElementById("bulk-attendance-mode");
 const bulkAttendanceInput = document.getElementById("bulk-attendance-input");
+const bulkAttendancePreviewButton = document.getElementById("bulk-attendance-preview");
 const bulkAttendanceApplyButton = document.getElementById("bulk-attendance-apply");
+const bulkAttendanceReplaceGuard = document.getElementById("bulk-attendance-replace-guard");
+const bulkAttendanceReplaceConfirmInput = document.getElementById("bulk-attendance-replace-confirm");
+const bulkAttendanceConfirmTextInput = document.getElementById("bulk-attendance-confirm-text");
 const bulkAttendanceResult = document.getElementById("bulk-attendance-result");
+const bulkAttendancePreviewWrap = document.getElementById("bulk-attendance-preview-wrap");
 const attendanceLogList = document.getElementById("attendance-log-list");
 const attendanceCheckNameInput = document.getElementById("attendance-check-name");
 const attendanceCheckMonthInput = document.getElementById("attendance-check-month");
@@ -109,6 +115,10 @@ const raffleRule = document.getElementById("raffle-rule");
 const nextDraw = document.getElementById("next-draw");
 const approvalRefreshButton = document.getElementById("approval-refresh");
 const approvalList = document.getElementById("approval-list");
+const signupDiagnosticQueryInput = document.getElementById("signup-diagnostic-query");
+const signupDiagnosticRunButton = document.getElementById("signup-diagnostic-run");
+const signupDiagnosticStatus = document.getElementById("signup-diagnostic-status");
+const signupDiagnosticList = document.getElementById("signup-diagnostic-list");
 const syncSupabaseButton = document.getElementById("sync-supabase");
 const recoverMembersButton = document.getElementById("recover-members");
 const syncStatus = document.getElementById("sync-status");
@@ -123,7 +133,19 @@ const publicRaffleSpotlight = document.getElementById("public-raffle-spotlight")
 const publicRaffleCandidates = document.getElementById("public-raffle-candidates");
 const raffleCandidates = document.getElementById("raffle-candidates");
 const auditLogList = document.getElementById("audit-log-list");
+const healthcheckMonthInput = document.getElementById("healthcheck-month");
+const healthcheckRefreshButton = document.getElementById("healthcheck-refresh");
+const healthcheckLogFilterSelect = document.getElementById("healthcheck-log-filter");
+const healthcheckStatus = document.getElementById("healthcheck-status");
+const healthcheckGrid = document.getElementById("healthcheck-grid");
+const healthcheckRecalcPreviewButton = document.getElementById("healthcheck-recalc-preview");
+const healthcheckRecalcCommitButton = document.getElementById("healthcheck-recalc-commit");
+const healthcheckWelcomePreviewButton = document.getElementById("healthcheck-welcome-preview");
+const healthcheckWelcomeCommitButton = document.getElementById("healthcheck-welcome-commit");
+const healthcheckActionResult = document.getElementById("healthcheck-action-result");
 const adminNavLinks = document.querySelectorAll("[data-admin-nav]");
+
+let latestHealthcheckResult = null;
 
 let adminAuthClient = null;
 let currentAdminToken = "";
@@ -153,6 +175,8 @@ function init() {
   populateFeeMonthOptions();
   setDefaultBulkDate();
   setDefaultAttendanceCheckMonth();
+  setDefaultHealthcheckMonth();
+  syncAttendanceModeUi();
   renderAll();
   loadPublicRaffleData();
   attachAdminSessionListeners();
@@ -171,6 +195,8 @@ function init() {
     }
   });
 
+  bulkAttendancePreviewButton?.addEventListener("click", previewBulkAttendance);
+  bulkAttendanceModeInput?.addEventListener("change", syncAttendanceModeUi);
   bulkAttendanceApplyButton.addEventListener("click", handleBulkAttendanceApply);
   attendanceCheckRunButton?.addEventListener("click", renderAttendanceCheck);
   attendanceCheckNameInput?.addEventListener("keydown", (event) => {
@@ -199,6 +225,15 @@ function init() {
   if (approvalRefreshButton) {
     approvalRefreshButton.addEventListener("click", loadApprovalQueue);
   }
+  if (signupDiagnosticRunButton) {
+    signupDiagnosticRunButton.addEventListener("click", runSignupDiagnostic);
+  }
+  signupDiagnosticQueryInput?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      runSignupDiagnostic();
+    }
+  });
   if (syncSupabaseButton) {
     syncSupabaseButton.addEventListener("click", syncDataToSupabase);
   }
@@ -208,6 +243,16 @@ function init() {
   if (roleRefreshButton) {
     roleRefreshButton.addEventListener("click", loadRoleList);
   }
+  healthcheckRefreshButton?.addEventListener("click", loadHealthcheck);
+  healthcheckLogFilterSelect?.addEventListener("change", () => {
+    if (latestHealthcheckResult) {
+      renderHealthcheck(latestHealthcheckResult);
+    }
+  });
+  healthcheckRecalcPreviewButton?.addEventListener("click", () => runHealthcheckAction("recalc_monthly_attendance", false));
+  healthcheckRecalcCommitButton?.addEventListener("click", () => runHealthcheckAction("recalc_monthly_attendance", true));
+  healthcheckWelcomePreviewButton?.addEventListener("click", () => runHealthcheckAction("grant_missing_welcome_points", false));
+  healthcheckWelcomeCommitButton?.addEventListener("click", () => runHealthcheckAction("grant_missing_welcome_points", true));
   memberSearchInput?.addEventListener("input", renderMembers);
   memberFilterSelect?.addEventListener("change", renderMembers);
   window.addEventListener("hashchange", markCurrentNavigation);
@@ -333,7 +378,7 @@ function configureAdminTabs() {
     { key: "members", label: "회원/출석", match: ["회원 관리", "이름 목록", "강퇴 후보"] },
     { key: "fees", label: "회비/추첨", match: ["회비 관리", "참여 추첨"] },
     { key: "requests", label: "신청/공지", match: ["공지 등록", "회원 가입 승인", "게스트 신청"] },
-    { key: "system", label: "시스템", match: ["운영진 권한", "운영 변경 기록", "Supabase"] }
+    { key: "system", label: "시스템", match: ["운영진 권한", "운영 변경 기록", "시스템 점검", "Supabase"] }
   ];
   const panels = Array.from(adminGrid.children).filter((node) => node.matches?.("article.panel"));
 
@@ -443,6 +488,11 @@ async function openAdminSession({ client, user, accessToken, profile }) {
   } catch (_error) {
     // Individual panels provide their own fallback state.
   }
+  try {
+    await loadHealthcheck();
+  } catch (_error) {
+    // Healthcheck panel has its own fallback state.
+  }
   renderAll();
 }
 
@@ -455,6 +505,9 @@ function prepareAdminLoadingState() {
   }
   if (approvalList) {
     approvalList.innerHTML = '<li class="list-item"><p class="list-meta">승인 목록을 불러오는 중...</p></li>';
+  }
+  if (signupDiagnosticList) {
+    signupDiagnosticList.innerHTML = "";
   }
   if (roleList) {
     roleList.innerHTML = '<li class="list-item"><p class="list-meta">권한 목록을 불러오는 중...</p></li>';
@@ -1196,6 +1249,13 @@ function setDefaultAttendanceCheckMonth() {
   attendanceCheckMonthInput.value = currentMonthKey();
 }
 
+function setDefaultHealthcheckMonth() {
+  if (!healthcheckMonthInput) {
+    return;
+  }
+  healthcheckMonthInput.value = currentMonthKey();
+}
+
 function renderAttendanceCheck() {
   if (!attendanceCheckList || !attendanceCheckSummary) {
     return;
@@ -1505,11 +1565,12 @@ async function handleAttendanceByName() {
 
   if (currentAdminToken) {
     try {
-      const result = await callAdminWrite("append_attendance_member", {
-        name: names[0],
+      const result = await callAdminAttendance("commit", {
         date,
-        event_type: eventType,
-        source: "quick"
+        run_type: eventType,
+        mode: "append",
+        names_text: names[0],
+        confirmed: true
       });
       await loadAdminSnapshot();
       renderAll();
@@ -1545,45 +1606,179 @@ async function handleBulkAttendanceApply() {
     return;
   }
 
-  const names = parseNames(raw);
   const date = bulkAttendanceDateInput.value || toIsoDate(new Date());
   const eventType = normalizeAttendanceEventType(bulkAttendanceTypeInput.value || "정기런");
+  const mode = getAttendanceInputMode();
+  if (!currentAdminToken) {
+    bulkAttendanceResult.textContent = "운영진 로그인 후 서버에서 출석을 반영할 수 있습니다.";
+    return;
+  }
+  if (mode === "replace" && !isReplaceAttendanceConfirmed()) {
+    bulkAttendanceResult.textContent = "전체 교체는 체크박스와 확인 문구 '교체합니다'가 필요합니다.";
+    return;
+  }
   if (bulkAttendanceApplyButton) {
     bulkAttendanceApplyButton.disabled = true;
   }
-  bulkAttendanceResult.textContent = "명단을 반영하는 중입니다. 같은 날짜/유형의 기존 명단은 교체됩니다...";
+  bulkAttendanceResult.textContent = mode === "replace" ? "전체 교체를 반영하는 중입니다..." : "추가 출석을 반영하는 중입니다...";
 
-  if (currentAdminToken) {
-    try {
-      const result = await callAdminWrite("apply_attendance", {
-        names,
+  try {
+    const result = await callAdminAttendance("commit", {
         date,
-        event_type: eventType,
-        source: "bulk"
-      });
-      await loadAdminSnapshot();
-      renderAll();
-      bulkAttendanceResult.textContent = buildAttendanceSummaryMessage(result?.summary);
-      if (syncStatus) {
-        syncStatus.textContent = "명단 출석 반영 완료: 서버에 바로 반영했습니다.";
-      }
-      return;
-    } catch (error) {
-      bulkAttendanceResult.textContent = `출석 반영 실패: ${String(error?.message || error)}`;
-      return;
-    } finally {
-      if (bulkAttendanceApplyButton) {
-        bulkAttendanceApplyButton.disabled = false;
-      }
+        run_type: eventType,
+        mode,
+        names_text: raw,
+        confirmed: true,
+        replace_confirmed: Boolean(bulkAttendanceReplaceConfirmInput?.checked),
+        confirm_text: String(bulkAttendanceConfirmTextInput?.value || "").trim()
+    });
+    renderAttendancePreview(result);
+    await loadAdminSnapshot();
+    renderAll();
+    bulkAttendanceResult.textContent = buildAttendanceSummaryMessage(result?.summary);
+    if (syncStatus) {
+      syncStatus.textContent = mode === "replace"
+        ? "출석 전체 교체 완료: 서버에 바로 반영했습니다."
+        : "출석 추가 반영 완료: 서버에 바로 반영했습니다.";
+    }
+  } catch (error) {
+    bulkAttendanceResult.textContent = `출석 반영 실패: ${String(error?.message || error)}`;
+  } finally {
+    if (bulkAttendanceApplyButton) {
+      bulkAttendanceApplyButton.disabled = false;
     }
   }
+}
 
-  const summary = applyAttendanceByNames(names, { date, eventType, source: "bulk" });
-
-  bulkAttendanceResult.textContent = summary.message;
-  if (bulkAttendanceApplyButton) {
-    bulkAttendanceApplyButton.disabled = false;
+async function previewBulkAttendance() {
+  const raw = String(bulkAttendanceInput?.value || "").trim();
+  if (!raw) {
+    bulkAttendanceResult.textContent = "참석자 명단을 입력해 주세요.";
+    return;
   }
+  if (!currentAdminToken) {
+    bulkAttendanceResult.textContent = "운영진 로그인 후 미리보기를 사용할 수 있습니다.";
+    return;
+  }
+  const date = bulkAttendanceDateInput.value || toIsoDate(new Date());
+  const eventType = normalizeAttendanceEventType(bulkAttendanceTypeInput.value || "정기런");
+  const mode = getAttendanceInputMode();
+
+  if (bulkAttendancePreviewButton) {
+    bulkAttendancePreviewButton.disabled = true;
+  }
+  bulkAttendanceResult.textContent = "출석 미리보기를 불러오는 중입니다...";
+
+  try {
+    const result = await callAdminAttendance("preview", {
+      date,
+      run_type: eventType,
+      mode,
+      names_text: raw
+    });
+    renderAttendancePreview(result);
+    bulkAttendanceResult.textContent = buildAttendancePreviewMessage(result?.summary, mode);
+  } catch (error) {
+    bulkAttendanceResult.textContent = `미리보기 실패: ${String(error?.message || error)}`;
+  } finally {
+    if (bulkAttendancePreviewButton) {
+      bulkAttendancePreviewButton.disabled = false;
+    }
+  }
+}
+
+function getAttendanceInputMode() {
+  return String(bulkAttendanceModeInput?.value || "append") === "replace" ? "replace" : "append";
+}
+
+function isReplaceAttendanceConfirmed() {
+  return Boolean(bulkAttendanceReplaceConfirmInput?.checked)
+    && String(bulkAttendanceConfirmTextInput?.value || "").trim() === "교체합니다";
+}
+
+function syncAttendanceModeUi() {
+  const mode = getAttendanceInputMode();
+  bulkAttendanceReplaceGuard?.classList.toggle("hidden", mode !== "replace");
+  if (bulkAttendanceApplyButton) {
+    bulkAttendanceApplyButton.textContent = mode === "replace" ? "전체 교체, 위험" : "추가 반영";
+    bulkAttendanceApplyButton.classList.toggle("danger", mode === "replace");
+  }
+}
+
+function buildAttendancePreviewMessage(summary, mode) {
+  if (!summary) {
+    return "미리보기를 확인했습니다.";
+  }
+  const parts = [
+    `${mode === "replace" ? "전체 교체" : "추가 입력"} 미리보기`,
+    `추가 예정 ${Number(summary.will_add_count || 0)}명`
+  ];
+  if (Number(summary.already_attended_count || 0)) {
+    parts.push(`이미 입력 ${Number(summary.already_attended_count)}명`);
+  }
+  if (Number(summary.duplicate_input_count || 0)) {
+    parts.push(`명단 중복 ${Number(summary.duplicate_input_count)}명`);
+  }
+  if (Number(summary.will_remove_count || 0)) {
+    parts.push(`제거 예정 ${Number(summary.will_remove_count)}명`);
+  }
+  if (Number(summary.problem_count || 0)) {
+    parts.push(`확인 필요 ${Number(summary.problem_count)}명`);
+  }
+  return parts.join(" | ");
+}
+
+function renderAttendancePreview(result) {
+  if (!bulkAttendancePreviewWrap) {
+    return;
+  }
+  const rows = Array.isArray(result?.rows) ? result.rows : [];
+  bulkAttendancePreviewWrap.classList.remove("hidden");
+  if (!rows.length) {
+    bulkAttendancePreviewWrap.innerHTML = '<p class="list-meta">미리보기 결과가 없습니다.</p>';
+    return;
+  }
+  bulkAttendancePreviewWrap.innerHTML = `
+    <div class="attendance-preview-head">
+      <strong>${escapeHtml(result.date || "")} / ${escapeHtml(result.run_type || "")}</strong>
+      <span class="list-meta">${escapeHtml(result.mode === "replace" ? "전체 교체" : "추가 입력")}</span>
+    </div>
+    <div class="attendance-preview-table">
+      <div class="attendance-preview-row header">
+        <span>입력 이름</span>
+        <span>매칭 회원</span>
+        <span>처리 예정</span>
+        <span>메모</span>
+      </div>
+      ${rows.map(renderAttendancePreviewRow).join("")}
+    </div>
+  `;
+}
+
+function renderAttendancePreviewRow(row) {
+  return `
+    <div class="attendance-preview-row ${escapeHtml(row.status || "")}">
+      <span>${escapeHtml(row.input_name || "")}</span>
+      <span>${escapeHtml(row.member_name || "-")}${row.birth_year ? ` (${escapeHtml(row.birth_year)})` : ""}</span>
+      <span>${escapeHtml(formatAttendancePreviewStatus(row.status))}</span>
+      <span>${escapeHtml(row.message || "")}</span>
+    </div>
+  `;
+}
+
+function formatAttendancePreviewStatus(status) {
+  const labels = {
+    will_add: "추가 예정",
+    already_attended: "이미 입력됨",
+    duplicate_input: "입력 중복",
+    ambiguous_name: "동명이인 확인",
+    not_found: "회원 없음",
+    not_approved: "승인 전 회원",
+    inactive: "휴면 회원",
+    will_remove: "제거 예정",
+    unchanged: "유지"
+  };
+  return labels[status] || status || "-";
 }
 
 function buildAttendanceSummaryMessage(summary) {
@@ -1591,7 +1786,11 @@ function buildAttendanceSummaryMessage(summary) {
     return "출석 반영 완료";
   }
   const parts = [];
-  parts.push(`반영 ${Array.isArray(summary.matched) ? summary.matched.length : 0}명`);
+  const matchedCount = Array.isArray(summary.matched) ? summary.matched.length : Number(summary.added_count || summary.will_add_count || 0);
+  parts.push(`반영 ${matchedCount}명`);
+  if (Number(summary.removed_count || 0)) {
+    parts.push(`제거 ${Number(summary.removed_count)}명`);
+  }
   if (Array.isArray(summary.unmatched) && summary.unmatched.length) {
     parts.push(`미일치 ${summary.unmatched.length}명`);
   }
@@ -1601,8 +1800,11 @@ function buildAttendanceSummaryMessage(summary) {
   if (Array.isArray(summary.already_present) && summary.already_present.length) {
     parts.push(`이미 반영 ${summary.already_present.length}명`);
   }
+  if (Number(summary.problem_count || 0)) {
+    parts.push(`확인 필요 ${Number(summary.problem_count)}명`);
+  }
   if (summary.replaced_existing) {
-    parts.push("기존 같은 날짜 로그 교체");
+    parts.push("전체 교체");
   }
   return parts.join(" | ");
 }
@@ -3677,7 +3879,17 @@ function buildTinyButton(text, onClick) {
   button.type = "button";
   button.className = "btn tiny ghost";
   button.textContent = text;
-  button.addEventListener("click", onClick);
+  button.addEventListener("click", async (event) => {
+    if (button.disabled) {
+      return;
+    }
+    button.disabled = true;
+    try {
+      await onClick(event);
+    } finally {
+      button.disabled = false;
+    }
+  });
   return button;
 }
 
@@ -3800,6 +4012,27 @@ async function fetchAdminSnapshot() {
 
 async function callAdminWrite(action, payload = {}) {
   const response = await fetch(`/.netlify/functions/admin-write?t=${Date.now()}`, {
+    method: "POST",
+    cache: "no-store",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${currentAdminToken}`
+    },
+    body: JSON.stringify({
+      action,
+      ...payload
+    })
+  });
+
+  const result = await response.json().catch(() => ({ ok: false, error: "invalid response" }));
+  if (!response.ok || !result.ok) {
+    throw new Error(result.error || "unknown");
+  }
+  return result;
+}
+
+async function callAdminAttendance(action, payload = {}) {
+  const response = await fetch(`/.netlify/functions/admin-attendance?t=${Date.now()}`, {
     method: "POST",
     cache: "no-store",
     headers: {
@@ -3996,6 +4229,138 @@ async function recoverMembersFromProfiles() {
   }
 }
 
+async function runSignupDiagnostic() {
+  if (!currentAdminToken) {
+    alert("운영진 로그인 후 이용해 주세요.");
+    return;
+  }
+  const query = String(signupDiagnosticQueryInput?.value || "").trim();
+  if (query.length < 2) {
+    if (signupDiagnosticStatus) {
+      signupDiagnosticStatus.textContent = "이메일 또는 이름을 2자 이상 입력해 주세요.";
+    }
+    return;
+  }
+
+  if (signupDiagnosticRunButton) {
+    signupDiagnosticRunButton.disabled = true;
+  }
+  if (signupDiagnosticStatus) {
+    signupDiagnosticStatus.textContent = "가입 상태를 점검하는 중...";
+  }
+  if (signupDiagnosticList) {
+    signupDiagnosticList.innerHTML = '<li class="list-item"><p class="list-meta">검색 중...</p></li>';
+  }
+
+  try {
+    const response = await fetch(`/.netlify/functions/signup-diagnostics?q=${encodeURIComponent(query)}`, {
+      headers: {
+        Authorization: `Bearer ${currentAdminToken}`
+      }
+    });
+    const result = await response.json().catch(() => ({ ok: false, error: "invalid response" }));
+    if (!response.ok || !result.ok) {
+      throw new Error(result.error || "unknown");
+    }
+    renderSignupDiagnosticResult(result.items || [], result.counts || {});
+  } catch (error) {
+    if (signupDiagnosticStatus) {
+      signupDiagnosticStatus.textContent = `점검 실패: ${String(error.message || error)}`;
+    }
+    if (signupDiagnosticList) {
+      signupDiagnosticList.innerHTML = "";
+    }
+  } finally {
+    if (signupDiagnosticRunButton) {
+      signupDiagnosticRunButton.disabled = false;
+    }
+  }
+}
+
+function renderSignupDiagnosticResult(items, counts) {
+  if (signupDiagnosticStatus) {
+    signupDiagnosticStatus.textContent = `검색 결과 ${items.length}건 / Auth ${counts.auth_users || 0}명 / 프로필 ${counts.profiles || 0}건`;
+  }
+  if (!signupDiagnosticList) {
+    return;
+  }
+  signupDiagnosticList.innerHTML = "";
+  if (!items.length) {
+    signupDiagnosticList.innerHTML = '<li class="list-item"><p class="list-meta">검색 결과가 없습니다.</p></li>';
+    return;
+  }
+
+  items.forEach((item) => {
+    const profile = item.profile || {};
+    const row = document.createElement("li");
+    row.className = "list-item";
+    const statusLabel = item.status === "profile_missing"
+      ? "프로필 누락"
+      : formatApprovalStatusLabel(item.status || profile.approval_status || "pending");
+    const emailConfirmed = item.email_confirmed === null ? "확인 불가" : item.email_confirmed ? "인증 완료" : "이메일 미인증";
+    row.innerHTML = `
+      <div class="list-top">
+        <span class="list-title">${escapeHtml(profile.name || item.metadata_name || "이름없음")}</span>
+        <span class="list-meta">${escapeHtml(statusLabel)}</span>
+      </div>
+      <p class="list-meta">${escapeHtml(item.email || profile.email || "")}</p>
+      <p class="list-meta">Auth: ${escapeHtml(emailConfirmed)} / 출생연도: ${escapeHtml(profile.birth_year || item.metadata_birth_year || "-")}</p>
+    `;
+
+    if (item.recoverable) {
+      const actions = document.createElement("div");
+      actions.className = "item-actions";
+      actions.appendChild(buildTinyButton("pending 프로필 복구", () => recoverSignupProfile(item.user_id)));
+      row.appendChild(actions);
+    }
+    signupDiagnosticList.appendChild(row);
+  });
+}
+
+async function recoverSignupProfile(userId) {
+  if (!currentAdminToken || !userId) {
+    return;
+  }
+  const confirmed = confirm("이 Auth 사용자에 대해 승인 대기 프로필을 복구할까요?");
+  if (!confirmed) {
+    return;
+  }
+  if (signupDiagnosticRunButton) {
+    signupDiagnosticRunButton.disabled = true;
+  }
+  if (signupDiagnosticStatus) {
+    signupDiagnosticStatus.textContent = "프로필 복구 중...";
+  }
+
+  try {
+    const response = await fetch("/.netlify/functions/signup-diagnostics", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${currentAdminToken}`
+      },
+      body: JSON.stringify({ user_id: userId })
+    });
+    const result = await response.json().catch(() => ({ ok: false, error: "invalid response" }));
+    if (!response.ok || !result.ok) {
+      throw new Error(result.error || "unknown");
+    }
+    if (signupDiagnosticStatus) {
+      signupDiagnosticStatus.textContent = result.recovered ? "프로필 복구 완료. 승인 목록을 새로고침합니다." : "이미 프로필이 있습니다.";
+    }
+    await loadApprovalQueue();
+    await runSignupDiagnostic();
+  } catch (error) {
+    if (signupDiagnosticStatus) {
+      signupDiagnosticStatus.textContent = `프로필 복구 실패: ${String(error.message || error)}`;
+    }
+  } finally {
+    if (signupDiagnosticRunButton) {
+      signupDiagnosticRunButton.disabled = false;
+    }
+  }
+}
+
 async function loadApprovalQueue() {
   if (!approvalList) {
     return;
@@ -4133,6 +4498,229 @@ async function loadRoleList() {
   } catch (error) {
     roleList.innerHTML = `<li class="list-item"><p class="list-meta">로드 실패: ${escapeHtml(String(error.message || error))}</p></li>`;
   }
+}
+
+async function loadHealthcheck() {
+  if (!healthcheckGrid) {
+    return;
+  }
+  if (!currentAdminToken) {
+    healthcheckGrid.innerHTML = "";
+    if (healthcheckStatus) {
+      healthcheckStatus.textContent = "운영진 로그인 후 점검할 수 있습니다.";
+    }
+    return;
+  }
+  const monthKey = String(healthcheckMonthInput?.value || currentMonthKey()).trim();
+  if (healthcheckStatus) {
+    healthcheckStatus.textContent = "시스템 점검 데이터를 불러오는 중...";
+  }
+  healthcheckGrid.innerHTML = '<article class="healthcheck-card"><p class="list-meta">점검 중...</p></article>';
+
+  try {
+    const response = await fetch(`/.netlify/functions/admin-healthcheck?month=${encodeURIComponent(monthKey)}&t=${Date.now()}`, {
+      cache: "no-store",
+      headers: {
+        Authorization: `Bearer ${currentAdminToken}`
+      }
+    });
+    const result = await response.json().catch(() => ({ ok: false, error: "invalid response" }));
+    if (!response.ok || !result.ok) {
+      throw new Error(result.error || "unknown");
+    }
+    latestHealthcheckResult = result;
+    renderHealthcheck(result);
+    if (healthcheckStatus) {
+      healthcheckStatus.textContent = `${result.month_key || monthKey} 기준 점검 완료`;
+    }
+  } catch (error) {
+    healthcheckGrid.innerHTML = "";
+    if (healthcheckStatus) {
+      healthcheckStatus.textContent = `시스템 점검 실패: ${String(error.message || error)}`;
+    }
+  }
+}
+
+function renderHealthcheck(result) {
+  if (!healthcheckGrid) {
+    return;
+  }
+  const signup = result.signup || {};
+  const attendance = result.attendance || {};
+  const monthly = result.monthly_summary || {};
+  const points = result.points || {};
+  const filteredLogs = filterHealthcheckLogs(result.operation_logs || []);
+  healthcheckGrid.innerHTML = [
+    renderHealthcheckCard("회원가입 상태", [
+      ["Auth user", signup.auth_user_count],
+      ["members row", signup.members_row_count],
+      ["pending", signup.pending_count],
+      ["approved", signup.approved_count],
+      ["rejected", signup.rejected_count],
+      ["Auth만 있음", signup.auth_without_member_count],
+      ["프로필 매칭 없는 members", signup.member_without_user_id_count]
+    ]),
+    renderPendingMembersCard(result.pending_members || []),
+    renderHealthcheckCard("출석 데이터 상태", [
+      ["이번 달 로그", attendance.month_log_count],
+      ["최근 출석일", attendance.recent_date || "-"],
+      ["중복 scope 의심", attendance.duplicate_scope_count],
+      ["미매칭 이름", attendance.unmatched_name_count],
+      ["휴면 회원 출석 의심", attendance.inactive_attendance_count]
+    ], renderSimpleList([...(attendance.duplicate_scopes || []), ...(attendance.inactive_rows || [])], formatHealthcheckObject)),
+    renderHealthcheckCard("월별 출석 요약", [
+      ["불일치", monthly.mismatch_count],
+      ["점검 월", result.month_key]
+    ], renderSimpleList(monthly.rows || [], (row) => `${row.name} ${row.attendance_count}/${row.monthly_runs_count} (${row.delta > 0 ? "+" : ""}${row.delta})`)),
+    renderHealthcheckCard("포인트 상태", [
+      ["중복 지급 의심", points.duplicate_award_count],
+      ["미션 claim 중복", points.duplicate_mission_claim_count],
+      ["웰컴 포인트 미지급", points.missing_welcome_points_count],
+      ["total_points 불일치", points.total_points_mismatch_count]
+    ], `<p class="list-meta">${escapeHtml(points.total_points_note || "")}</p>${renderSimpleList(points.missing_welcome_profiles || [], (row) => `${row.name} / ${row.email_masked}`)}`),
+    renderHealthcheckCard("운영 로그", [
+      ["최근 로그", Array.isArray(result.operation_logs) ? result.operation_logs.length : 0],
+      ["필터 결과", filteredLogs.length]
+    ], renderOperationLogPreview(filteredLogs))
+  ].join("");
+}
+
+function renderHealthcheckCard(title, metrics, detail = "") {
+  const metricHtml = (Array.isArray(metrics) ? metrics : []).map(([label, value]) => `
+    <div class="healthcheck-metric">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value ?? 0)}</strong>
+    </div>
+  `).join("");
+  return `
+    <article class="healthcheck-card">
+      <h4>${escapeHtml(title)}</h4>
+      <div class="healthcheck-metrics">${metricHtml}</div>
+      ${detail || ""}
+    </article>
+  `;
+}
+
+function renderPendingMembersCard(items) {
+  return renderHealthcheckCard("승인 대기", [["대기 회원", items.length]], renderSimpleList(items, (item) => (
+    `${item.name || "이름없음"} / ${item.email_masked || ""} / ${item.email_confirmed ? "이메일 인증" : "이메일 미인증"} / ${formatDateTime(item.created_at || "")}`
+  )));
+}
+
+function renderSimpleList(items, formatter) {
+  const rows = (Array.isArray(items) ? items : []).slice(0, 8);
+  if (!rows.length) {
+    return '<p class="list-meta">표시할 항목이 없습니다.</p>';
+  }
+  return `<ul class="healthcheck-list">${rows.map((item) => `<li>${escapeHtml(formatter(item))}</li>`).join("")}</ul>`;
+}
+
+function renderOperationLogPreview(items) {
+  const rows = (Array.isArray(items) ? items : []).slice(0, 20);
+  if (!rows.length) {
+    return '<p class="list-meta">운영 로그가 없습니다.</p>';
+  }
+  return `<ul class="healthcheck-list">${rows.map((item) => `<li>${escapeHtml(formatDateTime(item.created_at || ""))} / ${escapeHtml(item.action || "")}</li>`).join("")}</ul>`;
+}
+
+function filterHealthcheckLogs(items) {
+  const filter = String(healthcheckLogFilterSelect?.value || "all");
+  if (filter === "all") {
+    return Array.isArray(items) ? items : [];
+  }
+  const patterns = {
+    signup: /signup|가입|profile|welcome/i,
+    approval: /approval|승인|반려/i,
+    attendance: /attendance|출석/i,
+    point: /point|award|mission|포인트/i,
+    raffle: /raffle|추첨/i,
+    fee: /fee|회비|납부|미납/i
+  };
+  const pattern = patterns[filter] || /./;
+  return (Array.isArray(items) ? items : []).filter((item) => pattern.test(`${item.action || ""} ${item.detail || ""}`));
+}
+
+function formatHealthcheckObject(item) {
+  if (item?.scope) {
+    return `${item.scope} 중복 ${item.count}건`;
+  }
+  return `${item?.date || ""} ${item?.event_type || ""} ${item?.name || ""}`.trim();
+}
+
+async function runHealthcheckAction(action, confirmed) {
+  if (!currentAdminToken) {
+    alert("운영진 로그인 후 이용해 주세요.");
+    return;
+  }
+  if (confirmed) {
+    const ok = confirm(action === "recalc_monthly_attendance"
+      ? "월별 출석 요약값을 attendance_logs 기준으로 재계산할까요?"
+      : "승인 회원 중 웰컴 포인트 누락자에게 20P를 지급할까요?");
+    if (!ok) {
+      return;
+    }
+  }
+  setHealthcheckActionButtonsDisabled(true);
+  if (healthcheckActionResult) {
+    healthcheckActionResult.classList.remove("hidden");
+    healthcheckActionResult.innerHTML = '<p class="list-meta">작업을 처리하는 중...</p>';
+  }
+
+  try {
+    const response = await fetch(`/.netlify/functions/admin-healthcheck?t=${Date.now()}`, {
+      method: "POST",
+      cache: "no-store",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${currentAdminToken}`
+      },
+      body: JSON.stringify({
+        action,
+        month_key: String(healthcheckMonthInput?.value || currentMonthKey()).trim(),
+        confirmed
+      })
+    });
+    const result = await response.json().catch(() => ({ ok: false, error: "invalid response" }));
+    if (!response.ok || !result.ok) {
+      throw new Error(result.error || "unknown");
+    }
+    renderHealthcheckActionResult(action, result);
+    if (confirmed) {
+      await loadHealthcheck();
+    }
+  } catch (error) {
+    if (healthcheckActionResult) {
+      healthcheckActionResult.innerHTML = `<p class="list-meta">작업 실패: ${escapeHtml(String(error.message || error))}</p>`;
+    }
+  } finally {
+    setHealthcheckActionButtonsDisabled(false);
+  }
+}
+
+function renderHealthcheckActionResult(action, result) {
+  if (!healthcheckActionResult) {
+    return;
+  }
+  const title = action === "recalc_monthly_attendance"
+    ? `월별 출석 재계산 ${result.preview ? "미리보기" : "완료"}`
+    : `웰컴 포인트 ${result.preview ? "미리보기" : "지급 완료"}`;
+  const rows = Array.isArray(result.rows) ? result.rows : [];
+  const list = rows.length
+    ? renderSimpleList(rows, (row) => row.delta !== undefined
+      ? `${row.name}: 원장 ${row.attendance_count} / 요약 ${row.monthly_runs_count}`
+      : `${row.name || ""} / ${row.email_masked || ""}`)
+    : '<p class="list-meta">처리할 항목이 없습니다.</p>';
+  healthcheckActionResult.classList.remove("hidden");
+  healthcheckActionResult.innerHTML = `<div class="attendance-preview-head"><strong>${escapeHtml(title)}</strong><span class="list-meta">${escapeHtml(result.month_key || "")}</span></div>${list}`;
+}
+
+function setHealthcheckActionButtonsDisabled(disabled) {
+  [healthcheckRecalcPreviewButton, healthcheckRecalcCommitButton, healthcheckWelcomePreviewButton, healthcheckWelcomeCommitButton]
+    .forEach((button) => {
+      if (button) {
+        button.disabled = disabled;
+      }
+    });
 }
 
 async function updateMemberRole(userId, role, displayName = "회원") {

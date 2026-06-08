@@ -8,12 +8,22 @@ export default async (request) => {
   }
 
   try {
+    const token = extractBearerToken(request.headers.get("authorization") || "");
+    if (!token) {
+      return json(401, { ok: false, error: "missing bearer token" });
+    }
+    const user = await fetchAuthedUser(token);
+    if (!user?.id || !user?.email) {
+      return json(401, { ok: false, error: "invalid session" });
+    }
+
     const body = await request.json();
-    const userId = String(body?.user_id || "").trim();
-    const email = String(body?.email || "").trim().toLowerCase();
-    const name = String(body?.name || "").trim();
-    const birthYear = Number(body?.birth_year || 0);
-    const intro = String(body?.intro || "").trim();
+    const userId = String(user.id || "").trim();
+    const email = String(user.email || "").trim().toLowerCase();
+    const meta = user.user_metadata && typeof user.user_metadata === "object" ? user.user_metadata : {};
+    const name = String(body?.name || meta.name || "").trim();
+    const birthYear = Number(body?.birth_year || meta.birth_year || 0);
+    const intro = String(body?.intro || meta.intro || "").trim();
 
     if (!userId || !email || !name || !birthYear) {
       return json(400, { ok: false, error: "missing required fields" });
@@ -126,6 +136,29 @@ function env(name) {
     throw new Error(`Missing env: ${name}`);
   }
   return value;
+}
+
+function extractBearerToken(header) {
+  const [type, token] = String(header || "").split(" ");
+  if ((type || "").toLowerCase() !== "bearer" || !token) {
+    return "";
+  }
+  return token.trim();
+}
+
+async function fetchAuthedUser(token) {
+  const response = await fetch(`${env("SUPABASE_URL")}/auth/v1/user`, {
+    headers: {
+      apikey: env("SUPABASE_ANON_KEY"),
+      Authorization: `Bearer ${token}`
+    }
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  return response.json();
 }
 
 function json(status, body) {

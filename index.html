@@ -220,7 +220,7 @@
             </article>
 
             <article class="panel">
-              <h3>참석자 명단 전체 반영</h3>
+              <h3>참석자 명단 입력</h3>
               <label for="bulk-attendance-date">출석일</label>
               <input id="bulk-attendance-date" type="date" />
               <label for="bulk-attendance-type">유형</label>
@@ -229,11 +229,27 @@
                 <option value="flash">번개런</option>
                 <option value="official">공식 행사</option>
               </select>
+              <label for="bulk-attendance-mode">입력 모드</label>
+              <select id="bulk-attendance-mode">
+                <option value="append">추가 입력, 기본</option>
+                <option value="replace">전체 교체, 고급/위험</option>
+              </select>
               <label for="bulk-attendance-input">참석자 명단</label>
               <textarea id="bulk-attendance-input" rows="6" placeholder="참석자 명단을 줄바꿈, 쉼표, 공백으로 붙여넣기"></textarea>
-              <button id="bulk-attendance-apply" class="btn primary" type="button">명단 전체 반영</button>
-              <p class="list-meta">같은 날짜와 유형의 기존 출석 기록이 있으면 이 명단으로 교체됩니다.</p>
+              <div id="bulk-attendance-replace-guard" class="attendance-danger-guard hidden">
+                <label style="display:flex;gap:0.4rem;align-items:flex-start;">
+                  <input id="bulk-attendance-replace-confirm" type="checkbox" style="width:auto;margin-top:0.1rem;" />
+                  <span class="list-meta">기존 같은 날짜/유형 출석 명단을 새 명단으로 전체 교체합니다.</span>
+                </label>
+                <input id="bulk-attendance-confirm-text" type="text" placeholder="교체합니다" />
+              </div>
+              <div class="item-actions">
+                <button id="bulk-attendance-preview" class="btn ghost" type="button">미리보기</button>
+                <button id="bulk-attendance-apply" class="btn primary" type="button">추가 반영</button>
+              </div>
+              <p class="list-meta">기본은 기존 출석을 유지하고 아직 없는 회원만 추가합니다. 전체 교체는 미리보기와 확인 문구가 필요합니다.</p>
               <p id="bulk-attendance-result" class="list-meta"></p>
+              <div id="bulk-attendance-preview-wrap" class="attendance-preview-wrap hidden"></div>
               <ul id="attendance-log-list" class="list small"></ul>
             </article>
 
@@ -277,6 +293,15 @@
               <p class="list-meta">회원가입 신청 후 운영진이 승인 상태를 관리합니다.</p>
               <button id="approval-refresh" class="btn ghost" type="button">신청자 목록 새로고침</button>
               <ul id="approval-list" class="list small" style="margin-top:0.6rem;"></ul>
+              <div class="signup-diagnostic-box">
+                <p class="list-meta">가입 상태 점검</p>
+                <div class="inline-form">
+                  <input id="signup-diagnostic-query" type="text" placeholder="이메일 또는 이름" />
+                  <button id="signup-diagnostic-run" class="btn ghost" type="button">점검</button>
+                </div>
+                <p id="signup-diagnostic-status" class="list-meta">가입은 됐지만 승인 목록에 보이지 않는 회원을 찾고 복구할 수 있습니다.</p>
+                <ul id="signup-diagnostic-list" class="list small"></ul>
+              </div>
             </article>
 
             <article class="panel">
@@ -291,6 +316,35 @@
               <h3>운영 변경 기록</h3>
               <p class="list-meta">공지, 회원, 게스트, 승인, 권한 변경 내역을 확인합니다.</p>
               <ul id="audit-log-list" class="list small"></ul>
+            </article>
+
+            <article class="panel system-health-panel">
+              <h3>시스템 점검</h3>
+              <p class="list-meta">회원가입, 승인, 출석, 포인트, 추첨 기준 데이터를 한 번에 점검합니다.</p>
+              <div class="inline-form">
+                <input id="healthcheck-month" type="month" />
+                <button id="healthcheck-refresh" class="btn ghost" type="button">점검 새로고침</button>
+              </div>
+              <p id="healthcheck-status" class="list-meta">운영진 로그인 후 점검할 수 있습니다.</p>
+              <div class="inline-form">
+                <select id="healthcheck-log-filter">
+                  <option value="all">운영 로그 전체</option>
+                  <option value="signup">가입</option>
+                  <option value="approval">승인</option>
+                  <option value="attendance">출석</option>
+                  <option value="point">포인트</option>
+                  <option value="raffle">추첨</option>
+                  <option value="fee">회비</option>
+                </select>
+              </div>
+              <div id="healthcheck-grid" class="healthcheck-grid"></div>
+              <div class="item-actions">
+                <button id="healthcheck-recalc-preview" class="btn ghost" type="button">월별 출석 재계산 미리보기</button>
+                <button id="healthcheck-recalc-commit" class="btn danger" type="button">확인 후 재계산 실행</button>
+                <button id="healthcheck-welcome-preview" class="btn ghost" type="button">웰컴 포인트 미지급 미리보기</button>
+                <button id="healthcheck-welcome-commit" class="btn danger" type="button">확인 후 웰컴 포인트 지급</button>
+              </div>
+              <div id="healthcheck-action-result" class="attendance-preview-wrap hidden"></div>
             </article>
 
             <article class="panel">

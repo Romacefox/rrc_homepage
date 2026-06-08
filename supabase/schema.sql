@@ -60,6 +60,9 @@ create table if not exists public.attendance_logs (
   created_at timestamptz not null default now()
 );
 
+create unique index if not exists attendance_logs_unique_scope
+on public.attendance_logs (attendance_date, event_type);
+
 
 create table if not exists public.operation_logs (
   id uuid primary key default gen_random_uuid(),
@@ -202,6 +205,42 @@ create table if not exists public.member_challenge_entries (
   updated_at timestamptz not null default now(),
   unique (challenge_id, user_id)
 );
+
+alter table public.member_challenges
+add column if not exists recruit_start_date date;
+
+alter table public.member_challenges
+add column if not exists recruit_end_date date;
+
+alter table public.member_challenges
+add column if not exists mode text not null default 'betting_pool';
+
+alter table public.member_challenges
+add column if not exists entry_points int not null default 0;
+
+alter table public.member_challenges
+add column if not exists success_reward_points int not null default 0;
+
+alter table public.member_challenges
+add column if not exists failure_policy text not null default 'success_pool';
+
+alter table public.member_challenges
+add column if not exists min_participants int not null default 3;
+
+alter table public.member_challenges
+add column if not exists verification_method text not null default 'RRC 카카오톡 채팅방';
+
+alter table public.member_challenges
+add column if not exists progress_current numeric not null default 0;
+
+alter table public.member_challenges
+add column if not exists progress_target numeric not null default 0;
+
+alter table public.member_challenge_entries
+add column if not exists locked_points int not null default 0;
+
+alter table public.member_challenge_entries
+add column if not exists settled_at timestamptz;
 
 create table if not exists public.member_point_awards (
   id uuid primary key default gen_random_uuid(),
