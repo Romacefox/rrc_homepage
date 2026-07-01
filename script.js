@@ -3,9 +3,7 @@ const STORAGE_KEY = "rrc-site-db-v3";
 const ADMIN_SNAPSHOT_META_KEY = "rrc-admin-snapshot-meta-v1";
 const SHARED_AUTH_STORAGE_KEY = "rrc-auth";
 
-const WINTER_MONTHS = [12, 1, 2];
-const MONTHLY_DRAW_THRESHOLD = 5;
-const WINTER_DRAW_THRESHOLD = 4;
+const MONTHLY_DRAW_THRESHOLD = 4;
 const DRAW_WINNER_COUNT = 4;
 const MONTHLY_FEE = 5000;
 const BIRTH_YEAR_MIN = 1989;
@@ -3653,8 +3651,7 @@ function getNextDrawAt(now) {
 }
 
 function getThresholdForMonthKey(monthKey) {
-  const month = Number(String(monthKey || "").split("-")[1] || 0);
-  return WINTER_MONTHS.includes(month) ? WINTER_DRAW_THRESHOLD : MONTHLY_DRAW_THRESHOLD;
+  return MONTHLY_DRAW_THRESHOLD;
 }
 
 function getMonthlyRuns(member, monthKey) {

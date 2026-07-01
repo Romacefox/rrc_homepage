@@ -65,10 +65,10 @@ const MISSION_DEFS = [
   },
   {
     key: "monthly_regular_run_5",
-    title: "월 5회 이상 정기런 참여",
+    title: "월 4회 이상 정기런 참여",
     points: 50,
     period: "monthly",
-    target: 5,
+    target: 4,
     cta: "이번 달 정기런 5회 조건을 달성했습니다.",
     incomplete: "정기런 {remaining}회 더 참여하면 50P"
   }

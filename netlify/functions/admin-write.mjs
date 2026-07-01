@@ -2,9 +2,7 @@ const PROFILE_TABLE = "member_profiles";
 const LOG_TABLE = "operation_logs";
 const ATTENDANCE_RPC_NAME = "admin_attendance_mutation";
 const DEFAULT_WINNER_COUNT = 4;
-const DEFAULT_THRESHOLD = 5;
-const WINTER_THRESHOLD = 4;
-const WINTER_MONTHS = [12, 1, 2];
+const DEFAULT_THRESHOLD = 4;
 const BIRTH_YEAR_MIN = 1989;
 const BIRTH_YEAR_MAX = 2004;
 
@@ -980,8 +978,7 @@ function previousMonthKey(date) {
 }
 
 function thresholdForMonthKey(monthKey) {
-  const month = Number(String(monthKey || "").split("-")[1] || 0);
-  return WINTER_MONTHS.includes(month) ? WINTER_THRESHOLD : DEFAULT_THRESHOLD;
+  return DEFAULT_THRESHOLD;
 }
 
 function monthlyRunsOf(member, monthKey) {

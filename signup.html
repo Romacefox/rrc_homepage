@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=SUIT:wght@300;400;500;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20260509b" />
+  <link rel="stylesheet" href="styles.css?v=20260701a" />
 </head>
 <body>
   <header class="site-header">
@@ -17,11 +17,11 @@
       <nav class="nav-links">
         <a href="login.html" data-auth-entry>회원가입 / 로그인</a>
         <a href="index.html#about">크루 소개</a>
-        <a href="index.html#notice">공지</a>
+        <a href="index.html#schedule">일정</a>
         <a href="gallery.html">사진첩</a>
         <a href="running.html">러닝 허브</a>
         <a href="login.html" data-member-nav class="hidden" hidden>활동 보드</a>
-        <a href="index.html#admin" data-admin-nav class="hidden nav-admin-link" hidden>운영 관리</a>
+        <a href="admin.html#admin" data-admin-nav class="hidden nav-admin-link" hidden>운영 관리</a>
         <a href="index.html">메인</a>
       </nav>
     </div>
@@ -32,7 +32,7 @@
       <div class="container two-col auth-shell">
         <article class="panel">
           <h2>회원가입 신청</h2>
-          <p class="list-meta">가입 신청 후 운영진 승인이 완료되면 활동 보드, 사진첩, 러닝 허브, 포인트 챌린지를 사용할 수 있습니다.</p>
+          <p class="list-meta">가입 신청 후 운영진 승인이 완료되면 활동 보드, 사진첩 업로드, 러닝 허브, 포인트 챌린지를 사용할 수 있습니다.</p>
           <form class="form compact" id="signup-form">
             <input id="signup-email" type="email" placeholder="이메일" autocomplete="email" required />
             <input id="signup-password" type="password" placeholder="비밀번호" autocomplete="new-password" required />
@@ -60,7 +60,7 @@
             <li>운영진 승인 대기</li>
             <li>승인 후 활동 보드와 포인트 기능 이용</li>
           </ol>
-          <p class="list-meta">운영진 승인 전에도 로그인은 가능하지만, 사진 업로드와 챌린지 같은 상호작용 기능은 승인 후 열립니다. 승인 완료 시 신규 가입 웰컴 포인트 20P가 지급됩니다.</p>
+          <p class="list-meta">운영진 승인 전에도 로그인은 가능하지만, 사진 업로드와 챌린지 같은 상호작용 기능은 승인 후 열립니다. 승인 완료 후 신규 가입 웰컴 포인트 20P가 지급됩니다.</p>
           <div class="auth-links-row" style="margin-top:1rem;">
             <a class="btn ghost" href="login.html">로그인 페이지</a>
             <a class="btn ghost" href="gallery.html">사진첩 보기</a>
@@ -78,6 +78,6 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="auth.js?v=20260510a"></script>
+  <script src="auth.js?v=20260701a"></script>
 </body>
 </html>

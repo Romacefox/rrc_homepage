@@ -4439,8 +4439,7 @@ function hasRaffleWinner(record, name) {
 }
 
 function getMonthThreshold(monthKey) {
-  const month = Number(String(monthKey || "").split("-")[1] || 0);
-  return [12, 1, 2].includes(month) ? 4 : 5;
+  return 4;
 }
 function loadLocalAdminMembers(expectedUserId) {
   try {
