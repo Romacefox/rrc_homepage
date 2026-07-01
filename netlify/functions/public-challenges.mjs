@@ -22,7 +22,7 @@ export default async (request) => {
 
     const items = rows
       .filter((item) => ["recruiting", "in_progress"].includes(String(item.status || "")))
-      .filter((item) => normalizeChallengeMode(item.mode) !== "betting_pool")
+      .filter((item) => ["free_intro", "deposit"].includes(normalizeChallengeMode(item.mode)))
       .slice(0, limit)
       .map(toPublicChallenge);
 
@@ -82,10 +82,8 @@ function toPublicChallenge(item) {
 
 function modeLabel(mode) {
   switch (normalizeChallengeMode(mode)) {
-    case "deposit": return "소액 예치형";
-    case "team_goal": return "팀 달성형";
-    case "betting_pool": return "베팅 분배형";
-    default: return "무료 입문형";
+    case "deposit": return "포인트 예치형";
+    default: return "무료 참여형";
   }
 }
 

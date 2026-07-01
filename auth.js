@@ -12,6 +12,7 @@ const ATTENDANCE_STREAK_START_MONTH = "2026-04";
 const POINT_POLICY = {
   signupBonus: 20,
   monthlyRunner: 100,
+  monthlyCandidate: 30,
   venueLover: 50,
   candidateStreak2: 30,
   candidateStreak3: 50
@@ -1589,8 +1590,6 @@ function buildActivityRowFromMember(member, selectedMonth, pointSummaryByName, a
     attendanceBonusLabels: attendanceBonus.labels,
     monthlyRunnerPoints: 0,
     awardPoints,
-    photoPoints: Number(pointSummary.photo_points || 0),
-    commentPoints: Number(pointSummary.comment_points || 0),
     manualPoints: Number(pointSummary.award_points || 0),
     pointTotal: basePoints + awardPoints
   };
@@ -2389,7 +2388,7 @@ async function handleAttendanceReportSubmit(event) {
   }
 }
 
-function calculateRewardBalance({ monthlyPointTotal, pointAwards, allPointAwards, rewardRequests, allPhotos, allComments, attendanceLogs }) {
+function calculateRewardBalance({ monthlyPointTotal, pointAwards, allPointAwards, rewardRequests, attendanceLogs }) {
   const selectedAwardPoints = sumPointAwardRows(pointAwards);
   const selectedMonthFallback = Math.max(Number(monthlyPointTotal || 0), selectedAwardPoints);
   const earnedFromAwards = sumPointAwardRows(allPointAwards);
@@ -2503,7 +2502,7 @@ function syncRewardAvailabilityDisplay() {
       ? ` 신청/승인 대기 ${pendingPoints.toLocaleString("ko-KR")}P는 미리 제외했습니다.`
       : "";
     const lockedText = lockedPoints > 0
-      ? ` 챌린지 베팅 ${lockedPoints.toLocaleString("ko-KR")}P는 정산 전까지 잠김 처리됩니다.`
+      ? ` 챌린지 예치 ${lockedPoints.toLocaleString("ko-KR")}P는 정산 전까지 잠김 처리됩니다.`
       : "";
     rewardBalanceNote.textContent = `누적 적립에서 사용 완료·대기 중인 보조 신청을 제외한 기준입니다.${pendingText}${lockedText}`;
   }
@@ -2753,12 +2752,10 @@ async function refreshRewardBalanceOverview() {
     return;
   }
   const selectedMonth = activityMonthSelect?.value || currentMonthKey();
-  const [pointAwards, allPointAwards, rewardRequests, allPhotos, allComments, attendanceLogs] = await Promise.all([
+  const [pointAwards, allPointAwards, rewardRequests, attendanceLogs] = await Promise.all([
     loadPointAwardsForMonth(selectedMonth),
     loadPointAwardsForAllMonths(),
     loadRewardRequestsForBalance(),
-    loadMyPhotosForRewardBalance(),
-    loadMyCommentsForRewardBalance(),
     loadAttendanceLogsForPoints()
   ]);
   renderRewardLoungeState(calculateRewardBalance({
@@ -2767,8 +2764,6 @@ async function refreshRewardBalanceOverview() {
     pointAwards,
     allPointAwards,
     rewardRequests,
-    allPhotos,
-    allComments,
     attendanceLogs
   }));
 }
@@ -3031,11 +3026,7 @@ function getPointAwardOptions() {
   return [
     { code: "romantic_runner", label: "낭만러너", points: 30 },
     { code: "pacemaker", label: "페이스메이커", points: 40 },
-    { code: "guest_mate", label: "게스트메이트", points: 30 },
-    { code: "course_maker", label: "코스메이커", points: 30 },
-    { code: "race_review_king", label: "대회후기왕", points: 30 },
     { code: "operations_helper", label: "운영헬퍼", points: 40 },
-    { code: "cheer_fairy", label: "응원요정", points: 20 },
     { code: "challenge_maker", label: "챌린지메이커", points: 30 },
     { code: "monthly_runner", label: "이달의 러너", points: 100 },
     { code: "flash_king", label: "이달의 번개왕", points: 100 },
@@ -3046,8 +3037,8 @@ function getPointAwardOptions() {
 function getChallengeModeOptions() {
   return {
     free_intro: {
-      label: "무료 입문형",
-      description: "포인트를 걸지 않고 가볍게 참여하는 챌린지입니다. 성공하면 보상 포인트를 받을 수 있고, 실패해도 포인트가 차감되지 않습니다.",
+      label: "무료 참여형",
+      description: "포인트를 걸지 않고 가볍게 참여하는 챌린지입니다. 성공하면 보상 포인트를 받고, 실패해도 차감되지 않습니다.",
       entryPoints: 0,
       successRewardPoints: 30,
       minParticipants: 1,
@@ -3055,30 +3046,12 @@ function getChallengeModeOptions() {
       verificationMethod: "RRC 카카오톡 채팅방 인증"
     },
     deposit: {
-      label: "소액 예치형",
-      description: "소량의 포인트를 잠시 잠그고 목표를 달성하는 챌린지입니다. 성공하면 예치 포인트와 보너스를 받을 수 있습니다.",
+      label: "포인트 예치형",
+      description: "참여 포인트를 잠그고 목표를 달성하는 챌린지입니다. 성공하면 잠금이 풀리고 보너스 포인트를 받습니다.",
       entryPoints: 30,
       successRewardPoints: 30,
       minParticipants: 2,
       failurePolicy: "성공 시 예치 포인트 잠금 해제 + 보너스 지급, 실패 시 운영 기준에 따라 잠금 해제",
-      verificationMethod: "RRC 카카오톡 채팅방 인증"
-    },
-    team_goal: {
-      label: "팀 달성형",
-      description: "참여자들이 함께 하나의 목표를 달성하는 챌린지입니다. 전체 목표를 달성하면 참여자 전원이 보상을 받을 수 있습니다.",
-      entryPoints: 0,
-      successRewardPoints: 30,
-      minParticipants: 3,
-      failurePolicy: "팀 목표 미달성 시 포인트 차감 없음",
-      verificationMethod: "RRC 카카오톡 채팅방 인증"
-    },
-    betting_pool: {
-      label: "베팅 분배형",
-      description: "참여자가 포인트를 걸고 성공자끼리 정산하는 고급 챌린지입니다. 운영진 검토 후 개설됩니다.",
-      entryPoints: 50,
-      successRewardPoints: 0,
-      minParticipants: 3,
-      failurePolicy: "성공자끼리 참가 포인트를 비율 정산",
       verificationMethod: "RRC 카카오톡 채팅방 인증"
     }
   };
@@ -3097,7 +3070,7 @@ function syncChallengeModeFields() {
   }
   if (challengeStakeInput) {
     challengeStakeInput.value = String(meta.entryPoints);
-    challengeStakeInput.readOnly = mode !== "betting_pool";
+    challengeStakeInput.readOnly = true;
   }
   if (challengeSuccessRewardInput) {
     challengeSuccessRewardInput.value = String(meta.successRewardPoints);
@@ -3154,7 +3127,7 @@ async function handleChallengeSubmit(event) {
     `진행 기간: ${startDate} ~ ${endDate}`,
     verificationTag ? `인증 태그: ${verificationTag}` : "",
     "",
-    "모집 종료 후 참가자 3명 이상이면 자동으로 진행됩니다."
+    `모집 종료 후 참가자 ${minParticipants}명 이상이면 자동으로 진행됩니다.`
   ].filter(Boolean).join("\n");
   if (!confirm(confirmText)) {
     return;
@@ -3255,7 +3228,7 @@ function renderChallengeList(items, canManage) {
     const joined = entries.some((entry) => entry.user_id === authUser?.id);
     const successEntries = entries.filter((entry) => entry.result === "success");
     const successCount = successEntries.length;
-    const mode = item.mode || "betting_pool";
+    const mode = item.mode || "free_intro";
     const modeMeta = getChallengeModeMeta(mode);
     const entryPoints = Number(item.entry_points ?? item.stake_points ?? modeMeta.entryPoints ?? 0);
     const successRewardPoints = Number(item.success_reward_points ?? modeMeta.successRewardPoints ?? 0);
@@ -3263,7 +3236,6 @@ function renderChallengeList(items, canManage) {
     const failurePolicy = item.failure_policy || modeMeta.failurePolicy;
     const verificationMethod = item.verification_method || modeMeta.verificationMethod || "RRC 카카오톡 채팅방 인증";
     const pot = entries.reduce((sum, entry) => sum + Number(entry.locked_points ?? entry.stake_points ?? entryPoints), 0);
-    const successStakeTotal = successEntries.reduce((sum, entry) => sum + Number(entry.stake_points || item.stake_points || 0), 0);
     const recruitStart = item.recruit_start_date || item.created_at?.slice(0, 10) || "-";
     const recruitEnd = item.recruit_end_date || item.start_date || "-";
     const progressPercent = getChallengeProgressPercent(item, entries, successCount);
@@ -3277,12 +3249,12 @@ function renderChallengeList(items, canManage) {
         <span class="status-chip ${getChallengeStatusClass(item.status)}">${escapeHtml(getChallengeStatusLabel(item.status))}</span>
       </div>
       <p class="list-meta">모집 ${escapeHtml(recruitStart)} ~ ${escapeHtml(recruitEnd)} · 진행 ${escapeHtml(item.start_date || "-")} ~ ${escapeHtml(item.end_date || "-")}</p>
-      <p class="list-meta">참가비/예치 ${entryPoints}P · 성공 보상 ${successRewardPoints}P · 실패 처리: ${escapeHtml(failurePolicy)}</p>
+      <p class="list-meta">${entryPoints > 0 ? `참여 시 ${entryPoints}P 잠금` : "참여 포인트 없음"} · 성공 보상 ${successRewardPoints}P · 실패 처리: ${escapeHtml(failurePolicy)}</p>
       <p class="list-meta">최소 ${minParticipants}명 · 현재 ${entries.length}명 참여 중 · 잠금 ${pot}P</p>
       <p class="list-meta">인증: ${escapeHtml(verificationMethod)} ${item.verification_tag ? `· ${escapeHtml(item.verification_tag)}` : ""}</p>
       <div class="reward-progress challenge-progress" aria-label="챌린지 진행률"><span style="width:${progressPercent}%"></span></div>
       <p>${escapeHtml(item.rule_text || "")}</p>
-      <p class="list-meta">진행률 ${progressPercent}% · 성공 ${successCount}명${mode === "betting_pool" && successStakeTotal ? ` · 성공 베팅 ${successStakeTotal}P` : ""}${item.status === "settled" ? ` · 총 정산 ${Number(item.payout_points || 0)}P` : ""}</p>
+      <p class="list-meta">진행률 ${progressPercent}% · 성공 ${successCount}명${item.status === "settled" ? ` · 지급 완료 ${Number(item.payout_points || 0)}P` : ""}</p>
     `;
 
     const entryWrap = document.createElement("div");
@@ -3350,26 +3322,16 @@ function calculateMyChallengeLockedPoints(items) {
 function buildChallengeJoinForm(item) {
   const form = document.createElement("form");
   form.className = "challenge-join-form";
-  const mode = item?.mode || "betting_pool";
+  const mode = item?.mode || "free_intro";
   const modeMeta = getChallengeModeMeta(mode);
   const defaultStake = Number(item?.entry_points ?? item?.stake_points ?? modeMeta.entryPoints ?? 0);
-  const isBetting = mode === "betting_pool";
-  const availableCap = rewardAvailablePointCache > 0 ? rewardAvailablePointCache : 2000;
-  const maxStake = Math.max(isBetting ? 1 : 0, Math.min(2000, availableCap));
-  const initialStake = isBetting ? Math.max(1, Math.min(defaultStake || 50, maxStake)) : defaultStake;
-  form.innerHTML = isBetting
-    ? `
-      <input type="number" min="1" max="${maxStake}" value="${initialStake}" aria-label="챌린지 베팅 포인트" />
-      <button class="btn primary tiny" type="submit">고급 참가</button>
-    `
-    : `
-      <p class="list-meta">참가 시 ${Number(defaultStake || 0)}P가 잠금 처리됩니다.</p>
-      <button class="btn primary tiny" type="submit">참가하기</button>
-    `;
+  form.innerHTML = `
+    <p class="list-meta">${defaultStake > 0 ? `참여하면 ${Number(defaultStake || 0)}P가 정산 전까지 잠깁니다.` : "포인트 차감 없이 참여합니다."}</p>
+    <button class="btn primary tiny" type="submit">참가하기</button>
+  `;
   form.addEventListener("submit", (event) => {
     event.preventDefault();
-    const input = form.querySelector("input");
-    joinChallenge(item.id, defaultStake, isBetting ? input?.value : defaultStake);
+    joinChallenge(item.id, defaultStake, defaultStake);
   });
   return form;
 }
@@ -3388,7 +3350,7 @@ async function copyChallengeNotice(item) {
   const recruitEnd = item?.recruit_end_date || item?.start_date || "-";
   const tag = item?.verification_tag ? `\n인증 해시태그: ${item.verification_tag}` : "";
   const shareUrl = getChallengeShareUrl(item?.id);
-  const modeMeta = getChallengeModeMeta(item?.mode || "betting_pool");
+  const modeMeta = getChallengeModeMeta(item?.mode || "free_intro");
   const entryPoints = Number(item?.entry_points ?? item?.stake_points ?? modeMeta.entryPoints ?? 0);
   const rewardPoints = Number(item?.success_reward_points ?? modeMeta.successRewardPoints ?? 0);
   const text = [
@@ -3465,7 +3427,7 @@ function escapeCssIdentifier(value) {
 }
 
 async function joinChallenge(challengeId, defaultStake = 0, explicitStake = null) {
-  const rawStake = explicitStake ?? prompt("이 챌린지에 베팅할 포인트를 입력해 주세요.", String(Number(defaultStake || 50)));
+  const rawStake = explicitStake ?? defaultStake;
   if (rawStake === null) {
     return;
   }
@@ -3475,7 +3437,7 @@ async function joinChallenge(challengeId, defaultStake = 0, explicitStake = null
     return;
   }
   if (stakePoints > 2000) {
-    setStatus(challengeStatus, "챌린지 베팅 포인트는 최대 2,000P까지 입력할 수 있습니다.");
+    setStatus(challengeStatus, "챌린지 참여 포인트는 최대 2,000P까지 입력할 수 있습니다.");
     return;
   }
   if (stakePoints > rewardAvailablePointCache) {
@@ -3490,7 +3452,9 @@ async function joinChallenge(challengeId, defaultStake = 0, explicitStake = null
     if (!result?.ok) {
       throw new Error(result?.error || "join failed");
     }
-    setStatus(challengeStatus, `챌린지에 참가했습니다. 잠금 포인트 ${stakePoints}P · 인증 규칙을 확인해 주세요.`);
+    setStatus(challengeStatus, stakePoints > 0
+      ? `챌린지에 참가했습니다. ${stakePoints}P가 정산 전까지 잠깁니다.`
+      : "챌린지에 참가했습니다. 인증 규칙을 확인해 주세요.");
     await loadChallenges();
   } catch (error) {
     setStatus(challengeStatus, `챌린지 참가 실패: ${String(error?.message || error)}`);
@@ -3530,7 +3494,7 @@ async function judgeChallengeEntry(entryId, resultStatus) {
 }
 
 async function settleChallenge(challengeId) {
-  if (!confirm("성공자의 베팅 비율을 기준으로 챌린지 포인트를 정산할까요?")) {
+  if (!confirm("참가자 판정 기준으로 챌린지 포인트를 정산할까요?")) {
     return;
   }
   try {
@@ -3541,7 +3505,7 @@ async function settleChallenge(challengeId) {
     if (!result?.ok) {
       throw new Error(result?.error || "settle failed");
     }
-    setStatus(challengeStatus, `정산 완료: 성공자 ${result.success_count || 0}명 · 총 ${result.payout_total || result.payout_points || 0}P를 베팅 비율로 지급했습니다.`);
+    setStatus(challengeStatus, `정산 완료: 성공자 ${result.success_count || 0}명 · 총 ${result.payout_total || result.payout_points || 0}P를 지급했습니다.`);
     await loadChallenges();
   } catch (error) {
     setStatus(challengeStatus, `정산 실패: ${String(error?.message || error)}`);
@@ -3806,78 +3770,6 @@ function getSuggestionStatusClass(status) {
   }
 }
 
-async function loadMyPhotos(monthKey = currentMonthKey()) {
-  if (!supabaseClient || !authUser) {
-    return [];
-  }
-  const range = getMonthDateRange(monthKey);
-  const result = await supabaseClient
-    .from("photos")
-    .select("id,caption,created_at")
-    .eq("user_id", authUser.id)
-    .gte("created_at", range.start)
-    .lt("created_at", range.end)
-    .order("created_at", { ascending: false })
-    .limit(100);
-  return result.error ? [] : getDailyPointEligibleItems(result.data, POINT_POLICY.photoMonthlyCap);
-}
-
-async function loadMyComments(monthKey = currentMonthKey()) {
-  if (!supabaseClient || !authUser) {
-    return [];
-  }
-  const range = getMonthDateRange(monthKey);
-  const result = await supabaseClient
-    .from("photo_comments")
-    .select("id,content,created_at")
-    .eq("user_id", authUser.id)
-    .gte("created_at", range.start)
-    .lt("created_at", range.end)
-    .order("created_at", { ascending: false })
-    .limit(100);
-  return result.error ? [] : getDailyPointEligibleItems(result.data, POINT_POLICY.commentMonthlyCap);
-}
-
-async function loadMyPhotosForRewardBalance() {
-  if (!supabaseClient || !authUser) {
-    return [];
-  }
-  const result = await supabaseClient
-    .from("photos")
-    .select("id,created_at")
-    .eq("user_id", authUser.id)
-    .order("created_at", { ascending: false })
-    .limit(1000);
-  return result.error ? [] : (Array.isArray(result.data) ? result.data : []);
-}
-
-async function loadMyCommentsForRewardBalance() {
-  if (!supabaseClient || !authUser) {
-    return [];
-  }
-  const result = await supabaseClient
-    .from("photo_comments")
-    .select("id,created_at")
-    .eq("user_id", authUser.id)
-    .order("created_at", { ascending: false })
-    .limit(1000);
-  return result.error ? [] : (Array.isArray(result.data) ? result.data : []);
-}
-
-function getDailyPointEligibleItems(items, monthlyCap) {
-  const seenDays = new Set();
-  const eligible = [];
-  (Array.isArray(items) ? items : []).forEach((item) => {
-    const dayKey = toDateKey(item.created_at);
-    if (!dayKey || seenDays.has(dayKey) || eligible.length >= Number(monthlyCap || 0)) {
-      return;
-    }
-    seenDays.add(dayKey);
-    eligible.push(item);
-  });
-  return eligible;
-}
-
 function toDateKey(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -3990,6 +3882,10 @@ function calculateAttendanceBonus(member, monthKey, attendanceLogs = []) {
   const state = getAttendanceBonusState(member, monthKey, attendanceLogs);
   const labels = [];
   let total = 0;
+  if (getMonthlyRuns(member, monthKey) >= getMonthThreshold(monthKey)) {
+    total += POINT_POLICY.monthlyCandidate;
+    labels.push(`월 4회 달성 ${POINT_POLICY.monthlyCandidate}P`);
+  }
   if (state.hangangLover) {
     total += POINT_POLICY.venueLover;
     labels.push(`한강러버 ${POINT_POLICY.venueLover}P`);

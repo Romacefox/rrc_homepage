@@ -7,7 +7,7 @@ const LOG_TABLE = "operation_logs";
 const MIN_CHALLENGE_PARTICIPANTS = 3;
 const CHALLENGE_MODES = {
   free_intro: {
-    label: "무료 입문형",
+    label: "무료 참여형",
     entryPoints: 0,
     successRewardPoints: 30,
     failurePolicy: "실패 패널티 없음",
@@ -15,7 +15,7 @@ const CHALLENGE_MODES = {
     verificationMethod: "RRC 카카오톡 채팅방 인증"
   },
   deposit: {
-    label: "소액 예치형",
+    label: "포인트 예치형",
     entryPoints: 30,
     successRewardPoints: 30,
     failurePolicy: "성공 시 예치 포인트 잠금 해제 + 보너스 지급, 실패 시 운영 기준에 따라 잠금 해제",
@@ -31,7 +31,7 @@ const CHALLENGE_MODES = {
     verificationMethod: "RRC 카카오톡 채팅방 인증"
   },
   betting_pool: {
-    label: "베팅 분배형",
+    label: "고급 정산형",
     entryPoints: 50,
     successRewardPoints: 0,
     failurePolicy: "성공자끼리 참가 포인트를 비율 정산",
@@ -49,7 +49,7 @@ export default async (request) => {
     if (request.method === "GET") {
       const url = new URL(request.url);
       const limit = Math.max(1, Math.min(Number(url.searchParams.get("limit") || 12), 30));
-      const advanced = String(url.searchParams.get("advanced") || "") === "1";
+      const advanced = auth.isAdmin && String(url.searchParams.get("advanced") || "") === "1";
       const requestedChallengeId = String(url.searchParams.get("challenge_id") || "").trim();
       const rows = await listChallenges(limit).catch((error) => {
         if (isMissingTableError(error, CHALLENGE_TABLE) || isMissingTableError(error, ENTRY_TABLE)) {
@@ -63,7 +63,7 @@ export default async (request) => {
 
       const visibleItems = auth.isAdmin || advanced || requestedChallengeId
         ? rows
-        : rows.filter((item) => normalizeChallengeMode(item.mode) !== "betting_pool" && (item.status !== "submitted" || item.creator_user_id === auth.user.id));
+        : rows.filter((item) => ["free_intro", "deposit"].includes(normalizeChallengeMode(item.mode)) && (item.status !== "submitted" || item.creator_user_id === auth.user.id));
       return json(200, { ok: true, available: true, items: visibleItems, can_manage: auth.isAdmin });
     }
 
@@ -71,7 +71,7 @@ export default async (request) => {
       const body = await request.json();
       const title = String(body?.title || "").trim().slice(0, 80);
       const mode = normalizeChallengeMode(body?.mode);
-      if (mode === "betting_pool" && !auth.isAdmin) {
+      if (!auth.isAdmin && !["free_intro", "deposit"].includes(mode)) {
         return json(403, { ok: false, error: "advanced challenge mode is admin only" });
       }
       const modeMeta = CHALLENGE_MODES[mode];
@@ -440,9 +440,9 @@ async function settleBettingPoolChallenge(auth, challenge, entries, successEntri
       memberName: entry.member_name,
       monthKey: settlementMonthKey,
       awardCode: "challenge_stake",
-      awardLabel: `챌린지 베팅 차감: ${challenge.title}`.slice(0, 80),
+      awardLabel: `챌린지 참가 포인트 차감: ${challenge.title}`.slice(0, 80),
       points: -stakePoints,
-      note: `챌린지 참가 베팅 ${stakePoints}P 차감`
+      note: `챌린지 참가 포인트 ${stakePoints}P 차감`
     });
   }
   for (const entry of successEntries) {
@@ -454,7 +454,7 @@ async function settleBettingPoolChallenge(auth, challenge, entries, successEntri
       awardCode: "challenge_payout",
       awardLabel: `챌린지 성공: ${challenge.title}`.slice(0, 80),
       points: payoutPoints,
-      note: `참가 총 ${pot}P / 내 베팅 ${Number(entry.stake_points || 0)}P / 성공자 베팅 비율 정산`
+      note: `참가 총 ${pot}P / 내 참가 포인트 ${Number(entry.stake_points || 0)}P / 성공자 비율 정산`
     });
   }
   await supabasePatch(`${CHALLENGE_TABLE}?id=eq.${encodeURIComponent(challenge.id)}`, {
@@ -594,7 +594,7 @@ function normalizeChallengeMode(value) {
   if (["free_intro", "deposit", "team_goal", "betting_pool"].includes(mode)) {
     return mode;
   }
-  return "betting_pool";
+  return "free_intro";
 }
 
 function normalizeChallengePoints(value, fallback, max) {

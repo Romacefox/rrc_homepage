@@ -218,14 +218,15 @@
                   <h3>월간 포인트 랭킹</h3>
                   <span class="badge">월간 기준</span>
                 </div>
-                <p class="list-meta">이달의 러너, 정기런 배지, 운영진 지급, 챌린지 정산 포인트를 월별로 모아 보여줍니다. 포인트는 활동 혜택 신청과 챌린지 참여에 쓰는 활동 기록 기준입니다.</p>
+                <p class="list-meta">출석 달성, 추첨 후보 연속 달성, 운영진 지급, 챌린지 보상 포인트를 월별로 모아 보여줍니다. 포인트는 활동 혜택 신청과 챌린지 참여에 쓰는 활동 기록 기준입니다.</p>
                 <div class="point-guide-grid">
                   <div class="point-guide-card"><strong>신규 가입 · 20P</strong><span>운영진 승인과 동시에 웰컴 포인트 지급</span></div>
                   <div class="point-guide-card"><strong>이달의 러너 · 100P</strong><span>출석 입력 마감 후 운영진이 월별로 확정 지급</span></div>
+                  <div class="point-guide-card"><strong>월 4회 달성 · 30P</strong><span>추첨 후보 기준을 달성한 회원에게 월 1회 지급</span></div>
                   <div class="point-guide-card"><strong>한강러버/올공러버 · 50P</strong><span>화요일 한강 또는 목요일 올림픽공원 정기런 연속 10회 달성 월</span></div>
                   <div class="point-guide-card"><strong>연속 후보 · 30/50P</strong><span>추첨 후보 2개월 연속 30P, 3개월 이상 연속 50P</span></div>
-                  <div class="point-guide-card"><strong>포인트 챌린지</strong><span>성공자 베팅 비율에 따라 정산</span></div>
-                  <div class="point-guide-card"><strong>운영진 배지</strong><span>낭만러너, 이달의 번개왕 100P, 분기 등산킹 300P 등</span></div>
+                  <div class="point-guide-card"><strong>포인트 챌린지</strong><span>무료 참여형 또는 포인트 예치형으로 성공 보상 지급</span></div>
+                  <div class="point-guide-card"><strong>운영진 배지</strong><span>낭만러너, 운영헬퍼, 이달의 번개왕, 등산킹 등</span></div>
                 </div>
                 <div class="section-head" style="margin-top:1rem;">
                   <h3>랭킹 Top 10</h3>
@@ -237,7 +238,7 @@
                   <span class="badge">연간 기준</span>
                 </div>
                 <ul id="point-ranking-year-board" class="list small" style="margin-top:0.7rem;"></ul>
-                <p class="list-meta" style="margin-top:0.8rem;">출석 1회 자체에는 포인트를 붙이지 않고, 한강러버/올공러버 50P, 추첨 후보 연속 2개월 30P·3개월 이상 50P, 운영진 확정 이달의 러너 100P, 운영진 선정/챌린지 정산 포인트로 계산합니다.</p>
+                <p class="list-meta" style="margin-top:0.8rem;">출석 1회 자체에는 포인트를 붙이지 않고, 월 4회 달성 30P, 한강러버/올공러버 50P, 추첨 후보 연속 2개월 30P·3개월 이상 50P, 운영진 확정 이달의 러너 100P, 운영진 선정/챌린지 보상 포인트로 계산합니다.</p>
               </article>
               <article class="panel reward-shop-panel">
                 <div class="section-head" style="margin-top:1rem;">
@@ -282,24 +283,22 @@
             </div>
 
             <div class="activity-section-label challenge-section-label">
-              <h3>포인트 챌린지</h3>
-              <p class="list-meta">카톡 인증형 챌린지와 운영진 월간 포인트 지급 기능을 분리해서 관리합니다.</p>
+              <h3>챌린지</h3>
+              <p class="list-meta">무료 참여형과 포인트 예치형 챌린지를 카톡 인증 기준으로 관리합니다.</p>
             </div>
             <div class="board-engagement-grid challenge-board-grid">
               <article class="panel challenge-panel">
                 <div class="section-head">
-                  <h3>포인트 챌린지</h3>
+                  <h3>챌린지 제안</h3>
                   <span class="badge">카톡 인증</span>
                 </div>
-                <p class="list-meta">회원이 직접 챌린지를 제안하고, 참가 포인트를 걸어 카카오톡 채팅방에서 인증합니다. 운영진이 성공 여부를 확인하면 성공자별 베팅 비율에 따라 월간 포인트 지급 기록에 반영됩니다.</p>
+                <p class="list-meta">회원이 직접 챌린지를 제안하고 카카오톡 채팅방에서 인증합니다. 무료 참여형은 성공 보상을 지급하고, 포인트 예치형은 참여 포인트를 잠근 뒤 성공 시 보너스를 지급합니다.</p>
                 <form id="challenge-form" class="form compact" style="margin-top:0.8rem;">
                   <select id="challenge-mode" aria-label="챌린지 모드">
-                    <option value="free_intro">무료 입문형</option>
-                    <option value="deposit">소액 예치형</option>
-                    <option value="team_goal">팀 달성형</option>
-                    <option value="betting_pool">베팅 분배형 · 운영진/고급</option>
+                    <option value="free_intro">무료 참여형</option>
+                    <option value="deposit">포인트 예치형</option>
                   </select>
-                  <p id="challenge-mode-description" class="list-meta">포인트를 걸지 않고 가볍게 참여하는 챌린지입니다. 성공하면 보상 포인트를 받을 수 있고, 실패해도 포인트가 차감되지 않습니다.</p>
+                  <p id="challenge-mode-description" class="list-meta">포인트를 걸지 않고 가볍게 참여하는 챌린지입니다. 성공하면 보상 포인트를 받고, 실패해도 차감되지 않습니다.</p>
                   <input id="challenge-title" type="text" maxlength="80" placeholder="챌린지명 예: 매일 1km 뛰기" />
                   <div class="inline-form">
                     <input id="challenge-stake" type="number" min="0" max="2000" placeholder="참가비/예치 포인트" />
@@ -335,7 +334,7 @@
                   <h3>월간 포인트 지급</h3>
                   <span class="badge">운영진</span>
                 </div>
-                <p class="list-meta">낭만러너, 페이스메이커, 이달의 번개왕, 분기 등산킹처럼 운영진이 선정하는 배지를 포인트와 함께 지급합니다.</p>
+                <p class="list-meta">낭만러너, 페이스메이커, 운영헬퍼, 챌린지메이커, 이달의 러너처럼 운영진이 확정한 활동 배지를 포인트와 함께 지급합니다.</p>
                 <form id="point-award-form" class="form compact" style="margin-top:0.8rem;">
                   <div class="inline-form">
                     <input id="point-award-member" type="text" maxlength="80" placeholder="회원 이름" />
@@ -345,11 +344,7 @@
                     <select id="point-award-code">
                       <option value="romantic_runner">낭만러너</option>
                       <option value="pacemaker">페이스메이커</option>
-                      <option value="guest_mate">게스트메이트</option>
-                      <option value="course_maker">코스메이커</option>
-                      <option value="race_review_king">대회후기왕</option>
                       <option value="operations_helper">운영헬퍼</option>
-                      <option value="cheer_fairy">응원요정</option>
                       <option value="challenge_maker">챌린지메이커</option>
                       <option value="monthly_runner">이달의 러너</option>
                       <option value="flash_king">이달의 번개왕</option>
@@ -405,6 +400,6 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="auth.js?v=20260701e"></script>
+  <script src="auth.js?v=20260701f"></script>
 </body>
 </html>
