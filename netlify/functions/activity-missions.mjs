@@ -2,8 +2,6 @@ const PROFILE_TABLE = "member_profiles";
 const MEMBER_TABLE = "members";
 const CLAIM_TABLE = "member_mission_claims";
 const AWARD_TABLE = "member_point_awards";
-const PHOTO_TABLE = "photos";
-const COMMENT_TABLE = "photo_comments";
 const CHALLENGE_ENTRY_TABLE = "member_challenge_entries";
 const ATTENDANCE_TABLE = "attendance_logs";
 const REWARD_TABLE = "reward_requests";
@@ -11,12 +9,12 @@ const REWARD_TABLE = "reward_requests";
 const MISSION_DEFS = [
   {
     key: "first_activity_visit",
-    title: "활동보드 첫 방문",
+    title: "활동 보드 첫 방문",
     points: 20,
     period: "once",
     target: 1,
-    cta: "활동보드 방문을 기록해 주세요.",
-    incomplete: "활동보드에 들어오면 받을 수 있습니다."
+    cta: "활동 보드 방문 기록이 확인되었습니다.",
+    incomplete: "활동 보드에 들어오면 받을 수 있습니다."
   },
   {
     key: "check_attendance",
@@ -24,26 +22,8 @@ const MISSION_DEFS = [
     points: 20,
     period: "once",
     target: 1,
-    cta: "출석 기록을 확인했다면 포인트를 받을 수 있습니다.",
-    incomplete: "내 출석 기록을 확인한 뒤 버튼을 눌러 주세요."
-  },
-  {
-    key: "first_photo_upload",
-    title: "사진 1장 업로드",
-    points: 20,
-    period: "once",
-    target: 1,
-    cta: "사진첩 업로드 기록이 확인되었습니다.",
-    incomplete: "사진첩에서 사진을 1장 올려보세요."
-  },
-  {
-    key: "first_comment",
-    title: "댓글 1개 남기기",
-    points: 10,
-    period: "once",
-    target: 1,
-    cta: "댓글 작성 기록이 확인되었습니다.",
-    incomplete: "사진첩에서 댓글을 1개 남겨보세요."
+    cta: "출석 기록 확인이 완료되었습니다.",
+    incomplete: "출석 기록을 확인하면 받을 수 있습니다."
   },
   {
     key: "first_challenge_join",
@@ -64,20 +44,20 @@ const MISSION_DEFS = [
     incomplete: "정기런 {remaining}회 더 참여하면 30P"
   },
   {
-    key: "monthly_regular_run_5",
+    key: "monthly_regular_run_4",
     title: "월 4회 이상 정기런 참여",
     points: 50,
     period: "monthly",
     target: 4,
-    cta: "이번 달 정기런 5회 조건을 달성했습니다.",
-    incomplete: "정기런 {remaining}회 더 참여하면 50P"
+    cta: "이번 달 추첨 후보 조건을 달성했습니다.",
+    incomplete: "정기런 {remaining}회 더 참여하면 추첨 후보와 50P"
   }
 ];
 
 const REWARD_TIERS = [
-  { points: 500, label: "RRC샵 5,000원 보조권" },
-  { points: 1000, label: "RRC샵 10,000원 보조권" },
-  { points: 2000, label: "RRC샵 20,000원 보조권" }
+  { points: 500, label: "활동 혜택 5,000원권" },
+  { points: 1000, label: "활동 혜택 10,000원권" },
+  { points: 2000, label: "활동 혜택 20,000원권" }
 ];
 
 export default async (request) => {
@@ -159,8 +139,6 @@ async function buildMissionState(auth) {
   const nameKey = normalizeName(auth.profile?.name || "");
   const [
     claims,
-    photos,
-    comments,
     challengeEntries,
     attendanceLogs,
     memberRows,
@@ -168,8 +146,6 @@ async function buildMissionState(auth) {
     rewardRequests
   ] = await Promise.all([
     supabaseSelect(`${CLAIM_TABLE}?member_id=eq.${encodeURIComponent(auth.user.id)}&select=mission_key,period_key,points,status,claimed_at,created_at&limit=500`).catch(() => []),
-    supabaseSelect(`${PHOTO_TABLE}?user_id=eq.${encodeURIComponent(auth.user.id)}&select=id,created_at&limit=1`).catch(() => []),
-    supabaseSelect(`${COMMENT_TABLE}?user_id=eq.${encodeURIComponent(auth.user.id)}&select=id,created_at&limit=1`).catch(() => []),
     supabaseSelect(`${CHALLENGE_ENTRY_TABLE}?user_id=eq.${encodeURIComponent(auth.user.id)}&select=id,created_at&limit=1`).catch((error) => {
       if (isMissingTableError(error, CHALLENGE_ENTRY_TABLE)) {
         return null;
@@ -190,12 +166,10 @@ async function buildMissionState(auth) {
   });
   const progressByKey = {
     first_activity_visit: 1,
-    check_attendance: 1,
-    first_photo_upload: Array.isArray(photos) && photos.length ? 1 : 0,
-    first_comment: Array.isArray(comments) && comments.length ? 1 : 0,
+    check_attendance: regularRunCount > 0 ? 1 : 0,
     first_challenge_join: Array.isArray(challengeEntries) && challengeEntries.length ? 1 : 0,
     monthly_regular_run_2: regularRunCount,
-    monthly_regular_run_5: regularRunCount
+    monthly_regular_run_4: regularRunCount
   };
   const disabledByKey = {
     first_challenge_join: challengeEntries === null
@@ -223,7 +197,7 @@ async function buildMissionState(auth) {
       disabled,
       status: disabled ? "준비 중" : claimed ? "받기 완료" : complete ? "완료" : "미완료",
       helper: disabled
-        ? "챌린지 참여 테이블 준비 후 자동 판정됩니다."
+        ? "챌린지 참여 테이블 준비 후 자동 반영됩니다."
         : complete
           ? def.cta
           : def.incomplete.replace("{remaining}", String(remaining)),
@@ -287,7 +261,7 @@ function getNextReward(points) {
   const next = REWARD_TIERS.find((tier) => current < tier.points) || null;
   if (!next) {
     return {
-      label: "최고 보조권 신청 가능",
+      label: "최고 활동 혜택 구간",
       target_points: 2000,
       remaining_points: 0,
       progress_percent: 100

@@ -1,4 +1,4 @@
-const TABLE = "reward_requests";
+﻿const TABLE = "reward_requests";
 const PROFILE_TABLE = "member_profiles";
 const LOG_TABLE = "operation_logs";
 
@@ -57,7 +57,7 @@ export default async (request) => {
         throw error;
       });
 
-      await tryInsertOperationLog(auth, "RRC샵 보조 신청", `${rewardName} / ${pointCost}P`);
+      await tryInsertOperationLog(auth, "활동 혜택 신청", `${rewardName} / ${pointCost}P`);
       return json(200, { ok: true });
     }
 
@@ -77,7 +77,7 @@ export default async (request) => {
         status,
         updated_at: new Date().toISOString()
       });
-      await tryInsertOperationLog(auth, "RRC샵 보조 상태 변경", `${id}: ${status}`);
+      await tryInsertOperationLog(auth, "활동 혜택 상태 변경", `${id}: ${status}`);
       return json(200, { ok: true });
     }
 

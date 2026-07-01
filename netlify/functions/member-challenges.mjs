@@ -1,16 +1,10 @@
-const CHALLENGE_TABLE = "member_challenges";
+﻿const CHALLENGE_TABLE = "member_challenges";
 const ENTRY_TABLE = "member_challenge_entries";
 const AWARD_TABLE = "member_point_awards";
 const REWARD_TABLE = "reward_requests";
-const PHOTO_TABLE = "photos";
-const COMMENT_TABLE = "photo_comments";
 const PROFILE_TABLE = "member_profiles";
 const LOG_TABLE = "operation_logs";
 const MIN_CHALLENGE_PARTICIPANTS = 3;
-const PHOTO_POINTS = 5;
-const PHOTO_MONTHLY_CAP = 5;
-const COMMENT_POINTS = 2;
-const COMMENT_MONTHLY_CAP = 10;
 const CHALLENGE_MODES = {
   free_intro: {
     label: "무료 입문형",
@@ -45,7 +39,6 @@ const CHALLENGE_MODES = {
     verificationMethod: "RRC 카카오톡 채팅방 인증"
   }
 };
-
 export default async (request) => {
   try {
     const auth = await requireApprovedMember(request);
@@ -461,7 +454,7 @@ async function settleBettingPoolChallenge(auth, challenge, entries, successEntri
       awardCode: "challenge_payout",
       awardLabel: `챌린지 성공: ${challenge.title}`.slice(0, 80),
       points: payoutPoints,
-      note: `참가 팟 ${pot}P / 내 베팅 ${Number(entry.stake_points || 0)}P / 성공자 베팅 비율 정산`
+      note: `참가 총 ${pot}P / 내 베팅 ${Number(entry.stake_points || 0)}P / 성공자 베팅 비율 정산`
     });
   }
   await supabasePatch(`${CHALLENGE_TABLE}?id=eq.${encodeURIComponent(challenge.id)}`, {
@@ -533,24 +526,20 @@ async function insertChallengePayload(payload) {
 
 async function calculateAvailablePoints(auth) {
   const userId = String(auth.user?.id || "");
-  const [awards, rewards, entries, photos, comments] = await Promise.all([
+  const [awards, rewards, entries] = await Promise.all([
     supabaseSelect(`${AWARD_TABLE}?or=(user_id.eq.${encodeURIComponent(userId)},member_name.eq.${encodeURIComponent(auth.profile?.name || "")})&select=award_code,points`).catch(() => []),
     supabaseSelect(`${REWARD_TABLE}?user_id=eq.${encodeURIComponent(userId)}&status=in.(submitted,approved,fulfilled)&select=point_cost,status`).catch(() => []),
-    supabaseSelect(`${ENTRY_TABLE}?user_id=eq.${encodeURIComponent(userId)}&select=stake_points,locked_points,challenge_id`).catch(() => []),
-    supabaseSelect(`${PHOTO_TABLE}?user_id=eq.${encodeURIComponent(userId)}&select=created_at&limit=1000`).catch(() => []),
-    supabaseSelect(`${COMMENT_TABLE}?user_id=eq.${encodeURIComponent(userId)}&select=created_at&limit=1000`).catch(() => [])
+    supabaseSelect(`${ENTRY_TABLE}?user_id=eq.${encodeURIComponent(userId)}&select=stake_points,locked_points,challenge_id`).catch(() => [])
   ]);
   const earned = (Array.isArray(awards) ? awards : []).reduce((sum, row) => sum + Number(row.points || 0), 0);
   const hasSignupBonus = (Array.isArray(awards) ? awards : []).some((row) => row.award_code === "signup_bonus");
   const signupBonus = hasSignupBonus ? 0 : 20;
-  const photoPoints = countMonthlyCappedDailyEvents(photos, PHOTO_MONTHLY_CAP) * PHOTO_POINTS;
-  const commentPoints = countMonthlyCappedDailyEvents(comments, COMMENT_MONTHLY_CAP) * COMMENT_POINTS;
   const used = (Array.isArray(rewards) ? rewards : []).reduce((sum, row) => sum + Number(row.point_cost || 0), 0);
   const activeChallengeIds = await loadActiveChallengeIds();
   const locked = (Array.isArray(entries) ? entries : [])
     .filter((entry) => activeChallengeIds.has(String(entry.challenge_id || "")))
     .reduce((sum, entry) => sum + Number(entry.locked_points ?? entry.stake_points ?? 0), 0);
-  return Math.max(earned + signupBonus + photoPoints + commentPoints - used - locked, 0);
+  return Math.max(earned + signupBonus - used - locked, 0);
 }
 
 async function loadActiveChallengeIds() {

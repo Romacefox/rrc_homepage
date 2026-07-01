@@ -14,16 +14,12 @@ const POINT_POLICY = {
   monthlyRunner: 100,
   venueLover: 50,
   candidateStreak2: 30,
-  candidateStreak3: 50,
-  photo: 5,
-  photoMonthlyCap: 5,
-  comment: 2,
-  commentMonthlyCap: 10
+  candidateStreak3: 50
 };
 const REWARD_ITEMS = [
-  { code: "rrc_shop_5000", name: "RRC샵 5,000원 보조권", points: 500 },
-  { code: "rrc_shop_10000", name: "RRC샵 10,000원 보조권", points: 1000 },
-  { code: "rrc_shop_20000", name: "RRC샵 20,000원 보조권", points: 2000 }
+  { code: "rrc_shop_5000", name: "활동 혜택 5,000원권", points: 500 },
+  { code: "rrc_shop_10000", name: "활동 혜택 10,000원권", points: 1000 },
+  { code: "rrc_shop_20000", name: "활동 혜택 20,000원권", points: 2000 }
 ];
 
 let supabaseClient = null;
@@ -1479,7 +1475,7 @@ function renderBoardLocked(message) {
   renderPersonalBoardEmpty();
   renderActivityMissionLocked("승인 회원 로그인 후 이번 달 내 미션을 확인할 수 있습니다.");
   renderSuggestionBoardLocked("승인 회원 로그인 후 건의사항을 남길 수 있습니다.");
-  renderRewardRequestLocked("승인 회원 로그인 후 RRC샵 보조 신청을 할 수 있습니다.");
+  renderRewardRequestLocked("승인 회원 로그인 후 활동 혜택 신청을 할 수 있습니다.");
   renderChallengeLocked("승인 회원 로그인 후 포인트 챌린지를 볼 수 있습니다.");
   renderPublicTicketBoard([], currentMonthKey());
   renderCandidatePreviewBoard([], currentMonthKey());
@@ -1846,12 +1842,6 @@ function buildPointRankingMeta(member, monthKey, scopeLabel = "월간") {
     if (Number(member.award_points || 0)) {
       parts.push(`지급 ${Number(member.award_points || 0).toLocaleString("ko-KR")}P`);
     }
-    if (Number(member.photo_points || 0)) {
-      parts.push(`사진 ${Number(member.photo_points || 0).toLocaleString("ko-KR")}P`);
-    }
-    if (Number(member.comment_points || 0)) {
-      parts.push(`댓글 ${Number(member.comment_points || 0).toLocaleString("ko-KR")}P`);
-    }
     return parts.join(" · ");
   }
   const parts = [
@@ -1865,12 +1855,6 @@ function buildPointRankingMeta(member, monthKey, scopeLabel = "월간") {
   }
   if (Number(member.monthlyRunnerPoints || 0)) {
     parts.push(`이달의 러너 ${Number(member.monthlyRunnerPoints || 0)}P`);
-  }
-  if (Number(member.photoPoints || 0)) {
-    parts.push(`사진 ${Number(member.photoPoints || 0)}P`);
-  }
-  if (Number(member.commentPoints || 0)) {
-    parts.push(`댓글 ${Number(member.commentPoints || 0)}P`);
   }
   if (Number(member.manualPoints || 0)) {
     parts.push(`가입/운영/챌린지 ${Number(member.manualPoints || 0)}P`);
@@ -2320,11 +2304,9 @@ function calculateRewardBalance({ monthlyPointTotal, pointAwards, allPointAwards
   const selectedMonthFallback = Math.max(Number(monthlyPointTotal || 0), selectedAwardPoints);
   const earnedFromAwards = sumPointAwardRows(allPointAwards);
   const earnedFromSignupBonus = hasSignupBonusAward(allPointAwards) ? 0 : POINT_POLICY.signupBonus;
-  const earnedFromPhotos = countMonthlyCappedDailyEvents(allPhotos, POINT_POLICY.photoMonthlyCap) * POINT_POLICY.photo;
-  const earnedFromComments = countMonthlyCappedDailyEvents(allComments, POINT_POLICY.commentMonthlyCap) * POINT_POLICY.comment;
   const earnedFromAttendanceBonuses = calculateAttendanceBonusRewardPoints(attendanceLogs);
   const earnedPoints = Math.max(
-    earnedFromAwards + earnedFromSignupBonus + earnedFromPhotos + earnedFromComments + earnedFromAttendanceBonuses,
+    earnedFromAwards + earnedFromSignupBonus + earnedFromAttendanceBonuses,
     selectedMonthFallback
   );
   const usedPoints = sumRewardRequestCosts(rewardRequests, ["fulfilled"]);
@@ -2541,7 +2523,7 @@ function renderActivityMissionCard(result) {
   }
   if (activityMissionRewardNote) {
     const remaining = Number(nextReward.remaining_points || 0);
-    const nextLabel = String(nextReward.label || "다음 RRC샵 보조권");
+    const nextLabel = String(nextReward.label || "다음 활동 혜택");
     const rewardText = remaining > 0
       ? `${nextLabel}까지 ${remaining.toLocaleString("ko-KR")}P 남았어요.`
       : "최고 보조권 신청 가능 구간입니다.";
@@ -2716,7 +2698,7 @@ async function loadSuggestionBoard() {
 async function handleRewardRequestSubmit(event) {
   event?.preventDefault();
   if (!supabaseClient || !authUser || !authProfile || authProfile.approval_status !== "approved") {
-    setStatus(rewardRequestStatus, "승인 회원 로그인 후 RRC샵 보조 신청을 할 수 있습니다.");
+    setStatus(rewardRequestStatus, "승인 회원 로그인 후 활동 혜택 신청을 할 수 있습니다.");
     return;
   }
 
@@ -2733,7 +2715,7 @@ async function handleRewardRequestSubmit(event) {
   }
 
   rewardRequestSubmitButton && (rewardRequestSubmitButton.disabled = true);
-  setStatus(rewardRequestStatus, "RRC샵 보조 신청을 등록하는 중입니다...");
+  setStatus(rewardRequestStatus, "활동 혜택 신청을 등록하는 중입니다...");
   try {
     const result = await callMemberRewards("", {
       method: "POST",
@@ -2750,7 +2732,7 @@ async function handleRewardRequestSubmit(event) {
     if (rewardRequestNote) {
       rewardRequestNote.value = "";
     }
-    setStatus(rewardRequestStatus, "RRC샵 보조 신청이 접수되었습니다. 운영진 승인 후 진행됩니다.");
+    setStatus(rewardRequestStatus, "활동 혜택 신청이 접수되었습니다. 운영진 승인 후 진행됩니다.");
     await loadRewardRequests();
     await refreshRewardBalanceOverview();
   } catch (error) {
@@ -2765,7 +2747,7 @@ async function loadRewardRequests() {
     return;
   }
   if (!supabaseClient || !authUser || !authProfile || authProfile.approval_status !== "approved") {
-    renderRewardRequestLocked("승인 회원 로그인 후 RRC샵 보조 신청을 할 수 있습니다.");
+    renderRewardRequestLocked("승인 회원 로그인 후 활동 혜택 신청을 할 수 있습니다.");
     return;
   }
 
@@ -2805,7 +2787,7 @@ function renderRewardRequestList(items, canManage) {
   }
   rewardRequestList.innerHTML = "";
   if (!items.length) {
-    rewardRequestList.innerHTML = '<li class="list-item"><p class="list-meta">아직 RRC샵 보조 신청 내역이 없습니다.</p></li>';
+    rewardRequestList.innerHTML = '<li class="list-item"><p class="list-meta">아직 활동 혜택 신청 내역이 없습니다.</p></li>';
     return;
   }
 
@@ -2815,7 +2797,7 @@ function renderRewardRequestList(items, canManage) {
     node.className = "list-item";
     node.innerHTML = `
       <div class="list-top">
-        <span class="list-title">${escapeHtml(item.reward_name || "RRC샵 보조 신청")}</span>
+        <span class="list-title">${escapeHtml(item.reward_name || "활동 혜택 신청")}</span>
         <span class="status-chip ${statusClass}">${escapeHtml(getRewardRequestStatusLabel(item.status))}</span>
       </div>
       <p class="list-meta">${escapeHtml(item.requester_name || "회원")} · ${escapeHtml(formatDate(item.created_at))} · ${Number(item.point_cost || 0)}P 기준</p>
@@ -4044,12 +4026,6 @@ function buildPersonalBadges({ me, selectedMonth, latestWin, photoCount, comment
   if ((me?.monthRuns || 0) >= threshold + 1) {
     badges.push("꾸준 러너");
   }
-  if (photoCount > 0) {
-    badges.push("사진 공유");
-  }
-  if (commentCount > 0) {
-    badges.push("응원 댓글러");
-  }
   if (latestWin) {
     badges.push("추첨 당첨");
   }
@@ -4114,10 +4090,8 @@ function calculateAttendanceBonus(member, monthKey, attendanceLogs = []) {
 
 function calculatePersonalMonthlyPoints({ me, selectedMonth, photoCount, commentCount, attendanceLogs, pointAwards }) {
   const activityBonusPoints = Number(me?.basePoints || 0);
-  const photoPoints = Math.min(Number(photoCount || 0), POINT_POLICY.photoMonthlyCap) * POINT_POLICY.photo;
-  const commentPoints = Math.min(Number(commentCount || 0), POINT_POLICY.commentMonthlyCap) * POINT_POLICY.comment;
   const awardPoints = (Array.isArray(pointAwards) ? pointAwards : []).reduce((sum, award) => sum + Number(award.points || 0), 0);
-  return activityBonusPoints + photoPoints + commentPoints + awardPoints;
+  return activityBonusPoints + awardPoints;
 }
 
 function calculatePersonalMonthlyPointBreakdown({ me, photoCount, commentCount, pointAwards }) {
@@ -4125,20 +4099,12 @@ function calculatePersonalMonthlyPointBreakdown({ me, photoCount, commentCount, 
   const attendanceBonusPoints = Number(me?.attendanceBonusPoints || 0);
   const monthlyRunnerPoints = Number(me?.monthlyRunnerPoints || 0)
     + sumPointAwardRows(rows.filter((award) => award.award_code === "monthly_runner"));
-  const photoEligibleCount = Math.min(Number(photoCount || 0), POINT_POLICY.photoMonthlyCap);
-  const commentEligibleCount = Math.min(Number(commentCount || 0), POINT_POLICY.commentMonthlyCap);
-  const photoPoints = photoEligibleCount * POINT_POLICY.photo;
-  const commentPoints = commentEligibleCount * POINT_POLICY.comment;
   const awardPoints = sumPointAwardRows(rows.filter((award) => award.award_code !== "monthly_runner"));
   return {
     monthlyRunnerPoints,
     attendanceBonusPoints,
-    photoEligibleCount,
-    photoPoints,
-    commentEligibleCount,
-    commentPoints,
     awardPoints,
-    total: attendanceBonusPoints + monthlyRunnerPoints + photoPoints + commentPoints + awardPoints
+    total: attendanceBonusPoints + monthlyRunnerPoints + awardPoints
   };
 }
 
@@ -4152,12 +4118,6 @@ function formatPointBreakdown(breakdown) {
   }
   if (Number(breakdown?.attendanceBonusPoints || 0) > 0) {
     parts.push(`정기런 배지 ${Number(breakdown.attendanceBonusPoints).toLocaleString("ko-KR")}P`);
-  }
-  if (Number(breakdown?.photoPoints || 0) > 0) {
-    parts.push(`사진 ${Number(breakdown.photoEligibleCount || 0)}회 ${Number(breakdown.photoPoints).toLocaleString("ko-KR")}P`);
-  }
-  if (Number(breakdown?.commentPoints || 0) > 0) {
-    parts.push(`댓글 ${Number(breakdown.commentEligibleCount || 0)}일 ${Number(breakdown.commentPoints).toLocaleString("ko-KR")}P`);
   }
   return parts.length ? `산식: ${parts.join(" + ")} = ${Number(breakdown?.total || 0).toLocaleString("ko-KR")}P` : "산식: 아직 적립된 포인트가 없습니다";
 }
@@ -4314,7 +4274,7 @@ function getNextReward(points) {
   const currentPoints = Number(points || 0);
   const nextTier = REWARD_ITEMS.find((tier) => currentPoints < tier.points);
   if (!nextTier) {
-    return { label: "RRC샵 프리미엄 구간", remaining: 0, won: currentPoints * POINT_WON_RATE };
+    return { label: "활동 혜택 프리미엄 구간", remaining: 0, won: currentPoints * POINT_WON_RATE };
   }
   return {
     label: nextTier.name,

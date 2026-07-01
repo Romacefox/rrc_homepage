@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=SUIT:wght@300;400;500;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20260701a" />
+  <link rel="stylesheet" href="styles.css?v=20260701c" />
 </head>
 <body>
   <header class="site-header">
@@ -30,7 +30,7 @@
       <div class="container two-col auth-shell">
         <article class="panel">
           <h2>회원가입 신청</h2>
-          <p class="list-meta">가입 신청 후 운영진 승인이 완료되면 활동 보드, 월 4회 추첨 현황, 포인트 챌린지를 사용할 수 있습니다.</p>
+          <p class="list-meta">가입 신청 후 운영진 승인이 완료되면 활동 보드, 월 4회 추첨 현황, 챌린지를 사용할 수 있습니다.</p>
           <form class="form compact" id="signup-form">
             <input id="signup-email" type="email" placeholder="이메일" autocomplete="email" required />
             <input id="signup-password" type="password" placeholder="비밀번호" autocomplete="new-password" required />
@@ -40,7 +40,7 @@
             <textarea id="signup-intro" rows="4" minlength="10" placeholder="자기소개(러닝 경험 / 가입 이유, 10자 이상)" required></textarea>
             <label style="display:flex;gap:0.4rem;align-items:flex-start;">
               <input id="signup-agree" type="checkbox" style="width:auto;margin-top:0.1rem;" />
-              <span class="list-meta">개인정보(이메일, 이름, 출생연도, 소개) 수집 및 운영진 검토에 동의합니다.</span>
+              <span class="list-meta">개인정보(이메일, 이름, 출생연도, 자기소개) 수집 및 운영진 검토에 동의합니다.</span>
             </label>
             <div class="inline-form">
               <button id="signup-submit" class="btn primary" type="submit">가입 신청</button>
@@ -51,17 +51,17 @@
         </article>
 
         <article class="panel highlight">
-          <h2>가입 안내</h2>
+          <h2>가입 흐름</h2>
           <ol class="bullet-list numbered-list">
             <li>회원가입 신청</li>
             <li>이메일 인증</li>
             <li>운영진 승인 대기</li>
-            <li>승인 후 활동 보드와 포인트 기능 이용</li>
+            <li>승인 후 활동 보드와 챌린지 이용</li>
           </ol>
-          <p class="list-meta">운영진 승인 전에도 로그인은 가능하지만, 사진 업로드와 챌린지 같은 상호작용 기능은 승인 후 열립니다. 승인 완료 후 신규 가입 웰컴 포인트 20P가 지급됩니다.</p>
+          <p class="list-meta">승인 전에도 로그인 상태 확인은 가능하지만, 출석 보드 참여·챌린지 제안·활동 혜택 신청은 승인 후 열립니다. 승인 완료 후 신규 가입 웰컴 포인트 20P가 지급됩니다.</p>
           <div class="auth-links-row" style="margin-top:1rem;">
             <a class="btn ghost" href="login.html">로그인 페이지</a>
-            <a class="btn ghost" href="login.html">활동 보드 보기</a>
+            <a class="btn ghost" href="login.html#activity-board">활동 보드 보기</a>
           </div>
         </article>
       </div>

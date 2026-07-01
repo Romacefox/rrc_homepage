@@ -1,12 +1,6 @@
 const TABLE = "member_point_awards";
 const PROFILE_TABLE = "member_profiles";
 const LOG_TABLE = "operation_logs";
-const PHOTO_TABLE = "photos";
-const COMMENT_TABLE = "photo_comments";
-const PHOTO_POINTS = 5;
-const PHOTO_MONTHLY_CAP = 5;
-const COMMENT_POINTS = 2;
-const COMMENT_MONTHLY_CAP = 10;
 
 export default async (request) => {
   try {
@@ -146,12 +140,9 @@ function normalizeName(name) {
 }
 
 async function buildPublicPointRanking(monthKey, awardRows, period = "month") {
-  const range = period === "year" ? getYearDateRange(monthKey) : getMonthDateRange(monthKey);
-  const [profiles, activeMembers, photos, comments] = await Promise.all([
+  const [profiles, activeMembers] = await Promise.all([
     supabaseSelect(`${PROFILE_TABLE}?approval_status=eq.approved&select=user_id,name,created_at&limit=1000`).catch(() => []),
-    loadActiveMembers(),
-    supabaseSelect(`${PHOTO_TABLE}?created_at=gte.${encodeURIComponent(range.start)}&created_at=lt.${encodeURIComponent(range.end)}&select=user_id,created_at&limit=1000`).catch(() => []),
-    supabaseSelect(`${COMMENT_TABLE}?created_at=gte.${encodeURIComponent(range.start)}&created_at=lt.${encodeURIComponent(range.end)}&select=user_id,created_at&limit=1000`).catch(() => [])
+    loadActiveMembers()
   ]);
   const activeNameKeys = new Set((Array.isArray(activeMembers) ? activeMembers : []).map((member) => normalizeName(member.name)).filter(Boolean));
   const profileByUserId = new Map(
@@ -187,32 +178,6 @@ async function buildPublicPointRanking(monthKey, awardRows, period = "month") {
   });
 
   addVirtualSignupBonuses({ profiles, awardRows, grouped, period, monthKey, activeNameKeys });
-
-  const photoCounts = period === "year"
-    ? countMonthlyCappedDailyPointEventsByUserId(photos, PHOTO_MONTHLY_CAP)
-    : countDailyPointEventsByUserId(photos);
-  photoCounts.forEach((count, userId) => {
-    const group = ensureGroup(profileByUserId.get(userId));
-    if (!group) {
-      return;
-    }
-    const points = Math.min(Number(count || 0), PHOTO_MONTHLY_CAP) * PHOTO_POINTS;
-    group.points += points;
-    group.photo_points += points;
-  });
-
-  const commentCounts = period === "year"
-    ? countMonthlyCappedDailyPointEventsByUserId(comments, COMMENT_MONTHLY_CAP)
-    : countDailyPointEventsByUserId(comments);
-  commentCounts.forEach((count, userId) => {
-    const group = ensureGroup(profileByUserId.get(userId));
-    if (!group) {
-      return;
-    }
-    const points = Math.min(Number(count || 0), COMMENT_MONTHLY_CAP) * COMMENT_POINTS;
-    group.points += points;
-    group.comment_points += points;
-  });
 
   return [...grouped.values()]
     .sort((a, b) => (Number(b.points || 0) - Number(a.points || 0)) || String(a.member_name || "").localeCompare(String(b.member_name || ""), "ko"))
