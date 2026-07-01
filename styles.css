@@ -227,16 +227,33 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   margin: 0.9rem 0 1rem;
 }
 
+.activity-board-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 12;
+  align-items: center;
+  overflow-x: auto;
+  padding: 0.45rem 0 0.55rem;
+  background: rgba(17, 17, 17, 0.96);
+  scrollbar-width: thin;
+}
+
 .admin-tab,
 .activity-board-tab {
   border: 1px solid rgba(255, 140, 66, 0.42);
-  border-radius: 999px;
+  border-radius: 8px;
   background: rgba(18, 18, 18, 0.92);
   color: #ffd9bf;
-  padding: 0.5rem 0.8rem;
+  min-height: 44px;
+  padding: 0.58rem 0.85rem;
   cursor: pointer;
   font-weight: 800;
   width: auto;
+  white-space: nowrap;
+}
+
+.activity-board-tab {
+  flex: 0 0 auto;
 }
 
 .admin-tab.is-active,
@@ -249,6 +266,16 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 .admin-tab-hidden,
 .activity-tab-hidden {
   display: none !important;
+}
+
+.activity-board-tab:focus-visible,
+.activity-quick-action:focus-visible,
+.btn:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgba(255, 190, 122, 0.72);
+  outline-offset: 2px;
 }
 
 .admin-today-panel {
@@ -337,6 +364,31 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   grid-template-columns: repeat(3, minmax(120px, 1fr));
 }
 
+.activity-quick-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin-top: 0.8rem;
+}
+
+.activity-quick-action {
+  min-height: 44px;
+  border: 1px solid rgba(255, 147, 80, 0.3);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(31, 23, 17, 0.98) 0%, rgba(16, 16, 16, 0.98) 100%);
+  color: #ffe1c8;
+  cursor: pointer;
+  font-weight: 850;
+  padding: 0.62rem 0.7rem;
+  text-align: center;
+}
+
+.activity-quick-action.is-active {
+  border-color: rgba(255, 126, 45, 0.82);
+  background: rgba(255, 126, 45, 0.18);
+  color: #fff8f2;
+}
+
 .activity-month-controls {
   align-items: center;
 }
@@ -380,6 +432,48 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.55rem;
   margin: 0.8rem 0;
+}
+
+.raffle-stage-hype {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.55rem;
+  margin-top: 0.75rem;
+  padding: 0.58rem 0.7rem;
+  border: 1px solid rgba(255, 159, 85, 0.34);
+  border-radius: 8px;
+  background: linear-gradient(90deg, rgba(255, 107, 0, 0.1), rgba(255, 170, 96, 0.16), rgba(255, 107, 0, 0.1));
+  overflow: hidden;
+}
+
+.raffle-stage-hype::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(90deg, transparent 0 18px, rgba(255, 190, 128, 0.08) 18px 20px);
+  animation: raffleHypeTrack 2.4s linear infinite;
+}
+
+.raffle-stage-hype span,
+.raffle-stage-hype strong {
+  position: relative;
+  z-index: 1;
+  white-space: nowrap;
+}
+
+.raffle-stage-hype span {
+  color: #ffd8bd;
+  font-size: 0.78rem;
+  font-weight: 800;
+  opacity: 0.9;
+}
+
+.raffle-stage-hype strong {
+  color: #fff5ec;
+  font-size: 0.9rem;
+  letter-spacing: 0.04em;
 }
 
 .raffle-stage-orbit span {
@@ -459,80 +553,23 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   50% { opacity: 1; }
 }
 
+@keyframes raffleHypeTrack {
+  from { transform: translateX(-24px); }
+  to { transform: translateX(24px); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .raffle-stage-orbit span,
   .raffle-candidate-card.is-live,
   .raffle-candidate-card.is-live::after,
-  .raffle-candidate-card.is-waiting {
+  .raffle-candidate-card.is-waiting,
+  .raffle-stage-hype::before {
     animation: none;
   }
 }
 
 .board-highlight {
   background: linear-gradient(160deg, rgba(255, 107, 0, 0.18), rgba(21, 21, 21, 1));
-}
-
-.activity-mission-card {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.mission-reward-summary {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.65rem;
-}
-
-.mission-reward-summary > div {
-  min-width: 0;
-  padding: 0.75rem 0.8rem;
-  border: 1px solid rgba(255, 150, 86, 0.18);
-  border-radius: 10px;
-  background: rgba(18, 18, 18, 0.72);
-}
-
-.mission-reward-summary span {
-  display: block;
-  color: var(--muted);
-  font-size: 0.78rem;
-  line-height: 1.35;
-}
-
-.mission-reward-summary strong {
-  display: block;
-  margin-top: 0.25rem;
-  color: #fff0e3;
-  font-size: clamp(1rem, 2vw, 1.35rem);
-  overflow-wrap: anywhere;
-}
-
-.mission-progress {
-  margin: 0.1rem 0 0;
-}
-
-.mission-check-list {
-  display: grid;
-  gap: 0.6rem;
-}
-
-.activity-mission-item {
-  border-color: rgba(255, 177, 112, 0.18);
-}
-
-.mission-item-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.6rem;
-  margin-top: 0.4rem;
-}
-
-.mission-item-row .btn {
-  flex: 0 0 auto;
-}
-
-.mission-policy-note {
-  margin-top: 0;
 }
 
 @media (max-width: 960px) {
@@ -548,18 +585,6 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     grid-template-columns: 1fr;
   }
 
-  .mission-reward-summary {
-    grid-template-columns: 1fr;
-  }
-
-  .mission-item-row {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .mission-item-row .btn {
-    width: 100%;
-  }
 }
 
 .auth-shell {
@@ -1185,7 +1210,7 @@ body.modal-open {
 
 .board-pulse-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem;
 }
 
@@ -1247,7 +1272,7 @@ body.modal-open {
 
 .board-public-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
 }
 
@@ -1378,8 +1403,8 @@ body.modal-open {
     scrollbar-width: thin;
   }
 
-  .activity-board-tab {
-    flex: 0 0 auto;
+  .activity-quick-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .challenge-entry-row {
@@ -1442,7 +1467,6 @@ body.modal-open {
 }
 
 .board-ranking-item,
-.board-mission-item,
 .board-badge-item,
 .suggestion-item {
   border-color: rgba(255, 151, 86, 0.16);
@@ -1451,7 +1475,6 @@ body.modal-open {
 }
 
 .board-ranking-item .list-top,
-.board-mission-item .list-top,
 .board-badge-item .list-top {
   gap: 0.8rem;
 }
@@ -1466,6 +1489,10 @@ body.modal-open {
 }
 
 @media (max-width: 960px) {
+  .activity-quick-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .member-personal-stats {
     grid-template-columns: 1fr;
   }
@@ -1492,6 +1519,17 @@ body.modal-open {
 }
 
 @media (max-width: 640px) {
+  .activity-board-tabs {
+    margin-inline: -0.2rem;
+    padding-left: 0.2rem;
+    padding-right: 0.2rem;
+  }
+
+  .activity-board-tab,
+  .activity-quick-action {
+    font-size: 0.92rem;
+  }
+
   .challenge-entry-row {
     align-items: flex-start;
     flex-direction: column;

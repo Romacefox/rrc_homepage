@@ -74,6 +74,12 @@
               <div class="stat-card"><span>누적 출석</span><strong id="my-total-runs">0회</strong></div>
               <div class="stat-card"><span>연속 출석</span><strong id="my-streak">0개월</strong></div>
             </div>
+            <div class="activity-quick-actions" aria-label="활동 보드 빠른 이동">
+              <button class="activity-quick-action" type="button" data-quick-board-tab="raffle">추첨 대기실</button>
+              <button class="activity-quick-action" type="button" data-quick-board-tab="rewards">포인트 랭킹</button>
+              <button class="activity-quick-action" type="button" data-quick-board-tab="challenges">챌린지</button>
+              <button class="activity-quick-action" type="button" data-quick-board-tab="suggestions">건의함</button>
+            </div>
             <div class="activity-primary-grid">
               <article class="panel board-highlight member-focus-panel">
               <div class="section-head">
@@ -100,6 +106,11 @@
                   <h3>추첨 대기실</h3>
                   <span class="badge">룰렛 준비 중</span>
                 </div>
+                <div id="raffle-stage-hype" class="raffle-stage-hype" aria-live="polite">
+                  <span>후보 입장 대기</span>
+                  <strong>READY</strong>
+                  <span>룰렛 준비 중</span>
+                </div>
                 <div class="raffle-stage-orbit" aria-hidden="true">
                   <span>4회</span>
                   <span>후보</span>
@@ -124,11 +135,6 @@
                 <span class="board-pulse-label">챌린지/포인트 선두</span>
                 <strong id="board-point-leader">확인 중</strong>
                 <p id="board-point-leader-note" class="list-meta">활동 포인트를 집계하고 있습니다.</p>
-              </article>
-              <article class="panel board-pulse-card">
-                <span class="board-pulse-label">미션 달성률</span>
-                <strong id="board-mission-progress">0%</strong>
-                <p id="board-mission-note" class="list-meta">이번 달 출석 미션 달성률입니다.</p>
               </article>
             </div>
             <div class="board-layout" style="margin-top:1rem;">
@@ -164,46 +170,12 @@
               </article>
               <article class="panel">
                 <div class="section-head">
-                  <h3>이번 달 미션</h3>
-                  <span class="badge">미션 보드</span>
-                </div>
-                <ul id="mission-board" class="list small" style="margin-top:0.8rem;"></ul>
-              </article>
-              <article class="panel">
-                <div class="section-head">
                   <h3>공개 배지 쇼케이스</h3>
                   <span class="badge">칭호 공개</span>
                 </div>
                 <ul id="badge-showcase-board" class="list small" style="margin-top:0.8rem;"></ul>
               </article>
             </div>
-            <article id="activity-mission-card" class="panel board-highlight activity-mission-card" style="margin-top:1rem;">
-              <div class="section-head">
-                <h3>이번 달 내 미션</h3>
-                <span id="activity-mission-month" class="badge">미션 확인 중</span>
-              </div>
-              <div class="mission-reward-summary">
-                <div>
-                  <span>현재 사용 가능 포인트</span>
-                  <strong id="activity-mission-current-points">0P</strong>
-                </div>
-                <div>
-                  <span>다음 혜택 달성률</span>
-                  <strong id="activity-mission-progress-label">0%</strong>
-                </div>
-                <div>
-                  <span>이번 달 남은 미션 포인트</span>
-                  <strong id="activity-mission-remaining-points">0P</strong>
-                </div>
-              </div>
-              <div class="reward-progress mission-progress" aria-label="다음 혜택 진행률">
-                <span id="activity-mission-progress-bar" style="width:0%"></span>
-              </div>
-              <p id="activity-mission-reward-note" class="list-meta">다음 활동 혜택까지 남은 포인트를 계산하고 있습니다.</p>
-              <ul id="activity-mission-list" class="list small mission-check-list"></ul>
-              <p id="activity-mission-status" class="list-meta" style="margin-top:0.75rem;">미션 상태를 불러오는 중입니다.</p>
-              <p class="list-meta mission-policy-note">RRC 포인트는 현금 지급 수단이 아니라, RRC 활동 참여를 기록하고 챌린지 참여 및 활동 혜택 신청에 활용하는 활동 포인트입니다.</p>
-            </article>
             <div class="board-record-grid" style="margin-top:1rem;">
               <article class="panel">
                 <h3>내 출석 기록</h3>
@@ -237,7 +209,7 @@
               </article>
             </div>
             <div class="activity-section-label reward-section-label">
-              <h3>포인트 리워드</h3>
+              <h3>포인트 랭킹</h3>
               <p class="list-meta">월간 랭킹, 누적 포인트, 활동 혜택 신청을 한곳에서 확인합니다.</p>
             </div>
             <div class="board-engagement-grid reward-board-grid">

@@ -73,6 +73,7 @@ const activityMonthSelect = document.getElementById("activity-month");
 const activityRefreshButton = document.getElementById("activity-refresh");
 const activityLock = document.getElementById("activity-lock");
 const activityBoard = document.getElementById("activity-board");
+const activityQuickActions = document.querySelectorAll("[data-quick-board-tab]");
 const memberFocusPanel = document.querySelector(".member-focus-panel");
 const raffleStagePanel = document.querySelector(".raffle-stage-panel");
 const activityPrimaryGrid = document.querySelector(".activity-primary-grid");
@@ -95,9 +96,9 @@ const runnerCard = document.getElementById("runner-card");
 const attendanceBoard = document.getElementById("attendance-board");
 const publicTicketBoard = document.getElementById("public-ticket-board");
 const candidatePreviewBoard = document.getElementById("candidate-preview-board");
-const missionBoard = document.getElementById("mission-board");
 const badgeShowcaseBoard = document.getElementById("badge-showcase-board");
 const boardRaffleHistory = document.getElementById("board-raffle-history");
+const raffleStageHype = document.getElementById("raffle-stage-hype");
 let boardRaffleReplayPanel = null;
 let boardRaffleReplayStatus = null;
 let boardRaffleReplayButton = null;
@@ -123,17 +124,6 @@ const boardTopRunner = document.getElementById("board-top-runner");
 const boardTopRunnerNote = document.getElementById("board-top-runner-note");
 const boardPointLeader = document.getElementById("board-point-leader");
 const boardPointLeaderNote = document.getElementById("board-point-leader-note");
-const boardMissionProgress = document.getElementById("board-mission-progress");
-const boardMissionNote = document.getElementById("board-mission-note");
-const activityMissionCard = document.getElementById("activity-mission-card");
-const activityMissionMonth = document.getElementById("activity-mission-month");
-const activityMissionCurrentPoints = document.getElementById("activity-mission-current-points");
-const activityMissionProgressLabel = document.getElementById("activity-mission-progress-label");
-const activityMissionRemainingPoints = document.getElementById("activity-mission-remaining-points");
-const activityMissionProgressBar = document.getElementById("activity-mission-progress-bar");
-const activityMissionRewardNote = document.getElementById("activity-mission-reward-note");
-const activityMissionList = document.getElementById("activity-mission-list");
-const activityMissionStatus = document.getElementById("activity-mission-status");
 const pointRankingBoard = document.getElementById("point-ranking-board");
 const pointRankingYearBoard = document.getElementById("point-ranking-year-board");
 const myPhotoHistory = document.getElementById("my-photo-history");
@@ -392,9 +382,9 @@ function configureActivityBoardTabs() {
 
   const tabs = [
     { key: "overview", label: "요약", nodes: [memberFocusPanel, raffleStagePanel, boardPulseGrid] },
-    { key: "attendance", label: "출석", nodes: [boardLayout, boardPublicGrid, activityMissionCard] },
+    { key: "attendance", label: "출석", nodes: [boardLayout, boardPublicGrid] },
     { key: "raffle", label: "추첨", nodes: [raffleStagePanel] },
-    { key: "rewards", label: "리워드", nodes: [boardRecordGrid, rewardSectionLabel, rewardBoardGrid] },
+    { key: "rewards", label: "포인트", nodes: [boardRecordGrid, rewardSectionLabel, rewardBoardGrid] },
     { key: "challenges", label: "챌린지", nodes: [challengeSectionLabel, challengeBoardGrid] },
     { key: "suggestions", label: "건의함", nodes: [suggestionSectionLabel, suggestionBoardGrid] }
   ];
@@ -410,7 +400,8 @@ function configureActivityBoardTabs() {
   const tabbar = document.createElement("div");
   tabbar.className = "activity-board-tabs";
   tabbar.setAttribute("role", "tablist");
-  tabbar.innerHTML = tabs.map((tab, index) => `<button class="activity-board-tab${index === 0 ? " is-active" : ""}" type="button" data-board-tab="${tab.key}">${tab.label}</button>`).join("");
+  tabbar.setAttribute("aria-label", "활동 보드 보기 선택");
+  tabbar.innerHTML = tabs.map((tab, index) => `<button class="activity-board-tab${index === 0 ? " is-active" : ""}" type="button" role="tab" aria-selected="${index === 0 ? "true" : "false"}" tabindex="${index === 0 ? "0" : "-1"}" data-board-tab="${tab.key}">${tab.label}</button>`).join("");
   if (controls) {
     controls.insertAdjacentElement("afterend", tabbar);
   } else {
@@ -421,7 +412,15 @@ function configureActivityBoardTabs() {
   const allNodes = tabs.flatMap((tab) => tab.nodes).filter(Boolean);
   const activate = (key) => {
     tabbar.querySelectorAll("[data-board-tab]").forEach((button) => {
-      button.classList.toggle("is-active", button.dataset.boardTab === key);
+      const selected = button.dataset.boardTab === key;
+      button.classList.toggle("is-active", selected);
+      button.setAttribute("aria-selected", selected ? "true" : "false");
+      button.tabIndex = selected ? 0 : -1;
+    });
+    activityQuickActions.forEach((button) => {
+      const selected = button.dataset.quickBoardTab === key;
+      button.classList.toggle("is-active", selected);
+      button.setAttribute("aria-pressed", selected ? "true" : "false");
     });
     allNodes.forEach((node) => {
       const visible = (tabNodeMap.get(key) || []).includes(node);
@@ -443,6 +442,35 @@ function configureActivityBoardTabs() {
     }
     activate(button.dataset.boardTab);
   });
+  tabbar.addEventListener("keydown", (event) => {
+    const keys = ["ArrowRight", "ArrowLeft", "Home", "End"];
+    if (!keys.includes(event.key)) {
+      return;
+    }
+    const buttons = [...tabbar.querySelectorAll("[data-board-tab]")];
+    const currentIndex = Math.max(0, buttons.findIndex((button) => button.getAttribute("aria-selected") === "true"));
+    let nextIndex = currentIndex;
+    if (event.key === "ArrowRight") {
+      nextIndex = (currentIndex + 1) % buttons.length;
+    } else if (event.key === "ArrowLeft") {
+      nextIndex = (currentIndex - 1 + buttons.length) % buttons.length;
+    } else if (event.key === "Home") {
+      nextIndex = 0;
+    } else if (event.key === "End") {
+      nextIndex = buttons.length - 1;
+    }
+    event.preventDefault();
+    buttons[nextIndex]?.focus();
+    activate(buttons[nextIndex]?.dataset.boardTab || "overview");
+  });
+  activityQuickActions.forEach((button) => {
+    button.setAttribute("aria-pressed", "false");
+    button.addEventListener("click", () => {
+      const key = button.dataset.quickBoardTab || "overview";
+      activate(key);
+      tabbar.querySelector(`[data-board-tab="${key}"]`)?.focus({ preventScroll: true });
+    });
+  });
   boardRaffleReplayButton?.addEventListener("click", () => replayBoardRaffleResult());
   activate("overview");
 }
@@ -454,11 +482,6 @@ async function loadActivityBoardTab(key) {
   activityBoardTabLoads.add(key);
 
   try {
-    if (key === "attendance") {
-      await loadActivityMissions();
-      return;
-    }
-
     if (key === "rewards") {
       await loadRewardTabContent();
       return;
@@ -1526,13 +1549,11 @@ function renderBoardLocked(message) {
   }
   setVisibility(memberFeatureGuide, true);
   renderPersonalBoardEmpty();
-  renderActivityMissionLocked("승인 회원 로그인 후 이번 달 내 미션을 확인할 수 있습니다.");
   renderSuggestionBoardLocked("승인 회원 로그인 후 건의사항을 남길 수 있습니다.");
   renderRewardRequestLocked("승인 회원 로그인 후 활동 혜택 신청을 할 수 있습니다.");
   renderChallengeLocked("승인 회원 로그인 후 포인트 챌린지를 볼 수 있습니다.");
   renderPublicTicketBoard([], currentMonthKey());
   renderCandidatePreviewBoard([], currentMonthKey());
-  renderMissionBoard([], null, currentMonthKey(), 0, 0);
   renderBadgeShowcase([], currentMonthKey());
   renderPointRankingBoard(pointRankingBoard, [], currentMonthKey(), "월간");
   renderPointRankingBoard(pointRankingYearBoard, [], currentMonthKey(), "연간");
@@ -1612,9 +1633,6 @@ function renderBoardPulseSummary(rows, runner, monthKey) {
   const pointLeader = [...rows]
     .filter((member) => getMemberPointTotal(member) > 0 || member.monthRuns > 0)
     .sort((a, b) => (getMemberPointTotal(b) - getMemberPointTotal(a)) || (b.monthRuns - a.monthRuns))[0] || null;
-  const missionAchievers = rows.filter((member) => member.monthRuns >= threshold).length;
-  const missionRate = rows.length ? Math.round((missionAchievers / rows.length) * 100) : 0;
-
   if (boardCandidateCount) {
     boardCandidateCount.textContent = `${eligibleCount}명`;
   }
@@ -1636,12 +1654,6 @@ function renderBoardPulseSummary(rows, runner, monthKey) {
     boardPointLeaderNote.textContent = pointLeader
       ? `활동 포인트 ${getMemberPointTotal(pointLeader)}P · 연속 출석 ${pointLeader.streak}개월`
       : "포인트 집계 대상이 아직 없습니다.";
-  }
-  if (boardMissionProgress) {
-    boardMissionProgress.textContent = `${missionRate}%`;
-  }
-  if (boardMissionNote) {
-    boardMissionNote.textContent = `${monthKeyToLabel(monthKey)} 출석 미션 달성 회원 ${missionAchievers}명 / 전체 ${rows.length}명`;
   }
 }
 
@@ -1728,6 +1740,9 @@ function renderCandidatePreviewBoard(rows, monthKey) {
   }
   candidatePreviewBoard.innerHTML = "";
   candidatePreviewBoard.classList.remove("is-armed");
+  if (raffleStageHype) {
+    raffleStageHype.innerHTML = "<span>후보 집계 중</span><strong>READY</strong><span>룰렛 준비 중</span>";
+  }
 
   const threshold = getMonthThreshold(monthKey);
   const candidates = rows
@@ -1746,10 +1761,18 @@ function renderCandidatePreviewBoard(rows, monthKey) {
         return `<div class="raffle-candidate-card is-waiting" style="--candidate-delay:${index * 0.12}s"><span class="raffle-candidate-index">대기</span><strong>${escapeHtml(member.name || "이름없음")}</strong><p class="list-meta">출석 ${member.monthRuns}회 · ${remaining}회 남음</p></div>`;
       }).join("")
       : '<div class="raffle-candidate-card"><strong>후보 없음</strong><p class="list-meta">이번 달 추첨 기준을 아직 넘은 회원이 없습니다.</p></div>';
+    if (raffleStageHype) {
+      raffleStageHype.innerHTML = nearly.length
+        ? `<span>후보 근접 ${nearly.length}명</span><strong>${threshold}회 기준</strong><span>대기 중</span>`
+        : `<span>아직 조용함</span><strong>${threshold}회 기준</strong><span>첫 후보 대기</span>`;
+    }
     return;
   }
 
   candidatePreviewBoard.classList.add("is-armed");
+  if (raffleStageHype) {
+    raffleStageHype.innerHTML = `<span>후보 ${candidates.length}명 입장</span><strong>SPIN READY</strong><span>추첨 전 대기</span>`;
+  }
 
   candidates.forEach((member, index) => {
     const card = document.createElement("div");
@@ -1762,37 +1785,6 @@ function renderCandidatePreviewBoard(rows, monthKey) {
       <p class="list-meta">연속 출석 ${member.streak}개월 · 활동 포인트 ${getMemberPointTotal(member)}P</p>
     `;
     candidatePreviewBoard.appendChild(card);
-  });
-}
-
-function renderMissionBoard(rows, me, selectedMonth, photoCount, commentCount) {
-  if (!missionBoard) {
-    return;
-  }
-  missionBoard.innerHTML = "";
-  const threshold = getMonthThreshold(selectedMonth);
-  const missionItems = [
-    {
-      title: "이번 달 출석 미션",
-      progress: `${me?.monthRuns || 0}/${threshold}회`,
-      status: (me?.monthRuns || 0) >= threshold ? "완료" : "진행 중",
-      body: `${monthKeyToLabel(selectedMonth)} 기준 추첨 후보까지 출석 ${threshold}회 달성`
-    }
-  ];
-
-  const participants = rows.filter((member) => member.monthRuns >= threshold).length;
-  missionItems.forEach((mission) => {
-    const item = document.createElement("li");
-    item.className = "list-item board-mission-item";
-    item.innerHTML = `
-      <div class="list-top">
-        <span class="list-title">${escapeHtml(mission.title)}</span>
-        <span class="status-chip ${mission.status === "완료" ? "" : "warn"}">${mission.status}</span>
-      </div>
-      <p class="list-meta">${escapeHtml(mission.body)}</p>
-      <p class="list-meta">내 진행률 ${escapeHtml(mission.progress)}${mission.title === "이번 달 출석 미션" ? ` · 현재 달성자 ${participants}명` : ""}</p>
-    `;
-    missionBoard.appendChild(item);
   });
 }
 
@@ -2131,7 +2123,7 @@ function renderMyActivityOverviewState(me, selectedMonth, raffleRecords, attenda
     myNextReward.textContent = "혜택 탭에서 확인";
   }
   if (myPointNote) {
-    myPointNote.textContent = "요약은 먼저 표시하고, 포인트 랭킹과 활동 혜택은 리워드 탭에서 불러옵니다.";
+    myPointNote.textContent = "요약은 먼저 표시하고, 포인트 랭킹과 활동 혜택은 포인트 탭에서 불러옵니다.";
   }
   renderBadgeList(buildPersonalBadges({
     me,
@@ -2145,7 +2137,6 @@ function renderMyActivityOverviewState(me, selectedMonth, raffleRecords, attenda
     commentCount: 0
   }));
   renderMyAttendanceHistory(me, selectedMonth, attendanceLogs);
-  renderMissionBoardCache(me, selectedMonth, 0, 0);
   renderSimpleHistory(myRaffleHistory, wins.map((record) => ({
     title: `${monthKeyToLabel(record.target_month_key)} 추첨`,
     meta: formatDate(record.created_at),
@@ -2154,14 +2145,14 @@ function renderMyActivityOverviewState(me, selectedMonth, raffleRecords, attenda
 }
 
 function renderDeferredActivityTabs() {
-  renderSimpleHistory(myPointAwardHistory, [], "리워드 탭을 열면 포인트 지급 기록을 불러옵니다.");
+  renderSimpleHistory(myPointAwardHistory, [], "포인트 탭을 열면 포인트 지급 기록을 불러옵니다.");
   if (pointRankingBoard) {
-    pointRankingBoard.innerHTML = '<li class="list-item"><p class="list-meta">리워드 탭을 열면 랭킹을 불러옵니다.</p></li>';
+    pointRankingBoard.innerHTML = '<li class="list-item"><p class="list-meta">포인트 탭을 열면 랭킹을 불러옵니다.</p></li>';
   }
   if (pointRankingYearBoard) {
-    pointRankingYearBoard.innerHTML = '<li class="list-item"><p class="list-meta">리워드 탭을 열면 연간 랭킹을 불러옵니다.</p></li>';
+    pointRankingYearBoard.innerHTML = '<li class="list-item"><p class="list-meta">포인트 탭을 열면 연간 랭킹을 불러옵니다.</p></li>';
   }
-  renderRewardRequestLocked("리워드 탭을 열면 활동 혜택 신청 내역을 불러옵니다.");
+  renderRewardRequestLocked("포인트 탭을 열면 활동 혜택 신청 내역을 불러옵니다.");
   renderChallengeLocked("챌린지 탭을 열면 모집 중인 챌린지를 불러옵니다.");
   if (suggestionList) {
     suggestionList.innerHTML = '<li class="list-item"><p class="list-meta">건의함 탭을 열면 의견 목록을 불러옵니다.</p></li>';
@@ -2246,8 +2237,6 @@ async function renderMyActivityDetailState(me, selectedMonth, raffleRecords, att
     commentCount: 0
   }));
   renderMyAttendanceHistory(me, selectedMonth, attendanceLogs);
-  renderMissionBoardCache(me, selectedMonth, 0, 0);
-
   renderSimpleHistory(
     myRaffleHistory,
     wins.map((record) => ({
@@ -2545,176 +2534,6 @@ function renderRewardTierCards(availablePoints) {
       </div>
     `;
   }).join("");
-}
-
-function renderMissionBoardCache(me, selectedMonth, photoCount, commentCount) {
-  if (!missionBoard) {
-    return;
-  }
-  const existingRows = window.__RRC_ACTIVITY_ROWS || [];
-  renderMissionBoard(existingRows, me, selectedMonth, photoCount, commentCount);
-}
-
-async function loadActivityMissions() {
-  if (!activityMissionCard) {
-    return;
-  }
-  if (!supabaseClient || !authUser || !authProfile || authProfile.approval_status !== "approved") {
-    renderActivityMissionLocked("승인 회원 로그인 후 이번 달 내 미션을 확인할 수 있습니다.");
-    return;
-  }
-
-  setStatus(activityMissionStatus, "이번 달 미션 상태를 확인하는 중입니다...");
-  try {
-    const result = await callActivityMissions();
-    renderActivityMissionCard(result);
-  } catch (error) {
-    renderActivityMissionLocked(`미션 상태를 불러오지 못했습니다: ${String(error?.message || error)}`);
-  }
-}
-
-function renderActivityMissionLocked(message) {
-  if (activityMissionList) {
-    activityMissionList.innerHTML = `<li class="list-item"><p class="list-meta">${escapeHtml(message)}</p></li>`;
-  }
-  if (activityMissionMonth) {
-    activityMissionMonth.textContent = "로그인 필요";
-  }
-  if (activityMissionCurrentPoints) {
-    activityMissionCurrentPoints.textContent = "0P";
-  }
-  if (activityMissionProgressLabel) {
-    activityMissionProgressLabel.textContent = "0%";
-  }
-  if (activityMissionRemainingPoints) {
-    activityMissionRemainingPoints.textContent = "0P";
-  }
-  if (activityMissionProgressBar) {
-    activityMissionProgressBar.style.width = "0%";
-  }
-  if (activityMissionRewardNote) {
-    activityMissionRewardNote.textContent = message;
-  }
-  setStatus(activityMissionStatus, message);
-}
-
-function renderActivityMissionCard(result) {
-  const missions = Array.isArray(result?.missions) ? result.missions : [];
-  const summary = result?.summary || {};
-  const currentPoints = Number(summary.current_points || 0);
-  const nextReward = summary.next_reward || {};
-  const progressPercent = Number(nextReward.progress_percent || 0);
-  const claimedPoints = Number(summary.claimed_mission_points || 0);
-  const totalMissionPoints = Number(summary.total_mission_points || 0);
-  const remainingMissionPoints = Number(summary.remaining_mission_points || 0);
-
-  if (activityMissionMonth) {
-    activityMissionMonth.textContent = result?.month_key ? `${monthKeyToLabel(result.month_key)} 기준` : "이번 달 기준";
-  }
-  if (activityMissionCurrentPoints) {
-    activityMissionCurrentPoints.textContent = `${currentPoints.toLocaleString("ko-KR")}P`;
-  }
-  if (activityMissionProgressLabel) {
-    activityMissionProgressLabel.textContent = `${progressPercent}%`;
-  }
-  if (activityMissionRemainingPoints) {
-    activityMissionRemainingPoints.textContent = `${remainingMissionPoints.toLocaleString("ko-KR")}P`;
-  }
-  if (activityMissionProgressBar) {
-    activityMissionProgressBar.style.width = `${Math.max(0, Math.min(progressPercent, 100))}%`;
-  }
-  if (activityMissionRewardNote) {
-    const remaining = Number(nextReward.remaining_points || 0);
-    const nextLabel = String(nextReward.label || "다음 활동 혜택");
-    const rewardText = remaining > 0
-      ? `${nextLabel}까지 ${remaining.toLocaleString("ko-KR")}P 남았어요.`
-      : "최고 보조권 신청 가능 구간입니다.";
-    activityMissionRewardNote.textContent = `현재 ${currentPoints.toLocaleString("ko-KR")}P. ${rewardText} 이번 달 미션으로 최대 ${totalMissionPoints.toLocaleString("ko-KR")}P를 받을 수 있고, 이미 ${claimedPoints.toLocaleString("ko-KR")}P를 받았습니다.`;
-  }
-
-  if (!activityMissionList) {
-    return;
-  }
-  activityMissionList.innerHTML = "";
-  if (!missions.length) {
-    activityMissionList.innerHTML = '<li class="list-item"><p class="list-meta">표시할 미션이 없습니다.</p></li>';
-    setStatus(activityMissionStatus, "미션 목록이 비어 있습니다.");
-    return;
-  }
-
-  missions.forEach((mission) => {
-    const item = document.createElement("li");
-    const complete = Boolean(mission.complete);
-    const claimed = Boolean(mission.claimed);
-    const claimable = Boolean(mission.claimable);
-    const progressText = `${Number(mission.progress || 0)}/${Number(mission.target || 1)}`;
-    const statusClass = claimed || complete ? "" : "warn";
-    const buttonLabel = claimed ? "받기 완료" : claimable ? "포인트 받기" : "조건 미달";
-    item.className = "list-item activity-mission-item";
-    item.innerHTML = `
-      <div class="list-top">
-        <span class="list-title">${claimed || complete ? "✓ " : ""}${escapeHtml(mission.title || "미션")}</span>
-        <span class="status-chip ${statusClass}">${escapeHtml(claimed ? "받기 완료" : (mission.status || "확인 중"))}</span>
-      </div>
-      <div class="mission-item-row">
-        <p class="list-meta">${escapeHtml(progressText)} · ${Number(mission.points || 0).toLocaleString("ko-KR")}P</p>
-        <button class="btn tiny ${claimable ? "primary" : "ghost"}" type="button" data-activity-mission="${escapeHtml(mission.key || "")}" ${claimable ? "" : "disabled"}>${buttonLabel}</button>
-      </div>
-      <p class="list-meta">${escapeHtml(mission.helper || "")}</p>
-    `;
-    const button = item.querySelector("[data-activity-mission]");
-    button?.addEventListener("click", () => claimActivityMission(mission.key, button));
-    activityMissionList.appendChild(item);
-  });
-  setStatus(activityMissionStatus, "미션 조건은 서버에서 확인하고, 포인트 지급도 서버에서만 처리됩니다.");
-}
-
-async function claimActivityMission(missionKey, button) {
-  if (!missionKey) {
-    return;
-  }
-  if (button) {
-    button.disabled = true;
-    button.textContent = "처리 중";
-  }
-  setStatus(activityMissionStatus, "미션 포인트를 지급하는 중입니다...");
-  try {
-    const result = await callActivityMissions("", {
-      method: "POST",
-      body: JSON.stringify({ mission_key: missionKey })
-    });
-    renderActivityMissionCard(result);
-    await Promise.all([
-      loadPointAwards(),
-      refreshRewardBalanceOverview()
-    ]);
-    setStatus(activityMissionStatus, result?.status === "already_claimed" ? "이미 받은 미션입니다." : "미션 포인트를 받았습니다.");
-  } catch (error) {
-    setStatus(activityMissionStatus, `미션 포인트 지급 실패: ${String(error?.message || error)}`);
-    await loadActivityMissions();
-  }
-}
-
-async function callActivityMissions(query = "", options = {}) {
-  const sessionResult = await supabaseClient.auth.getSession();
-  const accessToken = sessionResult.data?.session?.access_token;
-  if (!accessToken) {
-    throw new Error("로그인이 필요합니다.");
-  }
-
-  const response = await fetch(`/.netlify/functions/activity-missions${query}`, {
-    method: options.method || "GET",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`
-    },
-    body: options.body
-  });
-  const result = await response.json().catch(() => ({ ok: false, error: "invalid response" }));
-  if (!response.ok || !result?.ok) {
-    throw new Error(result?.error || `mission request failed (${response.status})`);
-  }
-  return result;
 }
 
 async function handleSuggestionSubmit(event) {

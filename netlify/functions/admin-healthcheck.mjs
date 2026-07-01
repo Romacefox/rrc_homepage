@@ -2,7 +2,6 @@ const PROFILE_TABLE = "member_profiles";
 const MEMBER_TABLE = "members";
 const ATTENDANCE_TABLE = "attendance_logs";
 const AWARD_TABLE = "member_point_awards";
-const CLAIM_TABLE = "member_mission_claims";
 const LOG_TABLE = "operation_logs";
 
 export default async (request) => {
@@ -46,13 +45,12 @@ export default async (request) => {
 };
 
 async function buildHealthcheck(monthKey) {
-  const [authUsers, members, profiles, attendanceLogs, pointAwards, missionClaims, operationLogs] = await Promise.all([
+  const [authUsers, members, profiles, attendanceLogs, pointAwards, operationLogs] = await Promise.all([
     listAuthUsers(),
     loadMembers(),
     supabaseSelect(`${PROFILE_TABLE}?select=user_id,email,name,birth_year,approval_status,role,created_at&limit=1000`).catch(() => []),
     loadAttendanceLogs(),
     supabaseSelect(`${AWARD_TABLE}?select=id,user_id,member_name,month_key,award_code,points,created_at&limit=2000`).catch(() => []),
-    supabaseSelect(`${CLAIM_TABLE}?select=id,member_id,mission_key,period_key,points,created_at&limit=2000`).catch(() => []),
     supabaseSelect(`${LOG_TABLE}?select=id,actor_name,action,detail,created_at&order=created_at.desc&limit=100`).catch(() => [])
   ]);
 
@@ -73,7 +71,6 @@ async function buildHealthcheck(monthKey) {
   const inactiveAttendance = findInactiveAttendance(currentMonthLogs, memberRows);
   const monthlyMismatches = calculateMonthlyAttendanceMismatches(monthKey, memberRows, attendanceLogs);
   const duplicateAwards = findDuplicateGroups(pointAwards, (row) => `${row.user_id || normalizeName(row.member_name)}|${row.month_key}|${row.award_code}`);
-  const duplicateClaims = findDuplicateGroups(missionClaims, (row) => `${row.member_id}|${row.mission_key}|${row.period_key}`);
   const missingWelcome = approvedProfiles.filter((profile) => !hasSignupBonus(profile, pointAwards));
 
   return {
@@ -111,12 +108,10 @@ async function buildHealthcheck(monthKey) {
     },
     points: {
       duplicate_award_count: duplicateAwards.length,
-      duplicate_mission_claim_count: duplicateClaims.length,
       missing_welcome_points_count: missingWelcome.length,
       total_points_mismatch_count: 0,
       total_points_note: "members.total_points 컬럼이 없어 원장 합계 비교는 현재 적용되지 않습니다.",
       duplicate_awards: duplicateAwards.slice(0, 20),
-      duplicate_claims: duplicateClaims.slice(0, 20),
       missing_welcome_profiles: missingWelcome.slice(0, 30).map((profile) => ({
         user_id: profile.user_id,
         name: profile.name || "",
