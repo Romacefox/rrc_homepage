@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=SUIT:wght@300;400;500;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20260510c" />
+  <link rel="stylesheet" href="styles.css?v=20260701c" />
 </head>
 <body>
   <header class="site-header">
@@ -17,9 +17,7 @@
       <nav class="nav-links">
         <a href="login.html" data-auth-entry>회원가입 / 로그인</a>
         <a href="index.html#about">크루 소개</a>
-        <a href="index.html#notice">공지</a>
-        <a href="gallery.html">사진첩</a>
-        <a href="running.html">러닝 허브</a>
+        <a href="index.html#schedule">일정</a>
         <a href="login.html" data-member-nav class="hidden" hidden>활동 보드</a>
         <a href="admin.html#admin" data-admin-nav class="hidden nav-admin-link" hidden>운영 관리</a>
         <a href="index.html">메인</a>
@@ -32,7 +30,7 @@
       <div class="container two-col auth-shell">
         <article id="login-panel" class="panel login-panel">
           <h2 id="login-panel-title">로그인</h2>
-          <p id="login-panel-copy" class="list-meta">로그인 후 활동 보드와 사진첩 업로드 기능을 사용할 수 있습니다.</p>
+          <p id="login-panel-copy" class="list-meta">로그인 후 출석 현황, 월 4회 추첨 후보, 챌린지를 확인할 수 있습니다.</p>
           <form class="form compact" id="login-form">
             <input id="login-email" type="email" placeholder="이메일" autocomplete="username" required />
             <input id="login-password" type="password" placeholder="비밀번호" autocomplete="current-password" required />
@@ -44,11 +42,8 @@
           <p id="login-approval-status" class="list-meta">승인 회원만 활동 보드와 상호작용 기능을 사용할 수 있습니다.</p>
           <div id="login-guest-actions" class="auth-links-row">
             <a class="btn ghost" href="signup.html">회원가입</a>
-            <a class="btn ghost" href="gallery.html">사진첩으로 이동</a>
           </div>
           <div id="login-member-actions" class="auth-links-row auth-success-actions hidden" hidden>
-            <a class="btn primary" href="gallery.html">사진첩으로 이동</a>
-            <a class="btn ghost" href="running.html">러닝 허브</a>
             <a class="btn ghost hidden" href="admin.html#admin" data-admin-nav hidden>운영 관리</a>
             <button id="login-logout" class="btn ghost" type="button">로그아웃</button>
           </div>
@@ -63,10 +58,10 @@
           <article id="member-feature-guide" class="panel board-highlight">
             <h3>회원 기능 안내</h3>
             <ul class="bullet">
-              <li>활동 보드에서 내 출석, 누적 출석, 연속 출석, 본인 회비 상태를 확인할 수 있습니다.</li>
-              <li>월 4회 이상 출석하면 이달의 추첨 후보가 되고 출석 추첨권 1장이 표시됩니다.</li>
-              <li>출석 순위, 이번 달 후보, 최근 추첨 기록은 승인 회원에게 공개됩니다.</li>
-              <li>건의함은 익명 표시를 선택할 수 있으며 운영진은 처리 상태를 관리합니다.</li>
+              <li>내 출석, 누적 출석, 연속 출석을 한눈에 확인할 수 있습니다.</li>
+              <li>월 4회 이상 출석하면 자동으로 추첨 후보에 올라갑니다.</li>
+              <li>추첨 전까지 후보 보드와 룰렛 대기 화면으로 긴장감을 유지합니다.</li>
+              <li>챌린지는 회원이 제안하고 운영진이 관리합니다.</li>
             </ul>
           </article>
           <div id="activity-board" class="hidden">
@@ -74,60 +69,46 @@
               <select id="activity-month"></select>
               <button id="activity-refresh" class="btn ghost" type="button">새로고침</button>
             </div>
-            <article id="activity-mission-card" class="panel board-highlight activity-mission-card" style="margin-top:1rem;">
-              <div class="section-head">
-                <h3>이번 달 내 미션</h3>
-                <span id="activity-mission-month" class="badge">미션 확인 중</span>
-              </div>
-              <div class="mission-reward-summary">
-                <div>
-                  <span>현재 사용 가능 포인트</span>
-                  <strong id="activity-mission-current-points">0P</strong>
-                </div>
-                <div>
-                  <span>다음 보조권 달성률</span>
-                  <strong id="activity-mission-progress-label">0%</strong>
-                </div>
-                <div>
-                  <span>이번 달 남은 미션 포인트</span>
-                  <strong id="activity-mission-remaining-points">0P</strong>
-                </div>
-              </div>
-              <div class="reward-progress mission-progress" aria-label="다음 RRC샵 보조권 진행률">
-                <span id="activity-mission-progress-bar" style="width:0%"></span>
-              </div>
-              <p id="activity-mission-reward-note" class="list-meta">RRC샵 보조권까지 남은 포인트를 계산하고 있습니다.</p>
-              <ul id="activity-mission-list" class="list small mission-check-list"></ul>
-              <p id="activity-mission-status" class="list-meta" style="margin-top:0.75rem;">미션 상태를 불러오는 중입니다.</p>
-              <p class="list-meta mission-policy-note">RRC 포인트는 현금 지급 수단이 아니라, RRC 활동 참여를 기록하고 RRC샵 보조권 신청 및 챌린지 참여에 활용하는 활동 포인트입니다. 보조권은 운영 예산과 운영진 승인 기준에 따라 처리됩니다.</p>
-              <p class="list-meta mission-policy-note">오픈 이벤트 미션 포인트는 활동보드 적응을 위한 1회성 이벤트이며, 운영 상황에 따라 기준이 조정될 수 있습니다.</p>
-            </article>
             <div class="stats-grid member-board-stats" style="margin-top:0.8rem;">
               <div class="stat-card"><span>이번 달 출석</span><strong id="my-month-runs">0회</strong></div>
               <div class="stat-card"><span>누적 출석</span><strong id="my-total-runs">0회</strong></div>
               <div class="stat-card"><span>연속 출석</span><strong id="my-streak">0개월</strong></div>
             </div>
-            <article class="panel board-highlight member-focus-panel" style="margin-top:1rem;">
+            <div class="activity-primary-grid">
+              <article class="panel board-highlight member-focus-panel">
               <div class="section-head">
-                <h3>활동 보드 요약</h3>
-                <span class="badge">개인 기록</span>
+                <h3>내 추첨 상태</h3>
+                <span class="badge">월 4회 기준</span>
               </div>
               <div class="stats-grid member-personal-stats" style="margin-top:0.8rem;">
-                <div class="stat-card"><span>이번 달 회비</span><strong id="my-fee-status">확인 중</strong></div>
                 <div class="stat-card"><span>최근 추첨 결과</span><strong id="my-raffle-status">확인 중</strong></div>
                 <div class="stat-card"><span>연속 출석 변화</span><strong id="my-streak-change">확인 중</strong></div>
+                <div class="stat-card"><span>출석 추첨권</span><strong id="my-ticket-count">0장</strong></div>
               </div>
               <div style="margin-top:0.9rem;">
                 <h4 style="margin-bottom:0.45rem;">내 출석 달성 배지</h4>
                 <div id="my-badges" class="raffle-winner-tags"></div>
               </div>
               <div class="stats-grid member-reward-stats" style="margin-top:0.9rem;">
-                <div class="stat-card"><span>출석 추첨권</span><strong id="my-ticket-count">0장</strong></div>
                 <div class="stat-card"><span>활동 포인트</span><strong id="my-point-total">0P</strong></div>
                 <div class="stat-card"><span>다음 혜택</span><strong id="my-next-reward">준비 중</strong></div>
               </div>
-              <p id="my-point-note" class="list-meta" style="margin-top:0.75rem;">정기런 배지, 사진, 댓글, 챌린지, 운영 리워드로 포인트를 모아 RRC샵 보조 신청에 활용할 수 있습니다.</p>
-            </article>
+              <p id="my-point-note" class="list-meta" style="margin-top:0.75rem;">정기런 배지, 챌린지, 운영 리워드로 포인트를 모아 활동 혜택 신청에 활용할 수 있습니다.</p>
+              </article>
+              <article class="panel raffle-stage-panel">
+                <div class="section-head">
+                  <h3>추첨 대기실</h3>
+                  <span class="badge">룰렛 준비 중</span>
+                </div>
+                <div class="raffle-stage-orbit" aria-hidden="true">
+                  <span>4회</span>
+                  <span>후보</span>
+                  <span>룰렛</span>
+                </div>
+                <p class="list-meta">월 4회 이상 출석한 회원은 자동으로 후보 보드에 올라갑니다. 운영진이 추첨을 누르기 전까지 후보 명단이 유지됩니다.</p>
+                <div id="candidate-preview-board" class="raffle-candidate-grid raffle-candidate-grid-stage" style="margin-top:0.8rem;"></div>
+              </article>
+            </div>
             <div class="board-pulse-grid" style="margin-top:1rem;">
               <article class="panel board-highlight board-pulse-card">
                 <span class="board-pulse-label">이번 달 후보</span>
@@ -140,7 +121,7 @@
                 <p id="board-top-runner-note" class="list-meta">출석 순위를 계산하고 있습니다.</p>
               </article>
               <article class="panel board-pulse-card">
-                <span class="board-pulse-label">포인트 선두</span>
+                <span class="board-pulse-label">챌린지/포인트 선두</span>
                 <strong id="board-point-leader">확인 중</strong>
                 <p id="board-point-leader-note" class="list-meta">활동 포인트를 집계하고 있습니다.</p>
               </article>
@@ -181,13 +162,6 @@
                 </div>
                 <ul id="public-ticket-board" class="list small" style="margin-top:0.8rem;"></ul>
               </article>
-              <article class="panel board-highlight">
-                <div class="section-head">
-                  <h3>이번 달 후보 보드</h3>
-                  <span class="badge">룰렛 프리뷰</span>
-                </div>
-                <div id="candidate-preview-board" class="raffle-candidate-grid" style="margin-top:0.8rem;"></div>
-              </article>
               <article class="panel">
                 <div class="section-head">
                   <h3>이번 달 미션</h3>
@@ -203,6 +177,33 @@
                 <ul id="badge-showcase-board" class="list small" style="margin-top:0.8rem;"></ul>
               </article>
             </div>
+            <article id="activity-mission-card" class="panel board-highlight activity-mission-card" style="margin-top:1rem;">
+              <div class="section-head">
+                <h3>이번 달 내 미션</h3>
+                <span id="activity-mission-month" class="badge">미션 확인 중</span>
+              </div>
+              <div class="mission-reward-summary">
+                <div>
+                  <span>현재 사용 가능 포인트</span>
+                  <strong id="activity-mission-current-points">0P</strong>
+                </div>
+                <div>
+                  <span>다음 혜택 달성률</span>
+                  <strong id="activity-mission-progress-label">0%</strong>
+                </div>
+                <div>
+                  <span>이번 달 남은 미션 포인트</span>
+                  <strong id="activity-mission-remaining-points">0P</strong>
+                </div>
+              </div>
+              <div class="reward-progress mission-progress" aria-label="다음 혜택 진행률">
+                <span id="activity-mission-progress-bar" style="width:0%"></span>
+              </div>
+              <p id="activity-mission-reward-note" class="list-meta">다음 활동 혜택까지 남은 포인트를 계산하고 있습니다.</p>
+              <ul id="activity-mission-list" class="list small mission-check-list"></ul>
+              <p id="activity-mission-status" class="list-meta" style="margin-top:0.75rem;">미션 상태를 불러오는 중입니다.</p>
+              <p class="list-meta mission-policy-note">RRC 포인트는 현금 지급 수단이 아니라, RRC 활동 참여를 기록하고 챌린지 참여 및 활동 혜택 신청에 활용하는 활동 포인트입니다.</p>
+            </article>
             <div class="board-record-grid" style="margin-top:1rem;">
               <article class="panel">
                 <h3>내 출석 기록</h3>
@@ -227,14 +228,6 @@
                 <p id="attendance-report-status" class="list-meta" style="margin-top:0.7rem;">신고 내용은 회원 건의함에 출석 누락 건으로 등록됩니다.</p>
               </article>
               <article class="panel">
-                <h3>내 사진 업로드 기록</h3>
-                <ul id="my-photo-history" class="list small"></ul>
-              </article>
-              <article class="panel">
-                <h3>내 댓글</h3>
-                <ul id="my-comment-history" class="list small"></ul>
-              </article>
-              <article class="panel">
                 <h3>내 추첨 이력</h3>
                 <ul id="my-raffle-history" class="list small"></ul>
               </article>
@@ -253,14 +246,12 @@
                   <h3>월간 포인트 랭킹</h3>
                   <span class="badge">월간 기준</span>
                 </div>
-                <p class="list-meta">이달의 러너, 정기런 배지, 사진/댓글, 운영진 지급, 챌린지 정산 포인트를 월별로 모아 보여줍니다. 포인트는 RRC샵 보조권 신청과 챌린지 참여에 쓰는 활동 기록 기준입니다.</p>
+                <p class="list-meta">이달의 러너, 정기런 배지, 운영진 지급, 챌린지 정산 포인트를 월별로 모아 보여줍니다. 포인트는 활동 혜택 신청과 챌린지 참여에 쓰는 활동 기록 기준입니다.</p>
                 <div class="point-guide-grid">
                   <div class="point-guide-card"><strong>신규 가입 · 20P</strong><span>운영진 승인과 동시에 웰컴 포인트 지급</span></div>
                   <div class="point-guide-card"><strong>이달의 러너 · 100P</strong><span>출석 입력 마감 후 운영진이 월별로 확정 지급</span></div>
                   <div class="point-guide-card"><strong>한강러버/올공러버 · 50P</strong><span>화요일 한강 또는 목요일 올림픽공원 정기런 연속 10회 달성 월</span></div>
                   <div class="point-guide-card"><strong>연속 후보 · 30/50P</strong><span>추첨 후보 2개월 연속 30P, 3개월 이상 연속 50P</span></div>
-                  <div class="point-guide-card"><strong>사진 업로드 · 5P</strong><span>하루 1회 인정, 월 최대 5회</span></div>
-                  <div class="point-guide-card"><strong>응원 댓글 · 2P</strong><span>하루 1회 인정, 월 최대 10회</span></div>
                   <div class="point-guide-card"><strong>포인트 챌린지</strong><span>성공자 베팅 비율에 따라 정산</span></div>
                   <div class="point-guide-card"><strong>운영진 배지</strong><span>낭만러너, 이달의 번개왕 100P, 분기 등산킹 300P 등</span></div>
                 </div>
@@ -274,7 +265,7 @@
                   <span class="badge">연간 기준</span>
                 </div>
                 <ul id="point-ranking-year-board" class="list small" style="margin-top:0.7rem;"></ul>
-                <p class="list-meta" style="margin-top:0.8rem;">출석 1회 자체에는 포인트를 붙이지 않고, 한강러버/올공러버 50P, 추첨 후보 연속 2개월 30P·3개월 이상 50P, 운영진 확정 이달의 러너 100P, 사진/댓글/운영진 선정/챌린지 정산 포인트로 계산합니다.</p>
+                <p class="list-meta" style="margin-top:0.8rem;">출석 1회 자체에는 포인트를 붙이지 않고, 한강러버/올공러버 50P, 추첨 후보 연속 2개월 30P·3개월 이상 50P, 운영진 확정 이달의 러너 100P, 운영진 선정/챌린지 정산 포인트로 계산합니다.</p>
               </article>
               <article class="panel reward-shop-panel">
                 <div class="section-head" style="margin-top:1rem;">
@@ -442,6 +433,6 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="auth.js?v=20260701a"></script>
+  <script src="auth.js?v=20260701b"></script>
 </body>
 </html>

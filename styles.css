@@ -361,6 +361,66 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   gap: 1rem;
 }
 
+.activity-primary-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.9fr);
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.raffle-stage-panel {
+  min-width: 0;
+  border-color: rgba(255, 178, 112, 0.32);
+  background:
+    linear-gradient(180deg, rgba(36, 24, 16, 0.98) 0%, rgba(18, 18, 18, 0.98) 100%);
+}
+
+.raffle-stage-orbit {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin: 0.8rem 0;
+}
+
+.raffle-stage-orbit span {
+  display: grid;
+  min-height: 58px;
+  place-items: center;
+  border: 1px solid rgba(255, 159, 85, 0.26);
+  border-radius: 8px;
+  background: rgba(255, 107, 0, 0.08);
+  color: #ffe5d1;
+  font-weight: 900;
+}
+
+.raffle-candidate-grid-stage {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.raffle-candidate-card.is-live {
+  position: relative;
+  overflow: hidden;
+}
+
+.raffle-candidate-card.is-live::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(255, 214, 170, 0.12);
+  pointer-events: none;
+}
+
+.raffle-candidate-card.is-waiting {
+  border-style: dashed;
+  background: rgba(18, 18, 18, 0.84);
+}
+
+.raffle-candidate-index {
+  color: #ffbd85;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
 .board-highlight {
   background: linear-gradient(160deg, rgba(255, 107, 0, 0.18), rgba(21, 21, 21, 1));
 }
@@ -434,6 +494,10 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   }
 
   .board-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .activity-primary-grid {
     grid-template-columns: 1fr;
   }
 
@@ -688,6 +752,14 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 
 body.modal-open {
   overflow: hidden;
+}
+
+.admin-page main > section:not(#admin) {
+  display: none;
+}
+
+.admin-page #admin {
+  padding-top: 2.4rem;
 }
 
 .home-page {

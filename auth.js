@@ -236,13 +236,8 @@ function getPostLoginRedirectUrl() {
   try {
     const params = new URLSearchParams(window.location.search);
     const next = String(params.get("next") || "").trim();
-    const compose = params.get("compose") === "1";
-
-    if (next === "running") {
-      return compose ? "running.html#running-compose-section" : "running.html";
-    }
-    if (next === "gallery") {
-      return "gallery.html";
+    if (next === "board") {
+      return "login.html#activity-board";
     }
     return "";
   } catch (_error) {
@@ -609,7 +604,7 @@ async function handleSignup(event) {
     }
 
     const confirmHint = accessToken
-      ? "운영진 승인 후 활동보드와 사진첩을 이용할 수 있습니다."
+      ? "운영진 승인 후 활동 보드와 챌린지를 이용할 수 있습니다."
       : "이메일 인증 후 로그인하면 승인 대기 상태로 연결됩니다.";
     setStatus(signupStatus, `가입 신청이 완료되었습니다. ${confirmHint}`);
   } catch (error) {
@@ -664,14 +659,6 @@ async function handleLogin(event) {
 }
 
 async function signInWithFallback(email, password) {
-  if (window.location.protocol !== "file:") {
-    try {
-      return await signInViaNetlifyFunction(email, password);
-    } catch (_error) {
-      // If the deployed function is temporarily unavailable, fall back to the browser client.
-    }
-  }
-
   try {
     const result = await supabaseClient.auth.signInWithPassword({ email, password });
     if (result?.error && isFetchFailure(result.error) && window.location.protocol !== "file:") {
@@ -687,14 +674,21 @@ async function signInWithFallback(email, password) {
 }
 
 async function signInViaNetlifyFunction(email, password) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 8000);
   const response = await fetch("/.netlify/functions/auth-login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password })
-  });
+    body: JSON.stringify({ email, password }),
+    signal: controller.signal
+  }).finally(() => window.clearTimeout(timeoutId));
   const result = await response.json().catch(() => ({ ok: false, error: "invalid auth response" }));
   if (!response.ok || !result?.ok) {
-    return { error: { message: result?.error || `login failed (${response.status})` } };
+    const message = result?.error || `login failed (${response.status})`;
+    if (response.status >= 500 || isFetchFailure(message)) {
+      throw new Error(message);
+    }
+    return { error: { message } };
   }
   const accessToken = result?.session?.access_token;
   const refreshToken = result?.session?.refresh_token;
@@ -978,7 +972,7 @@ function updateLoginLayout(isLoggedIn) {
   if (loginPanelCopy) {
     loginPanelCopy.textContent = isLoggedIn
       ? "아래 활동 보드에서 내 기록, 포인트, 리워드, 챌린지를 확인할 수 있습니다."
-      : "로그인 후 활동 보드와 사진첩 업로드 기능을 사용할 수 있습니다.";
+      : "로그인 후 활동 보드, 추첨 현황, 챌린지를 사용할 수 있습니다.";
   }
   if (loginPanel) {
     loginPanel.classList.toggle("login-panel-success", isLoggedIn);
@@ -1692,16 +1686,26 @@ function renderCandidatePreviewBoard(rows, monthKey) {
     .slice(0, 8);
 
   if (!candidates.length) {
-    candidatePreviewBoard.innerHTML = '<div class="raffle-candidate-card"><strong>후보 없음</strong><p class="list-meta">이번 달 추첨 기준을 아직 넘은 회원이 없습니다.</p></div>';
+    const nearly = rows
+      .filter((member) => member.monthRuns > 0)
+      .sort((a, b) => b.monthRuns - a.monthRuns)
+      .slice(0, 4);
+    candidatePreviewBoard.innerHTML = nearly.length
+      ? nearly.map((member) => {
+        const remaining = Math.max(0, threshold - Number(member.monthRuns || 0));
+        return `<div class="raffle-candidate-card is-waiting"><strong>${escapeHtml(member.name || "이름없음")}</strong><p class="list-meta">출석 ${member.monthRuns}회 · ${remaining}회 남음</p></div>`;
+      }).join("")
+      : '<div class="raffle-candidate-card"><strong>후보 없음</strong><p class="list-meta">이번 달 추첨 기준을 아직 넘은 회원이 없습니다.</p></div>';
     return;
   }
 
   candidates.forEach((member, index) => {
     const card = document.createElement("div");
-    card.className = `raffle-candidate-card${index === 0 ? " is-winner" : ""}`;
+    card.className = `raffle-candidate-card is-live${index === 0 ? " is-winner" : ""}`;
     card.innerHTML = `
+      <span class="raffle-candidate-index">#${String(index + 1).padStart(2, "0")}</span>
       <strong>${escapeHtml(member.name || "이름없음")}</strong>
-      <p class="list-meta">추첨권 ${member.tickets}장 · 출석 ${member.monthRuns}회</p>
+      <p class="list-meta">룰렛 대기 · 출석 ${member.monthRuns}회 · 추첨권 ${member.tickets}장</p>
       <p class="list-meta">연속 출석 ${member.streak}개월 · 활동 포인트 ${getMemberPointTotal(member)}P</p>
     `;
     candidatePreviewBoard.appendChild(card);
@@ -1720,18 +1724,6 @@ function renderMissionBoard(rows, me, selectedMonth, photoCount, commentCount) {
       progress: `${me?.monthRuns || 0}/${threshold}회`,
       status: (me?.monthRuns || 0) >= threshold ? "완료" : "진행 중",
       body: `${monthKeyToLabel(selectedMonth)} 기준 추첨 후보까지 출석 ${threshold}회 달성`
-    },
-    {
-      title: "사진 공유 미션",
-      progress: `${Math.min(photoCount || 0, 1)}/1장`,
-      status: (photoCount || 0) >= 1 ? "완료" : "진행 중",
-      body: "사진첩에 이번 달 사진 1장 이상 업로드"
-    },
-    {
-      title: "응원 댓글 미션",
-      progress: `${Math.min(commentCount || 0, 2)}/2개`,
-      status: (commentCount || 0) >= 2 ? "완료" : "진행 중",
-      body: "다른 회원 러닝 기록에 댓글 2개 남기기"
     }
   ];
 
@@ -2080,7 +2072,6 @@ async function renderMyActivityState(me, selectedMonth, raffleRecords, attendanc
     ? raffleRecords.filter((record) => hasRaffleWinner(record, authProfile?.name))
     : [];
   const latestWin = wins[0] || null;
-  const feeLabel = getPersonalFeeLabel(me, selectedMonth);
   const previousStreak = getAttendanceStreakFromMonth(me, shiftMonthKey(selectedMonth, -1));
   const currentStreak = getAttendanceStreakFromMonth(me, selectedMonth);
   const raffleThreshold = getMonthThreshold(selectedMonth);
@@ -2116,9 +2107,6 @@ async function renderMyActivityState(me, selectedMonth, raffleRecords, attendanc
       : "대기 중";
   const nextReward = getNextReward(rewardBalance.availablePoints);
 
-  if (myFeeStatus) {
-    myFeeStatus.textContent = feeLabel;
-  }
   if (myRaffleStatus) {
     myRaffleStatus.textContent = raffleLabel;
   }
@@ -2145,7 +2133,6 @@ async function renderMyActivityState(me, selectedMonth, raffleRecords, attendanc
   renderBadgeList(buildPersonalBadges({
     me,
     selectedMonth,
-    feeLabel,
     latestWin,
     pointTotal,
     ticketCount,
@@ -2162,7 +2149,7 @@ async function renderMyActivityState(me, selectedMonth, raffleRecords, attendanc
     photos.map((photo) => ({
       title: photo.caption || "설명 없는 사진",
       meta: formatDate(photo.created_at),
-      body: "사진첩 업로드"
+      body: "활동 기록"
     })),
     "아직 사진 업로드 기록이 없습니다."
   );
@@ -2199,9 +2186,6 @@ async function renderMyActivityState(me, selectedMonth, raffleRecords, attendanc
 }
 
 function renderPersonalBoardEmpty() {
-  if (myFeeStatus) {
-    myFeeStatus.textContent = "확인 중";
-  }
   if (myRaffleStatus) {
     myRaffleStatus.textContent = "확인 중";
   }
@@ -2218,7 +2202,7 @@ function renderPersonalBoardEmpty() {
     myNextReward.textContent = "준비 중";
   }
   if (myPointNote) {
-    myPointNote.textContent = "정기런 배지, 사진, 댓글, 챌린지, 운영 리워드로 포인트를 모아 RRC샵 보조 신청에 활용할 수 있습니다.";
+    myPointNote.textContent = "정기런 배지, 챌린지, 운영 리워드로 포인트를 모아 활동 혜택 신청에 활용할 수 있습니다.";
   }
   renderBadgeList([]);
   renderMissionBoard([], null, currentMonthKey(), 0, 0);
@@ -4050,7 +4034,7 @@ function renderBadgeList(badges) {
   });
 }
 
-function buildPersonalBadges({ me, selectedMonth, feeLabel, latestWin, photoCount, commentCount, pointTotal, ticketCount, attendanceLogs, pointAwards }) {
+function buildPersonalBadges({ me, selectedMonth, latestWin, photoCount, commentCount, pointTotal, ticketCount, attendanceLogs, pointAwards }) {
   const badges = [];
   const threshold = getMonthThreshold(selectedMonth);
   const attendanceBonus = getAttendanceBonusState(me, selectedMonth, attendanceLogs);
@@ -4059,9 +4043,6 @@ function buildPersonalBadges({ me, selectedMonth, feeLabel, latestWin, photoCoun
   }
   if ((me?.monthRuns || 0) >= threshold + 1) {
     badges.push("꾸준 러너");
-  }
-  if (String(feeLabel).includes("납부")) {
-    badges.push("회비 완료");
   }
   if (photoCount > 0) {
     badges.push("사진 공유");
@@ -4556,7 +4537,7 @@ function formatAuthNetworkError(error) {
   if (window.location.protocol === "file:") {
     return "현재 로컬 파일로 열린 상태라 인증 요청이 브라우저에서 막힐 수 있습니다. Netlify 배포 주소 또는 로컬 서버 주소에서 다시 열어 주세요.";
   }
-  if (/failed to fetch|network|fetch/i.test(message)) {
+  if (/failed to fetch|network|fetch|timed out|timeout|abort/i.test(message)) {
     return "Supabase 인증 서버 요청이 막혔습니다. 인터넷 연결, 브라우저 차단, 배포 주소를 확인해 주세요.";
   }
   return message || "알 수 없는 오류가 발생했습니다.";

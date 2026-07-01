@@ -11,6 +11,8 @@ export default async (request) => {
       return json(400, { ok: false, error: "missing credentials" });
     }
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
     const response = await fetch(`${env("SUPABASE_URL")}/auth/v1/token?grant_type=password`, {
       method: "POST",
       headers: {
@@ -18,8 +20,9 @@ export default async (request) => {
         apikey: env("SUPABASE_ANON_KEY"),
         Authorization: `Bearer ${env("SUPABASE_ANON_KEY")}`
       },
-      body: JSON.stringify({ email, password })
-    });
+      body: JSON.stringify({ email, password }),
+      signal: controller.signal
+    }).finally(() => clearTimeout(timeout));
 
     const result = await response.json().catch(() => ({ error: "invalid auth response" }));
     if (!response.ok) {
@@ -41,6 +44,9 @@ export default async (request) => {
       user: result.user || null
     });
   } catch (error) {
+    if (error?.name === "AbortError") {
+      return json(504, { ok: false, error: "Supabase auth request timed out" });
+    }
     return json(500, { ok: false, error: String(error?.message || error) });
   }
 };

@@ -17,7 +17,7 @@ const defaultData = {
     {
       id: makeId(),
       title: "RRC 홈페이지 안내",
-      content: "정기런 공지, 출석, 회비, 추첨, 운영 기능이 포함된 최신 버전입니다.",
+      content: "정기런 공지, 출석, 추첨, 챌린지 운영 기능이 포함된 최신 버전입니다.",
       createdAt: new Date().toISOString()
     }
   ],
@@ -180,7 +180,7 @@ function init() {
   attachAdminSessionListeners();
   void restoreAdminSession();
 
-  guestForm.addEventListener("submit", handleGuestSubmit);
+  guestForm?.addEventListener("submit", handleGuestSubmit);
   adminLoginButton.addEventListener("click", handleAdminLogin);
   noticeForm.addEventListener("submit", handleNoticeAdd);
   memberForm.addEventListener("submit", handleMemberAdd);
@@ -204,15 +204,15 @@ function init() {
     }
   });
 
-  feeMonthSelect.addEventListener("change", () => {
+  feeMonthSelect?.addEventListener("change", () => {
     renderFees();
     renderDashboard();
     renderRisks();
     renderAdminTasks();
   });
-  feeMarkAllUnpaidButton.addEventListener("click", resetCurrentMonthFees);
-  feeOnlyUnpaidInput.addEventListener("change", renderFees);
-  feeDownloadCsvButton.addEventListener("click", downloadFeeCsv);
+  feeMarkAllUnpaidButton?.addEventListener("click", resetCurrentMonthFees);
+  feeOnlyUnpaidInput?.addEventListener("change", renderFees);
+  feeDownloadCsvButton?.addEventListener("click", downloadFeeCsv);
   feeImportApplyButton?.addEventListener("click", handleFeeImportApply);
   feeNameApplyButton?.addEventListener("click", handleFeeNameApply);
   copyUnpaidMessageButton?.addEventListener("click", copyUnpaidMessage);
@@ -374,7 +374,7 @@ function configureAdminTabs() {
   const tabs = [
     { key: "today", label: "오늘", match: ["운영 기능 요약", "오늘의 운영 체크", "운영 요약 보드"] },
     { key: "members", label: "회원/출석", match: ["회원 관리", "이름 목록", "강퇴 후보"] },
-    { key: "fees", label: "회비/추첨", match: ["회비 관리", "참여 추첨"] },
+    { key: "fees", label: "추첨", match: ["참여 추첨"] },
     { key: "requests", label: "신청/공지", match: ["공지 등록", "회원 가입 승인", "게스트 신청"] },
     { key: "system", label: "시스템", match: ["운영진 권한", "운영 변경 기록", "시스템 점검", "Supabase"] }
   ];
@@ -970,7 +970,7 @@ function confirmMemberDeletion(member) {
   const summary = getMemberAccountSummary(member);
   const warning = summary
     ? "이 회원은 웹 가입 계정 정보와 연결되어 있을 수 있습니다. 운영 회원 목록에서만 삭제할지 꼭 확인해 주세요."
-    : "이 회원의 출석/회비/추첨 기준 데이터가 운영 목록에서 삭제됩니다.";
+    : "이 회원의 출석/추첨 기준 데이터가 운영 목록에서 삭제됩니다.";
   return confirm(`${member.name} (${member.birthYear}) 회원을 삭제할까요?\n\n${warning}`);
 }
 
@@ -2459,6 +2459,9 @@ function renderAll() {
   renderAuditLogs();
 }
 function renderNotices() {
+  if (!noticeList) {
+    return;
+  }
   noticeList.innerHTML = "";
   const isAdminView = adminPanel && !adminPanel.classList.contains("hidden");
   const source = isAdminView ? db.notices : (publicNoticeItems.length ? publicNoticeItems : db.notices);
@@ -2595,14 +2598,11 @@ function renderMembers() {
     const monthly = getMonthlyRuns(member, monthKey);
     const eligible = monthly >= threshold;
     const risk = computeMemberRisk(member, new Date()).level;
-    const unpaid = getFeeStatus(member, feeMonthSelect?.value || currentMonthKey()) !== "paid";
-
     if (filter === "active") return member.isActive !== false;
     if (filter === "inactive") return member.isActive === false;
     if (filter === "eligible") return eligible;
     if (filter === "warn") return risk === "warn";
     if (filter === "danger") return risk === "danger";
-    if (filter === "unpaid") return unpaid;
     return true;
   });
 
@@ -2621,10 +2621,7 @@ function renderMembers() {
     const accountMeta = buildMemberAccountMeta(member);
     const activeChip = member.isActive === false ? '<span class="status-chip warn">휴면</span>' : '<span class="status-chip">활성</span>';
 
-    const feeOnlyRisk = risk.level !== "ok" && risk.reasons.every((reason) => String(reason).includes("회비"));
-    const riskChip = feeOnlyRisk
-      ? '<span class="status-chip">회비</span>'
-      : risk.level === "danger"
+    const riskChip = risk.level === "danger"
         ? '<span class="status-chip danger">위험</span>'
         : risk.level === "warn"
           ? '<span class="status-chip warn">주의</span>'
@@ -2632,7 +2629,7 @@ function renderMembers() {
 
     const item = document.createElement("li");
     item.className = "list-item";
-    item.innerHTML = `<div class="list-top"><span class="list-title">${escapeHtml(member.name)} (${member.birthYear})${activeChip}${accountChips}${eligible ? '<span class="status-chip">추첨 대상</span>' : ""}${riskChip}</span><span class="list-meta">이번 달 ${monthly}회 / 누적 ${member.totalRuns}회</span></div><p class="list-meta">${escapeHtml(accountMeta)}</p><p class="list-meta">${feeOnlyRisk ? escapeHtml(risk.reasons.join(" / ")) : ""}</p>`;
+    item.innerHTML = `<div class="list-top"><span class="list-title">${escapeHtml(member.name)} (${member.birthYear})${activeChip}${accountChips}${eligible ? '<span class="status-chip">추첨 대상</span>' : ""}${riskChip}</span><span class="list-meta">이번 달 ${monthly}회 / 누적 ${member.totalRuns}회</span></div><p class="list-meta">${escapeHtml(accountMeta)}</p><p class="list-meta">${risk.level !== "ok" ? escapeHtml(risk.reasons.join(" / ")) : ""}</p>`;
 
     const actions = document.createElement("div");
     actions.className = "item-actions";
@@ -3338,7 +3335,6 @@ function computeMemberRisk(member, now) {
   const monthKey = currentMonthKey(now);
   const monthRuns = getMonthlyRuns(member, monthKey);
   const dayOfMonth = now.getDate();
-  const feeStatus = getFeeStatus(member, monthKey);
 
   if (days <= 14 && monthRuns < 1) {
     level = "danger";
@@ -3357,50 +3353,34 @@ function computeMemberRisk(member, now) {
       reasons.push("월 중순 기준 참여 부족");
     }
   }
-  if (dayOfMonth > 7 && feeStatus !== "paid") {
-    if (level !== "danger") {
-      level = "warn";
-    }
-    reasons.push("회비 납부기한 경과(1~7일)");
-  }
-
-  const overdue = getConsecutiveUnpaidMonths(member, monthKey);
-  if (overdue >= 2) {
-    if (level !== "danger") {
-      level = "warn";
-    }
-    reasons.push(`${overdue}개월 연속 회비 미납`);
-  }
-
   return { level, reasons: reasons.length ? reasons : ["정상"] };
 }
 
 function renderDashboard() {
-  const monthKey = feeMonthSelect.value || currentMonthKey();
+  const monthKey = feeMonthSelect?.value || currentMonthKey();
   const activeMembers = db.members.filter((member) => member.isActive !== false);
   const memberCount = activeMembers.length;
   const monthRunsTotal = activeMembers.reduce((sum, member) => sum + getMonthlyRuns(member, monthKey), 0);
   const avgRuns = memberCount ? monthRunsTotal / memberCount : 0;
   const eligibleCount = getEligibleMembers(monthKey).length;
-  const paidCount = activeMembers.filter((member) => getFeeStatus(member, monthKey) === "paid").length;
-  const feeRate = memberCount ? (paidCount / memberCount) * 100 : 0;
+  const candidateRate = memberCount ? (eligibleCount / memberCount) * 100 : 0;
   const riskCount = activeMembers.filter((member) => computeMemberRisk(member, new Date()).level !== "ok").length;
 
   statMembers.textContent = `${memberCount}명`;
   statAvgRuns.textContent = avgRuns.toFixed(1);
   statEligible.textContent = `${eligibleCount}명`;
-  statFeeRate.textContent = `${feeRate.toFixed(0)}%`;
+  statFeeRate.textContent = `${candidateRate.toFixed(0)}%`;
   statRisk.textContent = `${riskCount}명`;
 
   const keys = getRecentMonthKeys(6);
   const runSeries = keys.map((key) => ({ key, value: activeMembers.reduce((sum, member) => sum + getMonthlyRuns(member, key), 0) }));
-  const feeSeries = keys.map((key) => {
-    const paid = activeMembers.filter((member) => getFeeStatus(member, key) === "paid").length;
-    return { key, value: memberCount ? (paid / memberCount) * 100 : 0 };
+  const candidateSeries = keys.map((key) => {
+    const eligible = activeMembers.filter((member) => getMonthlyRuns(member, key) >= getThresholdForMonthKey(key)).length;
+    return { key, value: memberCount ? (eligible / memberCount) * 100 : 0 };
   });
 
   renderTrend(runsTrend, runSeries, "회");
-  renderTrend(feeTrend, feeSeries, "%");
+  renderTrend(feeTrend, candidateSeries, "%");
 }
 
 function renderAdminTasks() {
@@ -3411,24 +3391,16 @@ function renderAdminTasks() {
   const monthKey = feeMonthSelect?.value || currentMonthKey();
   const drawSchedule = getDrawSchedule(new Date());
   const activeMembers = db.members.filter((member) => member.isActive !== false);
-  const unpaidMembers = getUnpaidMembers(monthKey);
   const riskMembers = activeMembers.filter((member) => computeMemberRisk(member, new Date()).level !== "ok");
   const raffleCandidatesForTarget = getEligibleMembers(drawSchedule.targetMonthKey);
   const raffleDone = (Array.isArray(db.raffle?.history) ? db.raffle.history : [])
     .some((record) => record.targetMonthKey === drawSchedule.targetMonthKey);
   const latestAttendanceLog = (Array.isArray(db.attendanceLogs) ? db.attendanceLogs : [])[0] || null;
 
-  adminTaskStatus.textContent = `${monthKeyToLabel(monthKey)} 기준: 활성 ${activeMembers.length}명 · 미납 ${unpaidMembers.length}명 · 주의 ${riskMembers.length}명`;
+  adminTaskStatus.textContent = `${monthKeyToLabel(monthKey)} 기준: 활성 ${activeMembers.length}명 · 추첨 후보 ${raffleCandidatesForTarget.length}명 · 주의 ${riskMembers.length}명`;
   adminTaskList.innerHTML = "";
 
   const tasks = [
-    {
-      title: "회비",
-      meta: unpaidMembers.length
-        ? `${unpaidMembers.length}명 미납: ${unpaidMembers.slice(0, 8).map((member) => member.name).join(", ")}${unpaidMembers.length > 8 ? " 외" : ""}`
-        : "현재 선택 월 미납자가 없습니다.",
-      tone: unpaidMembers.length ? "warn" : "ok"
-    },
     {
       title: "출석/추첨 점검",
       meta: `${monthKeyToLabel(drawSchedule.targetMonthKey)} 후보 ${raffleCandidatesForTarget.length}명 · ${raffleDone ? "이미 추첨 기록 있음" : "추첨 전"}`,
@@ -3465,12 +3437,7 @@ function getUnpaidMembers(monthKey) {
 }
 
 async function copyUnpaidMessage() {
-  const monthKey = feeMonthSelect?.value || currentMonthKey();
-  const unpaidMembers = getUnpaidMembers(monthKey);
-  const text = unpaidMembers.length
-    ? `[RRC 회비 안내]\n${monthKeyToLabel(monthKey)} 회비 미납 확인 부탁드립니다.\n대상: ${unpaidMembers.map((member) => member.name).join(", ")}\n\n이미 입금하셨다면 운영진에게 알려주세요. 감사합니다!`
-    : `[RRC 회비 안내]\n${monthKeyToLabel(monthKey)} 기준 미납자가 없습니다.`;
-  await copyTextToClipboard(text, "미납 안내 문구를 복사했습니다.");
+  await copyTextToClipboard("홈페이지에서는 회비 안내를 사용하지 않습니다.", "운영 문구를 복사했습니다.");
 }
 
 async function copyRaffleCheckMessage() {
