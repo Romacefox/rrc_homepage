@@ -74,6 +74,8 @@ const activityRefreshButton = document.getElementById("activity-refresh");
 const activityLock = document.getElementById("activity-lock");
 const activityBoard = document.getElementById("activity-board");
 const memberFocusPanel = document.querySelector(".member-focus-panel");
+const raffleStagePanel = document.querySelector(".raffle-stage-panel");
+const activityPrimaryGrid = document.querySelector(".activity-primary-grid");
 const memberFeatureGuide = document.getElementById("member-feature-guide");
 const boardPulseGrid = document.querySelector(".board-pulse-grid");
 const boardLayout = document.querySelector(".board-layout");
@@ -101,6 +103,8 @@ let boardRaffleReplayStatus = null;
 let boardRaffleReplayButton = null;
 let boardRaffleRouletteTrack = null;
 let latestRaffleRecords = [];
+let activityBoardRuntime = null;
+let activityBoardTabLoads = new Set();
 let rewardAvailablePointCache = 0;
 let rewardAvailableBeforeChallengeLockCache = 0;
 let challengeLockedPointCache = 0;
@@ -387,9 +391,9 @@ function configureActivityBoardTabs() {
   }
 
   const tabs = [
-    { key: "overview", label: "요약", nodes: [memberFocusPanel, boardPulseGrid] },
-    { key: "attendance", label: "출석", nodes: [boardLayout, boardPublicGrid] },
-    { key: "raffle", label: "추첨", nodes: [] },
+    { key: "overview", label: "요약", nodes: [memberFocusPanel, raffleStagePanel, boardPulseGrid] },
+    { key: "attendance", label: "출석", nodes: [boardLayout, boardPublicGrid, activityMissionCard] },
+    { key: "raffle", label: "추첨", nodes: [raffleStagePanel] },
     { key: "rewards", label: "리워드", nodes: [boardRecordGrid, rewardSectionLabel, rewardBoardGrid] },
     { key: "challenges", label: "챌린지", nodes: [challengeSectionLabel, challengeBoardGrid] },
     { key: "suggestions", label: "건의함", nodes: [suggestionSectionLabel, suggestionBoardGrid] }
@@ -424,6 +428,12 @@ function configureActivityBoardTabs() {
       node.classList.toggle("activity-tab-hidden", !visible);
       node.hidden = !visible;
     });
+    if (activityPrimaryGrid) {
+      const hasVisiblePrimary = [memberFocusPanel, raffleStagePanel].some((node) => node && !node.hidden);
+      activityPrimaryGrid.classList.toggle("activity-tab-hidden", !hasVisiblePrimary);
+      activityPrimaryGrid.hidden = !hasVisiblePrimary;
+    }
+    void loadActivityBoardTab(key);
   };
 
   tabbar.addEventListener("click", (event) => {
@@ -435,6 +445,63 @@ function configureActivityBoardTabs() {
   });
   boardRaffleReplayButton?.addEventListener("click", () => replayBoardRaffleResult());
   activate("overview");
+}
+
+async function loadActivityBoardTab(key) {
+  if (!activityBoardRuntime || activityBoardTabLoads.has(key)) {
+    return;
+  }
+  activityBoardTabLoads.add(key);
+
+  try {
+    if (key === "attendance") {
+      await loadActivityMissions();
+      return;
+    }
+
+    if (key === "rewards") {
+      await loadRewardTabContent();
+      return;
+    }
+
+    if (key === "challenges") {
+      await loadChallenges();
+      return;
+    }
+
+    if (key === "suggestions") {
+      await loadSuggestionBoard();
+    }
+  } catch (error) {
+    activityBoardTabLoads.delete(key);
+    if (activityLock) {
+      activityLock.textContent = `선택한 탭을 불러오지 못했습니다: ${String(error?.message || error)}`;
+    }
+  }
+}
+
+async function loadRewardTabContent() {
+  const state = activityBoardRuntime;
+  if (!state) {
+    return;
+  }
+  const [publicPointAwards, annualPointAwards] = await Promise.all([
+    loadPublicPointAwardRanking(state.selectedMonth, "month"),
+    loadPublicPointAwardRanking(state.selectedMonth, "year")
+  ]);
+  const activeMemberNameKeys = new Set(
+    state.rows
+      .filter((member) => member?.is_active !== false && member?.isActive !== false)
+      .map((member) => normalizeName(member.name))
+      .filter(Boolean)
+  );
+  const activePublicPointAwards = publicPointAwards.filter((entry) => activeMemberNameKeys.has(normalizeName(entry.member_name)));
+  const activeAnnualPointAwards = annualPointAwards.filter((entry) => activeMemberNameKeys.has(normalizeName(entry.member_name)));
+  renderPointRankingBoard(pointRankingBoard, mergePointRankingRows(state.rows, activePublicPointAwards), state.selectedMonth, "월간");
+  renderPointRankingBoard(pointRankingYearBoard, activeAnnualPointAwards, state.selectedMonth, "연간");
+  await renderMyActivityDetailState(state.me, state.selectedMonth, state.raffleRecords, state.attendanceLogs);
+  await loadRewardRequests();
+  await loadPointAwards();
 }
 
 function buildRaffleReplayPanel() {
@@ -483,7 +550,7 @@ async function hydrateAuthState(forcedUser = undefined) {
   await loadMyProfile();
   renderAuthState();
   publishAuthState();
-  await Promise.allSettled([loadPhotos(), loadActivityBoard()]);
+  await loadActivityBoard();
 }
 
 async function handleSignup(event) {
@@ -1394,21 +1461,7 @@ async function loadActivityBoard() {
   const raffleRecords = Array.isArray(activityData?.raffle_history) ? activityData.raffle_history : [];
   latestRaffleRecords = raffleRecords;
   const attendanceLogs = Array.isArray(activityData?.attendance_logs) ? activityData.attendance_logs : [];
-  const [publicPointAwards, annualPointAwards] = await Promise.all([
-    loadPublicPointAwardRanking(selectedMonth, "month"),
-    loadPublicPointAwardRanking(selectedMonth, "year")
-  ]);
-  const activeMemberNameKeys = new Set(
-    members
-      .filter((member) => member?.is_active !== false && member?.isActive !== false)
-      .map((member) => normalizeName(member.name))
-      .filter(Boolean)
-  );
-  const activePublicPointAwards = publicPointAwards.filter((entry) => activeMemberNameKeys.has(normalizeName(entry.member_name)));
-  const activeAnnualPointAwards = annualPointAwards.filter((entry) => activeMemberNameKeys.has(normalizeName(entry.member_name)));
-  const pointSummaryByName = new Map(
-    activePublicPointAwards.map((entry) => [normalizeName(entry.member_name), entry])
-  );
+  const pointSummaryByName = new Map();
   let rows = members
     .filter((member) => member?.is_active !== false && member?.isActive !== false)
     .map((member) => buildActivityRowFromMember(member, selectedMonth, pointSummaryByName, attendanceLogs))
@@ -1430,6 +1483,8 @@ async function loadActivityBoard() {
     rows = [me, ...rows];
   }
   window.__RRC_ACTIVITY_ROWS = rows;
+  activityBoardRuntime = { rows, me, selectedMonth, raffleRecords, attendanceLogs };
+  activityBoardTabLoads = new Set(["overview", "raffle"]);
   const runner = getMonthlyRunner(rows);
 
   activityLock.textContent = `${monthKeyToLabel(selectedMonth)} 출석 기준입니다. ${boardSourceLabel}를 바탕으로 표시됩니다.`;
@@ -1450,18 +1505,16 @@ async function loadActivityBoard() {
   renderPublicTicketBoard(rows, selectedMonth);
   renderCandidatePreviewBoard(rows, selectedMonth);
   renderBadgeShowcase(rows, selectedMonth);
-  renderPointRankingBoard(pointRankingBoard, mergePointRankingRows(rows, activePublicPointAwards), selectedMonth, "월간");
-  renderPointRankingBoard(pointRankingYearBoard, activeAnnualPointAwards, selectedMonth, "연간");
   renderRunnerCard(runner, selectedMonth);
   renderBoardPulseSummary(rows, runner, selectedMonth);
   renderBoardRaffleHistory(raffleRecords.slice(0, 4));
   renderBoardRaffleReplayState(raffleRecords);
-  await renderMyActivityState(me, selectedMonth, raffleRecords, attendanceLogs);
-  await loadActivityMissions();
-  await loadSuggestionBoard();
-  await loadRewardRequests();
-  await loadChallenges();
-  await loadPointAwards();
+  renderMyActivityOverviewState(me, selectedMonth, raffleRecords, attendanceLogs);
+  renderDeferredActivityTabs();
+  const activeTabKey = activityBoard.querySelector(".activity-board-tab.is-active")?.dataset?.boardTab || "overview";
+  if (!activityBoardTabLoads.has(activeTabKey)) {
+    void loadActivityBoardTab(activeTabKey);
+  }
 }
 
 function renderBoardLocked(message) {
@@ -1674,6 +1727,7 @@ function renderCandidatePreviewBoard(rows, monthKey) {
     return;
   }
   candidatePreviewBoard.innerHTML = "";
+  candidatePreviewBoard.classList.remove("is-armed");
 
   const threshold = getMonthThreshold(monthKey);
   const candidates = rows
@@ -1687,17 +1741,20 @@ function renderCandidatePreviewBoard(rows, monthKey) {
       .sort((a, b) => b.monthRuns - a.monthRuns)
       .slice(0, 4);
     candidatePreviewBoard.innerHTML = nearly.length
-      ? nearly.map((member) => {
+      ? nearly.map((member, index) => {
         const remaining = Math.max(0, threshold - Number(member.monthRuns || 0));
-        return `<div class="raffle-candidate-card is-waiting"><strong>${escapeHtml(member.name || "이름없음")}</strong><p class="list-meta">출석 ${member.monthRuns}회 · ${remaining}회 남음</p></div>`;
+        return `<div class="raffle-candidate-card is-waiting" style="--candidate-delay:${index * 0.12}s"><span class="raffle-candidate-index">대기</span><strong>${escapeHtml(member.name || "이름없음")}</strong><p class="list-meta">출석 ${member.monthRuns}회 · ${remaining}회 남음</p></div>`;
       }).join("")
       : '<div class="raffle-candidate-card"><strong>후보 없음</strong><p class="list-meta">이번 달 추첨 기준을 아직 넘은 회원이 없습니다.</p></div>';
     return;
   }
 
+  candidatePreviewBoard.classList.add("is-armed");
+
   candidates.forEach((member, index) => {
     const card = document.createElement("div");
     card.className = `raffle-candidate-card is-live${index === 0 ? " is-winner" : ""}`;
+    card.style.setProperty("--candidate-delay", `${index * 0.11}s`);
     card.innerHTML = `
       <span class="raffle-candidate-index">#${String(index + 1).padStart(2, "0")}</span>
       <strong>${escapeHtml(member.name || "이름없음")}</strong>
@@ -2042,15 +2099,80 @@ async function loadAttendanceLogsForPoints() {
   }
 }
 
-async function renderMyActivityState(me, selectedMonth, raffleRecords, attendanceLogs = []) {
-  const [photos, comments, pointAwards, allPointAwards, rewardRequests, allPhotos, allComments] = await Promise.all([
-    loadMyPhotos(selectedMonth),
-    loadMyComments(selectedMonth),
+function renderMyActivityOverviewState(me, selectedMonth, raffleRecords, attendanceLogs = []) {
+  const wins = Array.isArray(raffleRecords)
+    ? raffleRecords.filter((record) => hasRaffleWinner(record, authProfile?.name))
+    : [];
+  const latestWin = wins[0] || null;
+  const previousStreak = getAttendanceStreakFromMonth(me, shiftMonthKey(selectedMonth, -1));
+  const currentStreak = getAttendanceStreakFromMonth(me, selectedMonth);
+  const raffleThreshold = getMonthThreshold(selectedMonth);
+  const ticketCount = calculateMonthlyTickets(me, selectedMonth);
+  const pointTotal = getMemberPointTotal(me);
+  const raffleLabel = latestWin
+    ? `${monthKeyToLabel(latestWin.target_month_key)} 당첨`
+    : (me?.monthRuns || 0) >= raffleThreshold
+      ? `${monthKeyToLabel(selectedMonth)} 후보 · 추첨권 ${ticketCount}장`
+      : `${Math.max(raffleThreshold - Number(me?.monthRuns || 0), 0)}회 남음`;
+
+  if (myRaffleStatus) {
+    myRaffleStatus.textContent = raffleLabel;
+  }
+  if (myStreakChange) {
+    myStreakChange.textContent = formatStreakDelta(currentStreak, previousStreak);
+  }
+  if (myTicketCount) {
+    myTicketCount.textContent = `${ticketCount}장`;
+  }
+  if (myPointTotal) {
+    myPointTotal.textContent = `${Number(pointTotal || 0).toLocaleString("ko-KR")}P`;
+  }
+  if (myNextReward) {
+    myNextReward.textContent = "혜택 탭에서 확인";
+  }
+  if (myPointNote) {
+    myPointNote.textContent = "요약은 먼저 표시하고, 포인트 랭킹과 활동 혜택은 리워드 탭에서 불러옵니다.";
+  }
+  renderBadgeList(buildPersonalBadges({
+    me,
+    selectedMonth,
+    latestWin,
+    pointTotal,
+    ticketCount,
+    attendanceLogs,
+    pointAwards: [],
+    photoCount: 0,
+    commentCount: 0
+  }));
+  renderMyAttendanceHistory(me, selectedMonth, attendanceLogs);
+  renderMissionBoardCache(me, selectedMonth, 0, 0);
+  renderSimpleHistory(myRaffleHistory, wins.map((record) => ({
+    title: `${monthKeyToLabel(record.target_month_key)} 추첨`,
+    meta: formatDate(record.created_at),
+    body: `${record.threshold}회 기준 / ${record.winner_count}명 추첨`
+  })), "아직 당첨 이력이 없습니다.");
+}
+
+function renderDeferredActivityTabs() {
+  renderSimpleHistory(myPointAwardHistory, [], "리워드 탭을 열면 포인트 지급 기록을 불러옵니다.");
+  if (pointRankingBoard) {
+    pointRankingBoard.innerHTML = '<li class="list-item"><p class="list-meta">리워드 탭을 열면 랭킹을 불러옵니다.</p></li>';
+  }
+  if (pointRankingYearBoard) {
+    pointRankingYearBoard.innerHTML = '<li class="list-item"><p class="list-meta">리워드 탭을 열면 연간 랭킹을 불러옵니다.</p></li>';
+  }
+  renderRewardRequestLocked("리워드 탭을 열면 활동 혜택 신청 내역을 불러옵니다.");
+  renderChallengeLocked("챌린지 탭을 열면 모집 중인 챌린지를 불러옵니다.");
+  if (suggestionList) {
+    suggestionList.innerHTML = '<li class="list-item"><p class="list-meta">건의함 탭을 열면 의견 목록을 불러옵니다.</p></li>';
+  }
+}
+
+async function renderMyActivityDetailState(me, selectedMonth, raffleRecords, attendanceLogs = []) {
+  const [pointAwards, allPointAwards, rewardRequests] = await Promise.all([
     loadPointAwardsForMonth(selectedMonth),
     loadPointAwardsForAllMonths(),
-    loadRewardRequestsForBalance(),
-    loadMyPhotosForRewardBalance(),
-    loadMyCommentsForRewardBalance()
+    loadRewardRequestsForBalance()
   ]);
   const wins = Array.isArray(raffleRecords)
     ? raffleRecords.filter((record) => hasRaffleWinner(record, authProfile?.name))
@@ -2063,15 +2185,15 @@ async function renderMyActivityState(me, selectedMonth, raffleRecords, attendanc
   const pointTotal = calculatePersonalMonthlyPoints({
     me,
     selectedMonth,
-    photoCount: photos.length,
-    commentCount: comments.length,
+    photoCount: 0,
+    commentCount: 0,
     attendanceLogs,
     pointAwards
   });
   const pointBreakdown = calculatePersonalMonthlyPointBreakdown({
     me,
-    photoCount: photos.length,
-    commentCount: comments.length,
+    photoCount: 0,
+    commentCount: 0,
     pointAwards
   });
   const rewardBalance = calculateRewardBalance({
@@ -2080,8 +2202,6 @@ async function renderMyActivityState(me, selectedMonth, raffleRecords, attendanc
     pointAwards,
     allPointAwards,
     rewardRequests,
-    allPhotos,
-    allComments,
     attendanceLogs
   });
   const raffleLabel = latestWin
@@ -2122,31 +2242,11 @@ async function renderMyActivityState(me, selectedMonth, raffleRecords, attendanc
     ticketCount,
     attendanceLogs,
     pointAwards,
-    photoCount: photos.length,
-    commentCount: comments.length
+    photoCount: 0,
+    commentCount: 0
   }));
   renderMyAttendanceHistory(me, selectedMonth, attendanceLogs);
-  renderMissionBoardCache(me, selectedMonth, photos.length, comments.length);
-
-  renderSimpleHistory(
-    myPhotoHistory,
-    photos.map((photo) => ({
-      title: photo.caption || "설명 없는 사진",
-      meta: formatDate(photo.created_at),
-      body: "활동 기록"
-    })),
-    "아직 사진 업로드 기록이 없습니다."
-  );
-
-  renderSimpleHistory(
-    myCommentHistory,
-    comments.map((comment) => ({
-      title: comment.content || "댓글",
-      meta: formatDate(comment.created_at),
-      body: "사진 댓글"
-    })),
-    "아직 댓글 기록이 없습니다."
-  );
+  renderMissionBoardCache(me, selectedMonth, 0, 0);
 
   renderSimpleHistory(
     myRaffleHistory,
@@ -2170,6 +2270,8 @@ async function renderMyActivityState(me, selectedMonth, raffleRecords, attendanc
 }
 
 function renderPersonalBoardEmpty() {
+  activityBoardRuntime = null;
+  activityBoardTabLoads = new Set();
   if (myRaffleStatus) {
     myRaffleStatus.textContent = "확인 중";
   }

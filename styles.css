@@ -391,6 +391,15 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   background: rgba(255, 107, 0, 0.08);
   color: #ffe5d1;
   font-weight: 900;
+  animation: raffleOrbitPulse 2.8s ease-in-out infinite;
+}
+
+.raffle-stage-orbit span:nth-child(2) {
+  animation-delay: 0.18s;
+}
+
+.raffle-stage-orbit span:nth-child(3) {
+  animation-delay: 0.36s;
 }
 
 .raffle-candidate-grid-stage {
@@ -400,6 +409,8 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 .raffle-candidate-card.is-live {
   position: relative;
   overflow: hidden;
+  animation: raffleCandidateFloat 3.2s ease-in-out infinite;
+  animation-delay: var(--candidate-delay, 0s);
 }
 
 .raffle-candidate-card.is-live::after {
@@ -408,17 +419,53 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   inset: 0;
   border: 1px solid rgba(255, 214, 170, 0.12);
   pointer-events: none;
+  background: linear-gradient(110deg, transparent 0%, rgba(255, 190, 128, 0.14) 48%, transparent 62%);
+  transform: translateX(-120%);
+  animation: raffleCandidateSweep 3.4s ease-in-out infinite;
+  animation-delay: var(--candidate-delay, 0s);
 }
 
 .raffle-candidate-card.is-waiting {
   border-style: dashed;
   background: rgba(18, 18, 18, 0.84);
+  animation: raffleWaitingPulse 2.6s ease-in-out infinite;
+  animation-delay: var(--candidate-delay, 0s);
 }
 
 .raffle-candidate-index {
   color: #ffbd85;
   font-size: 0.78rem;
   font-weight: 900;
+}
+
+@keyframes raffleOrbitPulse {
+  0%, 100% { transform: translateY(0); border-color: rgba(255, 159, 85, 0.24); }
+  50% { transform: translateY(-3px); border-color: rgba(255, 190, 128, 0.62); }
+}
+
+@keyframes raffleCandidateFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+@keyframes raffleCandidateSweep {
+  0% { transform: translateX(-120%); opacity: 0; }
+  35% { opacity: 1; }
+  70%, 100% { transform: translateX(120%); opacity: 0; }
+}
+
+@keyframes raffleWaitingPulse {
+  0%, 100% { opacity: 0.82; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .raffle-stage-orbit span,
+  .raffle-candidate-card.is-live,
+  .raffle-candidate-card.is-live::after,
+  .raffle-candidate-card.is-waiting {
+    animation: none;
+  }
 }
 
 .board-highlight {
