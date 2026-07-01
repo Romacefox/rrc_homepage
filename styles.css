@@ -975,6 +975,43 @@ body.modal-open {
   line-height: 1.65;
 }
 
+.home-challenge-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.home-challenge-card {
+  display: grid;
+  gap: 0.65rem;
+  min-height: 236px;
+  border: 1px solid rgba(255, 154, 91, 0.22);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(29, 22, 17, 0.98) 0%, rgba(16, 16, 16, 0.98) 100%);
+  padding: 1rem;
+}
+
+.home-challenge-card h3 {
+  margin: 0;
+  color: #fff6ef;
+  font-size: 1.22rem;
+}
+
+.home-challenge-card p {
+  margin: 0;
+  color: #e8ded6;
+  line-height: 1.55;
+}
+
+.home-challenge-card .btn {
+  align-self: end;
+}
+
+.home-challenge-card.is-loading {
+  opacity: 0.82;
+}
+
 .home-join-grid {
   grid-template-columns: minmax(0, 1fr) minmax(260px, 360px);
 }
@@ -1041,6 +1078,7 @@ body.modal-open {
   .home-intro-grid,
   .home-join-grid,
   .home-notice-strip,
+  .home-challenge-grid,
   .home-schedule-grid {
     grid-template-columns: 1fr;
   }

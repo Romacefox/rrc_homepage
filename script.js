@@ -4538,7 +4538,6 @@ function renderHealthcheck(result) {
     ], renderSimpleList(monthly.rows || [], (row) => `${row.name} ${row.attendance_count}/${row.monthly_runs_count} (${row.delta > 0 ? "+" : ""}${row.delta})`)),
     renderHealthcheckCard("포인트 상태", [
       ["중복 지급 의심", points.duplicate_award_count],
-      ["미션 claim 중복", points.duplicate_mission_claim_count],
       ["웰컴 포인트 미지급", points.missing_welcome_points_count],
       ["total_points 불일치", points.total_points_mismatch_count]
     ], `<p class="list-meta">${escapeHtml(points.total_points_note || "")}</p>${renderSimpleList(points.missing_welcome_profiles || [], (row) => `${row.name} / ${row.email_masked}`)}`),
@@ -4596,7 +4595,7 @@ function filterHealthcheckLogs(items) {
     signup: /signup|가입|profile|welcome/i,
     approval: /approval|승인|반려/i,
     attendance: /attendance|출석/i,
-    point: /point|award|mission|포인트/i,
+    point: /point|award|포인트/i,
     raffle: /raffle|추첨/i,
     fee: /fee|회비|납부|미납/i
   };

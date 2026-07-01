@@ -4,11 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>RRC | Rising Star Running Crew</title>
-  <meta name="description" content="송파 기반 러닝 크루 RRC의 소개, 정기런 일정, 가입 안내, 활동 보드를 확인하세요." />
+  <meta name="description" content="송파 기반 러닝 크루 RRC의 정기런, 가입 안내, 활동 보드와 챌린지를 확인하세요." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=SUIT:wght@400;500;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20260701c" />
+  <link rel="stylesheet" href="styles.css?v=20260701e" />
 </head>
 <body class="home-page">
   <header class="site-header home-header">
@@ -17,6 +17,7 @@
       <nav class="nav-links nav-links-main" aria-label="주요 메뉴">
         <a href="#about">크루 소개</a>
         <a href="#schedule">일정</a>
+        <a href="#challenges">챌린지</a>
         <a href="#join">가입 안내</a>
         <a href="login.html">활동 보드</a>
       </nav>
@@ -29,7 +30,7 @@
         <div class="home-hero-mark" aria-hidden="true">RRC</div>
         <p class="eyebrow">SINCE 2020.08.06 · SONGPA RUNNING CREW</p>
         <h1 id="hero-title">Rising Star<br />Running Crew</h1>
-        <p class="hero-copy">송파를 기반으로 함께 뛰고 꾸준히 성장하는 러닝 크루입니다. 홈페이지는 필요한 안내만 가볍게 담고, 출석·추첨·챌린지는 활동 보드에서 관리합니다.</p>
+        <p class="hero-copy">송파를 기반으로 함께 뛰고 꾸준히 성장하는 러닝 크루입니다. 정기런은 가볍게 확인하고, 출석·추첨·포인트·챌린지는 활동 보드에서 관리합니다.</p>
         <div class="hero-actions">
           <a class="btn primary" href="signup.html">회원가입 신청</a>
           <a class="btn ghost" href="login.html">로그인 / 활동 보드</a>
@@ -42,12 +43,12 @@
       <div class="container home-intro-grid">
         <div>
           <p class="eyebrow">ABOUT RRC</p>
-          <h2>러닝을 오래 이어갈 수 있는 분위기를 만듭니다.</h2>
-          <p>RRC는 석촌호수, 올림픽공원, 한강을 중심으로 활동합니다. 빠른 기록보다 꾸준한 참여와 서로를 존중하는 태도를 더 중요하게 생각합니다.</p>
+          <h2>오래 함께 달릴 수 있는 분위기를 만듭니다.</h2>
+          <p>RRC는 석촌호수, 올림픽공원, 한강을 중심으로 활동합니다. 빠른 기록보다 꾸준한 참여, 서로를 존중하는 태도, 안전한 러닝 문화를 중요하게 생각합니다.</p>
         </div>
         <div class="home-facts" aria-label="RRC 주요 정보">
           <div><span>활동 지역</span><strong>송파 · 잠실 · 한강</strong></div>
-          <div><span>운영 인원</span><strong>활동 회원 약 50명</strong></div>
+          <div><span>운영 방식</span><strong>정기런 중심, 활동 보드 관리</strong></div>
           <div><span>가입 기준</span><strong>1989년생 ~ 2004년생</strong></div>
         </div>
       </div>
@@ -63,24 +64,43 @@
           <a class="badge badge-link" href="login.html">활동 보드 보기</a>
         </div>
         <div class="home-schedule-grid">
-          <article class="card"><span>화요일</span><h3>20:30</h3><p>석촌호수 정기런. 초보자도 참여하기 쉬운 5~8km 중심 코스입니다.</p></article>
-          <article class="card"><span>목요일</span><h3>20:30</h3><p>올림픽공원 그룹런 또는 인터벌 훈련으로 컨디션에 맞춰 진행합니다.</p></article>
-          <article class="card"><span>토요일</span><h3>07:30 ~ 08:30</h3><p>한강 러닝, 대회 준비, 장거리 코스를 상황에 맞게 운영합니다.</p></article>
+          <article class="card"><span>화요일</span><h3>20:30</h3><p>석촌호수 정기런. 처음 오는 러너도 참여하기 쉬운 5~8km 중심 코스입니다.</p></article>
+          <article class="card"><span>목요일</span><h3>20:30</h3><p>올림픽공원 러닝. 그룹런 또는 훈련형 러닝으로 컨디션에 맞춰 진행합니다.</p></article>
+          <article class="card"><span>토요일</span><h3>07:30 ~ 08:30</h3><p>한강 러닝. 날씨와 참여 인원에 따라 장거리 또는 회복런으로 운영합니다.</p></article>
         </div>
       </div>
     </section>
 
-    <section id="join" class="section home-section">
+    <section id="challenges" class="section home-section">
+      <div class="container">
+        <div class="section-head home-section-head">
+          <div>
+            <p class="eyebrow">CURRENT CHALLENGES</p>
+            <h2>현재 진행 중인 챌린지</h2>
+          </div>
+          <a class="badge badge-link" href="login.html">참여하러 가기</a>
+        </div>
+        <div id="home-challenge-grid" class="home-challenge-grid" aria-live="polite">
+          <article class="home-challenge-card is-loading">
+            <span>불러오는 중</span>
+            <h3>챌린지를 확인하고 있습니다.</h3>
+            <p>모집 중이거나 진행 중인 챌린지가 있으면 이곳에 표시됩니다.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="join" class="section alt home-section">
       <div class="container home-join-grid">
         <div>
           <p class="eyebrow">JOIN</p>
           <h2>가입 전 이것만 확인해 주세요.</h2>
           <ul class="home-check-list">
             <li>월 2회 이상 정기런 참여가 가능한 분을 우선으로 합니다.</li>
-            <li>월 4회 이상 참여자는 활동 보드의 추첨 후보로 자동 집계됩니다.</li>
+            <li>월 4회 이상 참여자는 활동 보드에서 추첨 후보로 자동 집계됩니다.</li>
             <li>챌린지는 활동 보드에서 제안하고, 운영진 확인 후 진행합니다.</li>
-            <li>러닝 실력보다 약속, 안전, 매너를 더 중요하게 봅니다.</li>
-            <li>영업, 과도한 친목 강요, 타인을 불편하게 하는 행동은 제한됩니다.</li>
+            <li>기록보다 지속성, 안전, 매너를 더 중요하게 봅니다.</li>
+            <li>영업, 과도한 친목 강요, 타인을 불편하게 하는 행동은 제한합니다.</li>
           </ul>
         </div>
         <aside class="panel highlight home-link-panel">
@@ -93,12 +113,12 @@
       </div>
     </section>
 
-    <section class="section alt home-section">
+    <section class="section home-section">
       <div class="container home-notice-strip">
         <div>
           <p class="eyebrow">ACTIVITY BOARD</p>
-          <h2>출석, 추첨, 챌린지는 활동 보드에서 확인합니다.</h2>
-          <p>회원은 내 출석과 추첨 후보 여부를 확인하고, 운영진은 출석 입력·후보 집계·룰렛 추첨·챌린지 관리를 한곳에서 처리합니다.</p>
+          <h2>출석, 추첨, 포인트, 챌린지를 한곳에서 확인합니다.</h2>
+          <p>회원은 내 출석과 추첨 후보 여부를 확인하고, 운영진은 출석 입력·후보 집계·룰렛 추첨·챌린지 관리를 활동 보드에서 처리합니다.</p>
         </div>
         <a class="btn primary" href="login.html">활동 보드 열기</a>
       </div>
@@ -108,12 +128,61 @@
   <footer class="site-footer">
     <div class="container footer-wrap">
       <p>&copy; <span id="year"></span> RRC | Rising Star Running Crew</p>
-      <p>출석 · 추첨 · 챌린지 중심 운영</p>
+      <p>출석 · 추첨 · 포인트 · 챌린지 중심 운영</p>
     </div>
   </footer>
 
   <script>
     document.getElementById("year").textContent = new Date().getFullYear();
+
+    const challengeGrid = document.getElementById("home-challenge-grid");
+    const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;"
+    }[char]));
+
+    const formatDate = (value) => {
+      if (!value) return "일정 조율 중";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return String(value);
+      return `${date.getMonth() + 1}/${date.getDate()}`;
+    };
+
+    const renderChallenges = (items) => {
+      if (!challengeGrid) return;
+      if (!Array.isArray(items) || !items.length) {
+        challengeGrid.innerHTML = `
+          <article class="home-challenge-card">
+            <span>준비 중</span>
+            <h3>새 챌린지를 곧 열 예정입니다.</h3>
+            <p>현재 공개할 모집/진행 챌린지가 없습니다. 활동 보드에서 직접 제안할 수 있습니다.</p>
+            <a class="btn ghost" href="login.html">활동 보드 보기</a>
+          </article>
+        `;
+        return;
+      }
+      challengeGrid.innerHTML = items.map((item) => `
+        <article class="home-challenge-card">
+          <div class="list-top">
+            <span class="status-chip">${escapeHtml(item.status_label || "모집 중")}</span>
+            <span class="list-meta">${escapeHtml(item.mode_label || "챌린지")}</span>
+          </div>
+          <h3>${escapeHtml(item.title || "RRC 챌린지")}</h3>
+          <p>${escapeHtml(formatDate(item.start_date))} ~ ${escapeHtml(formatDate(item.end_date))} · 참여 ${Number(item.participant_count || 0)}명</p>
+          <div class="reward-progress" aria-label="챌린지 진행률"><span style="width:${Math.max(0, Math.min(Number(item.progress_percent || 0), 100))}%"></span></div>
+          <p class="list-meta">성공 보상 ${Number(item.success_reward_points || 0).toLocaleString("ko-KR")}P · ${escapeHtml(item.verification_method || "RRC 카카오톡 채팅방 인증")}</p>
+          <a class="btn ghost" href="login.html#challenge-list">자세히 보기</a>
+        </article>
+      `).join("");
+    };
+
+    fetch("/.netlify/functions/public-challenges?limit=3")
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error(`status ${response.status}`)))
+      .then((result) => renderChallenges(result.items || []))
+      .catch(() => renderChallenges([]));
   </script>
 </body>
 </html>

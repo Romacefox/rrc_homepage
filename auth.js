@@ -2280,7 +2280,6 @@ function renderPersonalBoardEmpty() {
     myPointNote.textContent = "정기런 배지, 챌린지, 운영 리워드로 포인트를 모아 활동 혜택 신청에 활용할 수 있습니다.";
   }
   renderBadgeList([]);
-  renderMissionBoard([], null, currentMonthKey(), 0, 0);
   renderSimpleHistory(myPhotoHistory, [], "로그인 후 개인 사진 기록이 표시됩니다.");
   renderSimpleHistory(myCommentHistory, [], "로그인 후 내 댓글 기록이 표시됩니다.");
   renderSimpleHistory(myRaffleHistory, [], "로그인 후 내 추첨 기록이 표시됩니다.");
