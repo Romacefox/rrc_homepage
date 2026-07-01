@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=SUIT:wght@300;400;500;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20260701e" />
+  <link rel="stylesheet" href="styles.css?v=20260701f" />
 </head>
 <body class="admin-page">
   <header class="site-header">
@@ -36,6 +36,18 @@
 
         <div id="admin-panel" class="hidden">
           <div class="admin-grid">
+            <article class="panel admin-today-panel">
+              <h3>오늘의 운영 체크</h3>
+              <p id="admin-task-status" class="list-meta">운영 데이터를 점검하는 중입니다.</p>
+              <ul id="admin-task-list" class="list small admin-task-list"></ul>
+              <div class="admin-quick-actions">
+                <a class="btn ghost" href="#approval-list">승인 대기</a>
+                <a class="btn ghost" href="#bulk-attendance-input">출석 입력</a>
+                <a class="btn ghost" href="#healthcheck-grid">시스템 점검</a>
+                <button id="copy-raffle-check-message" class="btn ghost" type="button">추첨 점검 문구 복사</button>
+              </div>
+            </article>
+
             <article class="panel highlight">
               <h3>운영 기능 요약</h3>
               <ul class="bullet">
@@ -45,15 +57,6 @@
                 <li>포인트는 10P=100원 운영 기준으로 환산하며, 실제 보조는 예산과 운영진 승인에 따라 지급합니다.</li>
                 <li>홈페이지는 출석·추첨·챌린지 운영에 집중합니다.</li>
               </ul>
-            </article>
-
-            <article class="panel admin-today-panel">
-              <h3>오늘의 운영 체크</h3>
-              <p id="admin-task-status" class="list-meta">운영 데이터를 점검하는 중입니다.</p>
-              <ul id="admin-task-list" class="list small admin-task-list"></ul>
-              <div class="item-actions">
-                <button id="copy-raffle-check-message" class="btn ghost" type="button">추첨 점검 문구 복사</button>
-              </div>
             </article>
 
             <article class="panel">
@@ -255,7 +258,7 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="script.js?v=20260701e"></script>
+  <script src="script.js?v=20260701f"></script>
 </body>
 </html>
 

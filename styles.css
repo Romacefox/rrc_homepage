@@ -286,6 +286,17 @@ textarea:focus-visible {
   margin-top: 0.65rem;
 }
 
+.admin-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+}
+
+.admin-quick-actions .btn {
+  min-height: 40px;
+}
+
 .admin-task-item .status-chip {
   flex: 0 0 auto;
   margin-left: 0;

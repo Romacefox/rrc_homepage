@@ -1,6 +1,5 @@
 ﻿const SUPABASE_URL = "https://aqpszgycsfpxtlsuaqrt.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_C20xXZZRWdjmkzGneCcpjw_mrRnXucq";
-const PHOTO_BUCKET = "rrc-photos";
 const PUBLIC_LOGIN_URL = "https://rrc-seoul.netlify.app/login.html";
 const PENDING_SIGNUP_PREFIX = "rrc-pending-signup:";
 const ADMIN_SNAPSHOT_META_KEY = "rrc-admin-snapshot-meta-v1";
@@ -26,11 +25,6 @@ const REWARD_ITEMS = [
 let supabaseClient = null;
 let authUser = null;
 let authProfile = null;
-let photoRecords = [];
-let photoLikeCounts = new Map();
-let photoLikedByMe = new Set();
-let currentPhotoRecord = null;
-
 const yearNode = document.getElementById("year");
 
 const signupEmailInput = document.getElementById("signup-email");
@@ -57,18 +51,6 @@ const loginForm = document.getElementById("login-form");
 const loginGuestActions = document.getElementById("login-guest-actions");
 const loginMemberActions = document.getElementById("login-member-actions");
 const authShell = document.querySelector(".auth-shell");
-
-const galleryAuthStatus = document.getElementById("gallery-auth-status");
-const galleryApprovalStatus = document.getElementById("gallery-approval-status");
-const galleryGuestActions = document.getElementById("gallery-guest-actions");
-const galleryMemberActions = document.getElementById("gallery-member-actions");
-const photoFileInput = document.getElementById("photo-file");
-const photoCaptionInput = document.getElementById("photo-caption");
-const photoUploadButton = document.getElementById("photo-upload");
-const photoStatus = document.getElementById("photo-status");
-const photoGrid = document.getElementById("photo-grid");
-const photoMonthFilter = document.getElementById("photo-month-filter");
-const photoFilterResetButton = document.getElementById("photo-filter-reset");
 
 const activityMonthSelect = document.getElementById("activity-month");
 const activityRefreshButton = document.getElementById("activity-refresh");
@@ -127,8 +109,6 @@ const boardPointLeader = document.getElementById("board-point-leader");
 const boardPointLeaderNote = document.getElementById("board-point-leader-note");
 const pointRankingBoard = document.getElementById("point-ranking-board");
 const pointRankingYearBoard = document.getElementById("point-ranking-year-board");
-const myPhotoHistory = document.getElementById("my-photo-history");
-const myCommentHistory = document.getElementById("my-comment-history");
 const myRaffleHistory = document.getElementById("my-raffle-history");
 const myPointAwardHistory = document.getElementById("my-point-award-history");
 const myAttendanceNote = document.getElementById("my-attendance-note");
@@ -192,20 +172,6 @@ const pointAwardList = document.getElementById("point-award-list");
 const memberNavLinks = document.querySelectorAll("[data-member-nav]");
 const adminNavLinks = document.querySelectorAll("[data-admin-nav]");
 const authEntryLinks = document.querySelectorAll("[data-auth-entry]");
-const photoModal = document.getElementById("photo-modal");
-const photoModalImage = document.getElementById("photo-modal-image");
-const photoModalCaption = document.getElementById("photo-modal-caption");
-const photoModalDate = document.getElementById("photo-modal-date");
-const photoLikeButton = document.getElementById("photo-like-button");
-const photoLikeCount = document.getElementById("photo-like-count");
-const photoModalClose = document.getElementById("photo-modal-close");
-const photoModalBackdrop = document.querySelector("[data-photo-modal-close]");
-const photoCommentLock = document.getElementById("photo-comment-lock");
-const photoCommentForm = document.getElementById("photo-comment-form");
-const photoCommentInput = document.getElementById("photo-comment-input");
-const photoCommentStatus = document.getElementById("photo-comment-status");
-const photoCommentList = document.getElementById("photo-comment-list");
-
 if (yearNode) {
   yearNode.textContent = new Date().getFullYear();
 }
@@ -273,18 +239,6 @@ function init() {
   signupForm?.addEventListener("submit", handleSignup);
   loginForm?.addEventListener("submit", handleLogin);
   loginLogoutButton?.addEventListener("click", handleLogout);
-  photoUploadButton?.addEventListener("click", handlePhotoUpload);
-  photoMonthFilter?.addEventListener("change", renderFilteredPhotos);
-  photoFilterResetButton?.addEventListener("click", () => {
-    if (photoMonthFilter) {
-      photoMonthFilter.value = "all";
-    }
-    renderFilteredPhotos();
-  });
-  photoModalClose?.addEventListener("click", closePhotoModal);
-  photoModalBackdrop?.addEventListener("click", closePhotoModal);
-  photoCommentForm?.addEventListener("submit", handlePhotoCommentSubmit);
-  photoLikeButton?.addEventListener("click", handlePhotoLikeToggle);
   activityRefreshButton?.addEventListener("click", loadActivityBoard);
   activityMonthSelect?.addEventListener("change", loadActivityBoard);
   configureActivityBoardTabs();
@@ -981,14 +935,8 @@ function renderAuthState() {
   if (!authUser) {
     updateLoginLayout(false);
     updateSharedNavigation(false, false);
-    setVisibility(galleryGuestActions, true);
-    setVisibility(galleryMemberActions, false);
     setStatus(loginStatus, loginStatus ? "로그인이 필요합니다." : null);
     setStatus(loginApprovalStatus, loginApprovalStatus ? "승인 상태: 로그인 필요" : null);
-    setStatus(galleryAuthStatus, galleryAuthStatus ? "로그인이 필요합니다." : null);
-    setStatus(galleryApprovalStatus, galleryApprovalStatus ? "승인 상태 확인 후 이용할 수 있습니다." : null);
-    disablePhotoUpload();
-    updatePhotoCommentComposer(false);
     return;
   }
 
@@ -998,34 +946,21 @@ function renderAuthState() {
 
   updateLoginLayout(true);
   updateSharedNavigation(Boolean(authUser), isAdmin);
-  setVisibility(galleryGuestActions, false);
-  setVisibility(galleryMemberActions, isApproved);
   const roleSuffix = isAdmin ? " / 운영진 권한 있음" : "";
   setStatus(loginStatus, loginStatus ? `로그인됨: ${authUser.email}` : null);
-  setStatus(galleryAuthStatus, galleryAuthStatus ? `로그인됨: ${authUser.email}` : null);
 
   if (!isEmailConfirmed(authUser)) {
     setStatus(loginApprovalStatus, loginApprovalStatus ? "승인 상태: 이메일 인증 필요(받은 메일함을 확인해 주세요)" : null);
-    setStatus(galleryApprovalStatus, galleryApprovalStatus ? "승인 상태: 이메일 인증 완료 후 이용할 수 있습니다." : null);
-    disablePhotoUpload();
-    updatePhotoCommentComposer(false);
     return;
   }
 
   if (!authProfile) {
     setStatus(loginApprovalStatus, loginApprovalStatus ? "승인 상태: 프로필 미등록. 운영진에게 가입 상태 점검을 요청해 주세요." : null);
-    setStatus(galleryApprovalStatus, galleryApprovalStatus ? "승인 상태: 프로필 미등록. 운영진 점검 후 이용할 수 있습니다." : null);
-    disablePhotoUpload();
-    updatePhotoCommentComposer(false);
     return;
   }
 
   const label = `승인 상태: ${statusLabel(authProfile.approval_status)}${roleSuffix}`;
   setStatus(loginApprovalStatus, loginApprovalStatus ? label : null);
-  setStatus(galleryApprovalStatus, galleryApprovalStatus ? label : null);
-
-  enablePhotoUpload(isApproved);
-  updatePhotoCommentComposer(isApproved);
 }
 
 function isEmailConfirmed(user) {
@@ -1067,369 +1002,6 @@ function updateLoginLayout(isLoggedIn) {
   if (authShell) {
     authShell.classList.toggle("auth-shell-logged-in", isLoggedIn);
   }
-}
-
-function updatePhotoCommentComposer(canComment) {
-  setVisibility(photoCommentForm, canComment);
-  if (photoCommentLock) {
-    photoCommentLock.textContent = canComment
-      ? "승인 회원은 사진에 댓글을 남길 수 있습니다."
-      : "승인 회원 로그인 후 댓글 작성이 열립니다.";
-  }
-}
-
-function disablePhotoUpload(message = "로그인한 회원만 업로드할 수 있습니다.") {
-  if (photoUploadButton) {
-    photoUploadButton.disabled = true;
-  }
-  if (photoFileInput) {
-    photoFileInput.disabled = true;
-  }
-  if (photoCaptionInput) {
-    photoCaptionInput.disabled = true;
-  }
-  setStatus(photoStatus, photoStatus ? message : null);
-}
-
-function enablePhotoUpload(isApproved = false) {
-  if (photoUploadButton) {
-    photoUploadButton.disabled = !isApproved;
-  }
-  if (photoFileInput) {
-    photoFileInput.disabled = !isApproved;
-  }
-  if (photoCaptionInput) {
-    photoCaptionInput.disabled = !isApproved;
-  }
-  const message = isApproved
-    ? "사진 업로드가 가능합니다."
-    : "사진 업로드와 댓글은 운영진 승인 후 열립니다.";
-  setStatus(photoStatus, photoStatus ? message : null);
-}
-
-async function handlePhotoUpload() {
-  if (!authUser || !authProfile || authProfile.approval_status !== "approved") {
-    setStatus(photoStatus, photoStatus ? "승인 회원만 사진을 업로드할 수 있습니다." : null);
-    return;
-  }
-  const file = photoFileInput?.files?.[0];
-  if (!file) {
-    setStatus(photoStatus, photoStatus ? "업로드할 사진 파일을 선택해 주세요." : null);
-    return;
-  }
-
-  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-  const path = `${authUser.id}/${Date.now()}-${Math.random().toString(16).slice(2)}.${ext}`;
-  setStatus(photoStatus, photoStatus ? "업로드 중..." : null);
-
-  const uploadResult = await supabaseClient.storage.from(PHOTO_BUCKET).upload(path, file, {
-    upsert: false,
-    contentType: file.type
-  });
-  if (uploadResult.error) {
-    setStatus(photoStatus, photoStatus ? `업로드 실패: ${uploadResult.error.message}` : null);
-    return;
-  }
-
-  const caption = String(photoCaptionInput?.value || "").trim();
-  const insertResult = await supabaseClient.from("photos").insert({
-    user_id: authUser.id,
-    file_path: path,
-    caption
-  });
-
-  if (insertResult.error) {
-    await supabaseClient.storage.from(PHOTO_BUCKET).remove([path]);
-    setStatus(photoStatus, photoStatus ? `메타데이터 저장 실패: ${insertResult.error.message}` : null);
-    return;
-  }
-
-  if (photoFileInput) {
-    photoFileInput.value = "";
-  }
-  if (photoCaptionInput) {
-    photoCaptionInput.value = "";
-  }
-  setStatus(photoStatus, photoStatus ? "업로드 완료" : null);
-  await loadPhotos();
-}
-
-async function loadPhotos() {
-  if (!supabaseClient || !photoGrid) {
-    return;
-  }
-
-  const [photosResult, likesResult] = await Promise.all([
-    supabaseClient
-      .from("photos")
-      .select("id,file_path,caption,created_at")
-      .order("created_at", { ascending: false })
-      .limit(200),
-    supabaseClient
-      .from("photo_likes")
-      .select("photo_id,user_id")
-  ]);
-
-  if (photosResult.error) {
-    setStatus(photoStatus, photoStatus ? `사진 목록 로드 실패: ${photosResult.error.message}` : null);
-    return;
-  }
-
-  photoRecords = Array.isArray(photosResult.data) ? photosResult.data : [];
-  hydratePhotoLikes(Array.isArray(likesResult.data) ? likesResult.data : []);
-
-  if (likesResult.error) {
-    setStatus(photoStatus, photoStatus ? `좋아요 정보 일부 로드 실패: ${likesResult.error.message}` : null);
-  }
-
-  populatePhotoMonthOptions();
-  renderFilteredPhotos();
-}
-
-function populatePhotoMonthOptions() {
-  if (!photoMonthFilter) {
-    return;
-  }
-  const seen = new Set();
-  const options = ['<option value="all">전체 월</option>'];
-  photoRecords.forEach((photo) => {
-    const key = toMonthKey(photo.created_at);
-    if (!seen.has(key)) {
-      seen.add(key);
-      options.push(`<option value="${key}">${monthKeyToLabel(key)}</option>`);
-    }
-  });
-  photoMonthFilter.innerHTML = options.join("");
-}
-
-function renderFilteredPhotos() {
-  if (!photoGrid) {
-    return;
-  }
-  const selected = photoMonthFilter?.value || "all";
-  const filtered = selected === "all"
-    ? photoRecords
-    : photoRecords.filter((photo) => toMonthKey(photo.created_at) === selected);
-
-  photoGrid.innerHTML = "";
-  if (!filtered.length) {
-    photoGrid.innerHTML = '<p class="list-meta">선택한 월의 사진이 없습니다.</p>';
-    return;
-  }
-
-  filtered.forEach((photo) => {
-    const publicUrl = supabaseClient.storage.from(PHOTO_BUCKET).getPublicUrl(photo.file_path).data.publicUrl;
-    const likeCount = Number(photoLikeCounts.get(photo.id) || 0);
-    const card = document.createElement("article");
-    card.className = "photo-item";
-    card.tabIndex = 0;
-    card.setAttribute("role", "button");
-    card.innerHTML = `
-      <img src="${publicUrl}" alt="RRC photo" loading="lazy" />
-      <div class="photo-meta">
-        <div>${escapeHtml(photo.caption || "설명 없음")}</div>
-        <div class="photo-meta-row">
-          <span>${formatDate(photo.created_at)}</span>
-          <span class="list-meta">좋아요 ${likeCount}</span>
-        </div>
-      </div>
-    `;
-    card.addEventListener("click", () => openPhotoModal(photo, publicUrl));
-    card.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        openPhotoModal(photo, publicUrl);
-      }
-    });
-    photoGrid.appendChild(card);
-  });
-}
-
-function openPhotoModal(photo, publicUrl) {
-  if (!photoModal) {
-    return;
-  }
-  currentPhotoRecord = photo;
-  if (photoModalImage) {
-    photoModalImage.src = publicUrl;
-  }
-  if (photoModalCaption) {
-    photoModalCaption.textContent = photo.caption || "사진 설명";
-  }
-  if (photoModalDate) {
-    photoModalDate.textContent = formatDate(photo.created_at);
-  }
-  renderPhotoLikeState(photo.id);
-  setVisibility(photoModal, true);
-  document.body.classList.add("modal-open");
-  void loadPhotoComments(photo.id);
-}
-
-function closePhotoModal() {
-  currentPhotoRecord = null;
-  if (photoModalImage) {
-    photoModalImage.src = "";
-  }
-  if (photoLikeCount) {
-    photoLikeCount.textContent = "좋아요 0";
-  }
-  setVisibility(photoModal, false);
-  document.body.classList.remove("modal-open");
-}
-
-function hydratePhotoLikes(rows) {
-  photoLikeCounts = new Map();
-  photoLikedByMe = new Set();
-
-  rows.forEach((row) => {
-    const photoId = String(row.photo_id || "");
-    if (!photoId) {
-      return;
-    }
-    photoLikeCounts.set(photoId, Number(photoLikeCounts.get(photoId) || 0) + 1);
-    if (authUser?.id && row.user_id === authUser.id) {
-      photoLikedByMe.add(photoId);
-    }
-  });
-}
-
-function renderPhotoLikeState(photoId) {
-  if (!photoLikeButton || !photoLikeCount) {
-    return;
-  }
-
-  const likeCount = Number(photoLikeCounts.get(photoId) || 0);
-  const liked = photoLikedByMe.has(photoId);
-  photoLikeButton.textContent = liked ? "좋아요 취소" : "좋아요";
-  photoLikeButton.disabled = !authUser;
-  photoLikeCount.textContent = `좋아요 ${likeCount}`;
-}
-
-async function handlePhotoLikeToggle() {
-  if (!currentPhotoRecord) {
-    return;
-  }
-  if (!authUser) {
-    setStatus(photoCommentStatus, photoCommentStatus ? "로그인 후 좋아요를 누를 수 있습니다." : null);
-    return;
-  }
-
-  const photoId = currentPhotoRecord.id;
-  const liked = photoLikedByMe.has(photoId);
-  let result;
-  if (liked) {
-    result = await supabaseClient
-      .from("photo_likes")
-      .delete()
-      .eq("photo_id", photoId)
-      .eq("user_id", authUser.id);
-  } else {
-    result = await supabaseClient
-      .from("photo_likes")
-      .insert([{ photo_id: photoId, user_id: authUser.id }]);
-  }
-
-  if (result.error) {
-    setStatus(photoCommentStatus, photoCommentStatus ? `좋아요 처리 실패: ${result.error.message}` : null);
-    return;
-  }
-
-  const currentCount = Number(photoLikeCounts.get(photoId) || 0);
-  if (liked) {
-    photoLikedByMe.delete(photoId);
-    photoLikeCounts.set(photoId, Math.max(0, currentCount - 1));
-  } else {
-    photoLikedByMe.add(photoId);
-    photoLikeCounts.set(photoId, currentCount + 1);
-  }
-
-  renderFilteredPhotos();
-  renderPhotoLikeState(photoId);
-}
-async function loadPhotoComments(photoId) {
-  if (!supabaseClient || !photoCommentList) {
-    return;
-  }
-
-  photoCommentList.innerHTML = '<li class="list-item"><p class="list-meta">댓글을 불러오는 중입니다.</p></li>';
-  const result = await supabaseClient
-    .from("photo_comments")
-    .select("id,author_name,content,created_at")
-    .eq("photo_id", photoId)
-    .order("created_at", { ascending: true });
-
-  if (result.error) {
-    photoCommentList.innerHTML = `<li class="list-item"><p class="list-meta">댓글 로드 실패: ${escapeHtml(result.error.message)}</p></li>`;
-    return;
-  }
-
-  const rows = Array.isArray(result.data) ? result.data : [];
-  if (!rows.length) {
-    photoCommentList.innerHTML = '<li class="list-item"><p class="list-meta">아직 댓글이 없습니다.</p></li>';
-    return;
-  }
-
-  photoCommentList.innerHTML = "";
-  rows.forEach((row) => {
-    const item = document.createElement("li");
-    item.className = "list-item";
-    item.innerHTML = `<div class="list-top"><span class="list-title">${escapeHtml(row.author_name || "회원")}</span><span class="list-meta">${formatDate(row.created_at)}</span></div><p>${escapeHtml(row.content || "")}</p>`;
-    photoCommentList.appendChild(item);
-  });
-}
-
-async function handlePhotoCommentSubmit(event) {
-  event?.preventDefault();
-  if (!currentPhotoRecord) {
-    return;
-  }
-
-  if (supabaseClient) {
-    const sessionResult = await supabaseClient.auth.getSession();
-    authUser = sessionResult.data?.session?.user || authUser;
-  }
-  if (authUser) {
-    await loadMyProfile();
-    renderAuthState();
-  }
-
-  if (!authUser || !authProfile || authProfile.approval_status !== "approved") {
-    setStatus(photoCommentStatus, photoCommentStatus ? "승인 회원 로그인 후 댓글을 작성할 수 있습니다." : null);
-    return;
-  }
-
-  const content = String(photoCommentInput?.value || "").trim();
-  if (!content) {
-    setStatus(photoCommentStatus, photoCommentStatus ? "댓글 내용을 입력해 주세요." : null);
-    return;
-  }
-
-  setStatus(photoCommentStatus, photoCommentStatus ? "댓글 등록 중..." : null);
-  const result = await supabaseClient
-    .from("photo_comments")
-    .insert([{
-      photo_id: currentPhotoRecord.id,
-      user_id: authUser.id,
-      author_name: authProfile.name || authUser.email,
-      content
-    }])
-    .select("id")
-    .single();
-
-  if (result.error) {
-    const message = String(result.error.message || "알 수 없는 오류");
-    const hint = message.toLowerCase().includes("row-level security")
-      ? "승인 상태 또는 댓글 권한을 다시 확인해 주세요."
-      : "잠시 후 다시 시도해 주세요.";
-    setStatus(photoCommentStatus, photoCommentStatus ? `댓글 등록 실패: ${message} (${hint})` : null);
-    return;
-  }
-
-  if (photoCommentInput) {
-    photoCommentInput.value = "";
-  }
-  setStatus(photoCommentStatus, photoCommentStatus ? "댓글이 등록되었습니다." : null);
-  await loadPhotoComments(currentPhotoRecord.id);
 }
 
 async function loadActivityBoard() {
@@ -2279,8 +1851,6 @@ function renderPersonalBoardEmpty() {
     myPointNote.textContent = "정기런 배지, 챌린지, 운영 리워드로 포인트를 모아 활동 혜택 신청에 활용할 수 있습니다.";
   }
   renderBadgeList([]);
-  renderSimpleHistory(myPhotoHistory, [], "로그인 후 개인 사진 기록이 표시됩니다.");
-  renderSimpleHistory(myCommentHistory, [], "로그인 후 내 댓글 기록이 표시됩니다.");
   renderSimpleHistory(myRaffleHistory, [], "로그인 후 내 추첨 기록이 표시됩니다.");
   renderSimpleHistory(myPointAwardHistory, [], "로그인 후 포인트 지급 기록이 표시됩니다.");
   renderMyAttendanceHistory(null, currentMonthKey(), []);
