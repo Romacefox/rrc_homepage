@@ -76,6 +76,7 @@ const bulkAttendanceConfirmTextInput = document.getElementById("bulk-attendance-
 const bulkAttendanceResult = document.getElementById("bulk-attendance-result");
 const bulkAttendancePreviewWrap = document.getElementById("bulk-attendance-preview-wrap");
 const sheetAttendanceUrlInput = document.getElementById("sheet-attendance-url");
+const sheetAttendancePasteInput = document.getElementById("sheet-attendance-paste");
 const sheetAttendanceMonthInput = document.getElementById("sheet-attendance-month");
 const sheetAttendanceLoadButton = document.getElementById("sheet-attendance-load");
 const sheetAttendancePreviewButton = document.getElementById("sheet-attendance-preview");
@@ -1713,8 +1714,9 @@ async function handleSheetAttendanceLoad() {
   }
 
   const sheetUrl = String(sheetAttendanceUrlInput.value || "").trim();
-  if (!sheetUrl) {
-    sheetAttendanceStatus.textContent = "Google Sheets CSV 주소를 입력해 주세요.";
+  const pastedText = String(sheetAttendancePasteInput?.value || "").trim();
+  if (!sheetUrl && !pastedText) {
+    sheetAttendanceStatus.textContent = "Google Sheets CSV 주소를 입력하거나 시트 내용을 붙여넣어 주세요.";
     return;
   }
 
@@ -1728,6 +1730,7 @@ async function handleSheetAttendanceLoad() {
   try {
     const result = await callAdminSheetAttendance({
       sheet_url: sheetUrl,
+      csv_text: pastedText,
       month_key: sheetAttendanceMonthInput?.value || ""
     });
     sheetAttendanceState = {

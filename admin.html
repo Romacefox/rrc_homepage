@@ -130,9 +130,11 @@
 
             <article class="panel">
               <h3>구글시트 출석 가져오기</h3>
-              <p class="list-meta">Date, Name, Category 열을 읽어 날짜와 유형별로 묶은 뒤 미리보기 후 추가 반영합니다.</p>
+              <p class="list-meta">CSV 주소를 붙여넣거나 시트의 Date, Name, Category 열을 그대로 복사해 날짜와 유형별로 묶습니다.</p>
               <label for="sheet-attendance-url">시트 CSV 주소</label>
               <input id="sheet-attendance-url" type="url" placeholder="Google Sheets CSV 또는 Published CSV URL" />
+              <label for="sheet-attendance-paste">시트 내용 붙여넣기</label>
+              <textarea id="sheet-attendance-paste" rows="6" placeholder="Date\tName\tCategory&#10;2026/06/02\t최현후\t정기런&#10;2026/06/03\t김재인\t등산"></textarea>
               <label for="sheet-attendance-month">가져올 월</label>
               <input id="sheet-attendance-month" type="month" />
               <div class="item-actions">

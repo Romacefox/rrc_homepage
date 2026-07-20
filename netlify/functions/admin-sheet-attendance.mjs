@@ -20,26 +20,13 @@ export default async (request) => {
 
     const body = await request.json().catch(() => ({}));
     const url = normalizeSheetUrl(body?.sheet_url || body?.csv_url || "");
+    const pastedText = String(body?.csv_text || body?.sheet_text || "").trim();
     const monthKey = normalizeMonthKey(body?.month_key || body?.month || "");
-    if (!url) {
-      return json(400, { ok: false, error: "Google Sheets CSV 주소를 입력해 주세요." });
+    if (!url && !pastedText) {
+      return json(400, { ok: false, error: "Google Sheets CSV 주소를 입력하거나 시트 내용을 붙여넣어 주세요." });
     }
 
-    const response = await fetch(url, { headers: { "user-agent": "RRC Admin Sheet Import" } });
-    if (!response.ok) {
-      return json(400, {
-        ok: false,
-        error: "시트 CSV를 불러오지 못했습니다. 공유 또는 게시 설정을 확인해 주세요."
-      });
-    }
-
-    const text = await response.text();
-    if (looksLikeHtml(text)) {
-      return json(400, {
-        ok: false,
-        error: "CSV 대신 Google 로그인/문서 화면이 내려왔습니다. 시트를 CSV로 게시하거나 공유 설정을 확인해 주세요."
-      });
-    }
+    const text = pastedText || await fetchCsvText(url);
     const parsed = parseAttendanceCsv(text, monthKey);
     return json(200, {
       ok: true,
@@ -49,6 +36,18 @@ export default async (request) => {
     return json(500, { ok: false, error: String(error?.message || error) });
   }
 };
+
+async function fetchCsvText(url) {
+  const response = await fetch(url, { headers: { "user-agent": "RRC Admin Sheet Import" } });
+  if (!response.ok) {
+    throw new Error("시트 CSV를 불러오지 못했습니다. 공유 또는 게시 설정을 확인해 주세요.");
+  }
+  const text = await response.text();
+  if (looksLikeHtml(text)) {
+    throw new Error("CSV 대신 Google 로그인/문서 화면이 내려왔습니다. 시트를 CSV로 게시하거나 공유 설정을 확인해 주세요.");
+  }
+  return text;
+}
 
 function looksLikeHtml(text) {
   const source = String(text || "");
@@ -198,6 +197,7 @@ function parseCsv(text) {
   let field = "";
   let inQuotes = false;
   const source = String(text || "").replace(/^\uFEFF/, "");
+  const delimiter = detectDelimiter(source);
 
   for (let index = 0; index < source.length; index += 1) {
     const char = source[index];
@@ -211,7 +211,7 @@ function parseCsv(text) {
       inQuotes = !inQuotes;
       continue;
     }
-    if (char === "," && !inQuotes) {
+    if (char === delimiter && !inQuotes) {
       row.push(field);
       field = "";
       continue;
@@ -236,6 +236,13 @@ function parseCsv(text) {
     rows.push(row);
   }
   return rows;
+}
+
+function detectDelimiter(text) {
+  const firstLine = String(text || "").split(/\r?\n/).find((line) => line.trim()) || "";
+  const tabCount = (firstLine.match(/\t/g) || []).length;
+  const commaCount = (firstLine.match(/,/g) || []).length;
+  return tabCount > commaCount ? "\t" : ",";
 }
 
 async function requireAdmin(request) {
