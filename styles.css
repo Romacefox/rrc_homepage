@@ -148,6 +148,13 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 .attendance-preview-row.already_attended, .attendance-preview-row.unchanged, .attendance-preview-row.duplicate_input { background: rgba(255,255,255,0.035); color: var(--muted); }
 .attendance-preview-row.ambiguous_name, .attendance-preview-row.not_approved, .attendance-preview-row.inactive { background: rgba(255, 193, 7, 0.13); }
 .attendance-preview-row.not_found, .attendance-preview-row.will_remove { background: rgba(255, 92, 92, 0.14); }
+.sheet-attendance-preview { display: grid; gap: 0.7rem; margin-top: 0.8rem; }
+.sheet-attendance-group-list { display: grid; gap: 0.55rem; }
+.sheet-attendance-group { border: 1px solid var(--line); border-radius: 8px; background: #101010; overflow: hidden; }
+.sheet-attendance-group.has-problem { border-color: rgba(255, 193, 7, 0.55); }
+.sheet-attendance-group p { margin: 0; padding: 0.65rem 0.8rem; line-height: 1.55; }
+.sheet-attendance-invalid { border: 1px solid rgba(255, 193, 7, 0.45); border-radius: 8px; padding: 0.75rem 0.85rem; background: rgba(255, 193, 7, 0.09); }
+.sheet-attendance-invalid p { margin: 0.35rem 0 0; }
 .healthcheck-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; margin-top: 0.8rem; }
 .healthcheck-card { border: 1px solid var(--line); background: #101010; border-radius: 8px; padding: 0.75rem; }
 .healthcheck-card h4 { margin: 0 0 0.55rem; font-size: 0.98rem; }

@@ -1014,6 +1014,12 @@ function normalizeAttendanceEventType(value) {
   if (compact === "official" || raw.includes("공식")) {
     return "공식 행사";
   }
+  if (compact === "hiking" || raw.includes("등산")) {
+    return "등산";
+  }
+  if (compact === "smallgroup" || compact === "small_group" || raw.includes("소모임")) {
+    return "소모임";
+  }
   return raw.slice(0, 20);
 }
 

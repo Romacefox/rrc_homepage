@@ -266,6 +266,12 @@ function normalizeRunType(value) {
   if (["event", "official", "공식행사", "행사"].includes(compact)) {
     return "공식 행사";
   }
+  if (["hiking", "등산"].includes(compact)) {
+    return "등산";
+  }
+  if (["smallgroup", "small_group", "소모임"].includes(compact)) {
+    return "소모임";
+  }
   return raw.slice(0, 20);
 }
 

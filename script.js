@@ -32,6 +32,11 @@ const defaultData = {
 };
 
 let db = loadDb();
+let sheetAttendanceState = {
+  groups: [],
+  previews: [],
+  invalidRows: []
+};
 
 const yearNode = document.getElementById("year");
 const noticeList = document.getElementById("notice-list");
@@ -70,6 +75,13 @@ const bulkAttendanceReplaceConfirmInput = document.getElementById("bulk-attendan
 const bulkAttendanceConfirmTextInput = document.getElementById("bulk-attendance-confirm-text");
 const bulkAttendanceResult = document.getElementById("bulk-attendance-result");
 const bulkAttendancePreviewWrap = document.getElementById("bulk-attendance-preview-wrap");
+const sheetAttendanceUrlInput = document.getElementById("sheet-attendance-url");
+const sheetAttendanceMonthInput = document.getElementById("sheet-attendance-month");
+const sheetAttendanceLoadButton = document.getElementById("sheet-attendance-load");
+const sheetAttendancePreviewButton = document.getElementById("sheet-attendance-preview");
+const sheetAttendanceCommitButton = document.getElementById("sheet-attendance-commit");
+const sheetAttendanceStatus = document.getElementById("sheet-attendance-status");
+const sheetAttendancePreviewWrap = document.getElementById("sheet-attendance-preview-wrap");
 const attendanceLogList = document.getElementById("attendance-log-list");
 const attendanceCheckNameInput = document.getElementById("attendance-check-name");
 const attendanceCheckMonthInput = document.getElementById("attendance-check-month");
@@ -196,6 +208,9 @@ function init() {
   bulkAttendancePreviewButton?.addEventListener("click", previewBulkAttendance);
   bulkAttendanceModeInput?.addEventListener("change", syncAttendanceModeUi);
   bulkAttendanceApplyButton.addEventListener("click", handleBulkAttendanceApply);
+  sheetAttendanceLoadButton?.addEventListener("click", handleSheetAttendanceLoad);
+  sheetAttendancePreviewButton?.addEventListener("click", handleSheetAttendancePreview);
+  sheetAttendanceCommitButton?.addEventListener("click", handleSheetAttendanceCommit);
   attendanceCheckRunButton?.addEventListener("click", renderAttendanceCheck);
   attendanceCheckNameInput?.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
@@ -1245,6 +1260,9 @@ function setDefaultAttendanceCheckMonth() {
     return;
   }
   attendanceCheckMonthInput.value = currentMonthKey();
+  if (sheetAttendanceMonthInput) {
+    sheetAttendanceMonthInput.value = currentMonthKey();
+  }
 }
 
 function setDefaultHealthcheckMonth() {
@@ -1683,6 +1701,223 @@ async function previewBulkAttendance() {
       bulkAttendancePreviewButton.disabled = false;
     }
   }
+}
+
+async function handleSheetAttendanceLoad() {
+  if (!sheetAttendanceUrlInput || !sheetAttendanceStatus) {
+    return;
+  }
+  if (!currentAdminToken) {
+    sheetAttendanceStatus.textContent = "운영진 로그인 후 시트를 불러올 수 있습니다.";
+    return;
+  }
+
+  const sheetUrl = String(sheetAttendanceUrlInput.value || "").trim();
+  if (!sheetUrl) {
+    sheetAttendanceStatus.textContent = "Google Sheets CSV 주소를 입력해 주세요.";
+    return;
+  }
+
+  setSheetAttendanceButtons({ loading: true });
+  sheetAttendanceStatus.textContent = "시트 출석 데이터를 불러오는 중입니다...";
+  if (sheetAttendancePreviewWrap) {
+    sheetAttendancePreviewWrap.classList.add("hidden");
+    sheetAttendancePreviewWrap.innerHTML = "";
+  }
+
+  try {
+    const result = await callAdminSheetAttendance({
+      sheet_url: sheetUrl,
+      month_key: sheetAttendanceMonthInput?.value || ""
+    });
+    sheetAttendanceState = {
+      groups: Array.isArray(result.groups) ? result.groups : [],
+      previews: [],
+      invalidRows: Array.isArray(result.invalid_rows) ? result.invalid_rows : []
+    };
+    renderSheetAttendanceGroups();
+    sheetAttendanceStatus.textContent = buildSheetAttendanceLoadMessage(result);
+  } catch (error) {
+    sheetAttendanceState = { groups: [], previews: [], invalidRows: [] };
+    renderSheetAttendanceGroups();
+    sheetAttendanceStatus.textContent = `시트 불러오기 실패: ${String(error?.message || error)}`;
+  } finally {
+    setSheetAttendanceButtons({ loading: false });
+  }
+}
+
+async function handleSheetAttendancePreview() {
+  if (!sheetAttendanceStatus) {
+    return;
+  }
+  if (!currentAdminToken) {
+    sheetAttendanceStatus.textContent = "운영진 로그인 후 미리보기를 사용할 수 있습니다.";
+    return;
+  }
+  const groups = sheetAttendanceState.groups || [];
+  if (!groups.length) {
+    sheetAttendanceStatus.textContent = "먼저 시트를 불러와 주세요.";
+    return;
+  }
+
+  setSheetAttendanceButtons({ previewing: true });
+  sheetAttendanceStatus.textContent = `전체 ${groups.length}개 출석 묶음을 미리보는 중입니다...`;
+
+  try {
+    const previews = [];
+    for (const group of groups) {
+      const result = await callAdminAttendance("preview", {
+        date: group.date,
+        run_type: group.run_type,
+        mode: "append",
+        names: group.names
+      });
+      previews.push({ group, result });
+    }
+    sheetAttendanceState = { ...sheetAttendanceState, previews };
+    renderSheetAttendanceGroups();
+    const problemCount = previews.reduce((sum, item) => sum + Number(item.result?.summary?.problem_count || 0), 0);
+    sheetAttendanceStatus.textContent = problemCount
+      ? `미리보기 완료: 확인 필요 ${problemCount}명이 있습니다. 이름/승인 상태를 정리한 뒤 반영해 주세요.`
+      : "미리보기 완료: 바로 추가 반영할 수 있습니다.";
+  } catch (error) {
+    sheetAttendanceStatus.textContent = `전체 미리보기 실패: ${String(error?.message || error)}`;
+  } finally {
+    setSheetAttendanceButtons({ previewing: false });
+  }
+}
+
+async function handleSheetAttendanceCommit() {
+  if (!sheetAttendanceStatus) {
+    return;
+  }
+  if (!currentAdminToken) {
+    sheetAttendanceStatus.textContent = "운영진 로그인 후 반영할 수 있습니다.";
+    return;
+  }
+  const previews = sheetAttendanceState.previews || [];
+  const groups = sheetAttendanceState.groups || [];
+  if (!previews.length || previews.length !== groups.length) {
+    sheetAttendanceStatus.textContent = "반영 전 전체 미리보기를 먼저 실행해 주세요.";
+    return;
+  }
+
+  const problemCount = previews.reduce((sum, item) => sum + Number(item.result?.summary?.problem_count || 0), 0);
+  if (problemCount) {
+    sheetAttendanceStatus.textContent = `확인 필요 ${problemCount}명이 있어 반영을 멈췄습니다. 미일치/동명이인/미승인 회원을 먼저 확인해 주세요.`;
+    return;
+  }
+
+  const totalWillAdd = previews.reduce((sum, item) => sum + Number(item.result?.summary?.will_add_count || 0), 0);
+  const confirmed = confirm(`시트 출석 ${groups.length}개 묶음을 추가 반영할까요?\n\n새로 추가될 출석: ${totalWillAdd}명\n이미 반영된 출석은 중복 저장하지 않습니다.`);
+  if (!confirmed) {
+    return;
+  }
+
+  setSheetAttendanceButtons({ committing: true });
+  sheetAttendanceStatus.textContent = "시트 출석을 서버에 반영하는 중입니다...";
+
+  try {
+    const committed = [];
+    for (const { group } of previews) {
+      const result = await callAdminAttendance("commit", {
+        date: group.date,
+        run_type: group.run_type,
+        mode: "append",
+        names: group.names,
+        confirmed: true
+      });
+      committed.push({ group, result });
+    }
+    sheetAttendanceState = { ...sheetAttendanceState, previews: committed };
+    renderSheetAttendanceGroups({ committed: true });
+    await loadAdminSnapshot();
+    renderAll();
+    const addedCount = committed.reduce((sum, item) => sum + Number(item.result?.summary?.added_count || 0), 0);
+    sheetAttendanceStatus.textContent = `시트 출석 반영 완료: ${groups.length}개 묶음, 신규 ${addedCount}명 추가`;
+    if (syncStatus) {
+      syncStatus.textContent = "구글시트 출석 반영 완료: 서버에 바로 반영했습니다.";
+    }
+  } catch (error) {
+    sheetAttendanceStatus.textContent = `시트 출석 반영 실패: ${String(error?.message || error)}`;
+  } finally {
+    setSheetAttendanceButtons({ committing: false });
+  }
+}
+
+function setSheetAttendanceButtons(state = {}) {
+  const loading = Boolean(state.loading || state.previewing || state.committing);
+  if (sheetAttendanceLoadButton) {
+    sheetAttendanceLoadButton.disabled = loading;
+  }
+  if (sheetAttendancePreviewButton) {
+    sheetAttendancePreviewButton.disabled = loading || !sheetAttendanceState.groups.length;
+  }
+  if (sheetAttendanceCommitButton) {
+    sheetAttendanceCommitButton.disabled = loading || !sheetAttendanceState.previews.length;
+  }
+}
+
+function buildSheetAttendanceLoadMessage(result) {
+  const groupCount = Number(result?.groups?.length || 0);
+  const validRows = Number(result?.valid_rows || 0);
+  const invalidCount = Number(result?.invalid_rows?.length || 0);
+  const parts = [`불러오기 완료: ${groupCount}개 묶음`, `유효 ${validRows}행`];
+  if (invalidCount) {
+    parts.push(`확인 필요 ${invalidCount}행`);
+  }
+  return parts.join(" | ");
+}
+
+function renderSheetAttendanceGroups(options = {}) {
+  if (!sheetAttendancePreviewWrap) {
+    return;
+  }
+  const groups = sheetAttendanceState.groups || [];
+  const previews = sheetAttendanceState.previews || [];
+  const invalidRows = sheetAttendanceState.invalidRows || [];
+  if (!groups.length && !invalidRows.length) {
+    sheetAttendancePreviewWrap.classList.add("hidden");
+    sheetAttendancePreviewWrap.innerHTML = "";
+    setSheetAttendanceButtons();
+    return;
+  }
+
+  sheetAttendancePreviewWrap.classList.remove("hidden");
+  const previewMap = new Map(previews.map((item) => [`${item.group.date}|${item.group.run_type}`, item.result]));
+  const invalidMarkup = invalidRows.length
+    ? `<div class="sheet-attendance-invalid"><strong>확인 필요 행 ${invalidRows.length}개</strong>${invalidRows.slice(0, 8).map((row) => `<p class="list-meta">${escapeHtml(row.row_number)}행: ${escapeHtml(row.reason)} (${escapeHtml(row.date || "-")} / ${escapeHtml(row.name || "-")} / ${escapeHtml(row.category || "-")})</p>`).join("")}${invalidRows.length > 8 ? '<p class="list-meta">나머지는 시트에서 먼저 정리해 주세요.</p>' : ""}</div>`
+    : "";
+
+  sheetAttendancePreviewWrap.innerHTML = `
+    <div class="sheet-attendance-group-list">
+      ${groups.map((group) => renderSheetAttendanceGroup(group, previewMap.get(`${group.date}|${group.run_type}`), options)).join("")}
+    </div>
+    ${invalidMarkup}
+  `;
+  setSheetAttendanceButtons();
+}
+
+function renderSheetAttendanceGroup(group, preview, options = {}) {
+  const summary = preview?.summary || null;
+  const problemCount = Number(summary?.problem_count || 0);
+  const addedCount = Number(summary?.added_count || summary?.will_add_count || 0);
+  const alreadyCount = Number(summary?.already_attended_count || summary?.skipped_count || 0);
+  const status = options.committed
+    ? `반영 ${addedCount}명`
+    : summary
+      ? `추가 예정 ${addedCount}명${alreadyCount ? ` / 이미 반영 ${alreadyCount}명` : ""}${problemCount ? ` / 확인 필요 ${problemCount}명` : ""}`
+      : "미리보기 전";
+  const names = Array.isArray(group.names) ? group.names : [];
+  return `
+    <article class="sheet-attendance-group ${problemCount ? "has-problem" : ""}">
+      <div class="attendance-preview-head">
+        <strong>${escapeHtml(group.date)} / ${escapeHtml(group.label || group.run_type)}</strong>
+        <span class="list-meta">${escapeHtml(status)}</span>
+      </div>
+      <p class="list-meta">${escapeHtml(names.slice(0, 14).join(", "))}${names.length > 14 ? " 외" : ""}</p>
+    </article>
+  `;
 }
 
 function getAttendanceInputMode() {
@@ -3719,6 +3954,12 @@ function normalizeAttendanceEventType(value) {
   if (compact === "official" || raw.includes("공식")) {
     return "공식 행사";
   }
+  if (compact === "hiking" || raw.includes("등산")) {
+    return "등산";
+  }
+  if (compact === "smallgroup" || compact === "small_group" || raw.includes("소모임")) {
+    return "소모임";
+  }
   return raw;
 }
 
@@ -4007,6 +4248,24 @@ async function callAdminAttendance(action, payload = {}) {
       action,
       ...payload
     })
+  });
+
+  const result = await response.json().catch(() => ({ ok: false, error: "invalid response" }));
+  if (!response.ok || !result.ok) {
+    throw new Error(result.error || "unknown");
+  }
+  return result;
+}
+
+async function callAdminSheetAttendance(payload = {}) {
+  const response = await fetch(`/.netlify/functions/admin-sheet-attendance?t=${Date.now()}`, {
+    method: "POST",
+    cache: "no-store",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${currentAdminToken}`
+    },
+    body: JSON.stringify(payload)
   });
 
   const result = await response.json().catch(() => ({ ok: false, error: "invalid response" }));

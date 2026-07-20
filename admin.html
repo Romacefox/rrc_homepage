@@ -101,6 +101,8 @@
                 <option value="regular">정기런</option>
                 <option value="flash">번개런</option>
                 <option value="official">공식 행사</option>
+                <option value="hiking">등산</option>
+                <option value="small_group">소모임</option>
               </select>
               <label for="bulk-attendance-mode">입력 모드</label>
               <select id="bulk-attendance-mode">
@@ -124,6 +126,23 @@
               <p id="bulk-attendance-result" class="list-meta"></p>
               <div id="bulk-attendance-preview-wrap" class="attendance-preview-wrap hidden"></div>
               <ul id="attendance-log-list" class="list small"></ul>
+            </article>
+
+            <article class="panel">
+              <h3>구글시트 출석 가져오기</h3>
+              <p class="list-meta">Date, Name, Category 열을 읽어 날짜와 유형별로 묶은 뒤 미리보기 후 추가 반영합니다.</p>
+              <label for="sheet-attendance-url">시트 CSV 주소</label>
+              <input id="sheet-attendance-url" type="url" placeholder="Google Sheets CSV 또는 Published CSV URL" />
+              <label for="sheet-attendance-month">가져올 월</label>
+              <input id="sheet-attendance-month" type="month" />
+              <div class="item-actions">
+                <button id="sheet-attendance-load" class="btn ghost" type="button">시트 불러오기</button>
+                <button id="sheet-attendance-preview" class="btn ghost" type="button" disabled>전체 미리보기</button>
+                <button id="sheet-attendance-commit" class="btn primary" type="button" disabled>확인 후 반영</button>
+              </div>
+              <p class="list-meta">지원 유형: 정기런, 번개런, 공식 행사, 등산, 소모임. 비공개 시트는 CSV 공개 또는 서비스 계정 연결이 필요합니다.</p>
+              <p id="sheet-attendance-status" class="list-meta"></p>
+              <div id="sheet-attendance-preview-wrap" class="sheet-attendance-preview hidden"></div>
             </article>
 
             <article class="panel">

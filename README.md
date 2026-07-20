@@ -1,9 +1,10 @@
 ﻿# RRC 홈페이지 운영/배포 가이드
 
 ## 현재 구현
-- 공지/게스트/회원/출석/회비/위험판정/대시보드
+- 공지/게스트/회원/출석/위험판정/대시보드
 - 운영진 수동 추첨(룰렛)
-- 회원가입(프로필 입력) + 운영진 승인제 + 사진첩 업로드
+- 회원가입(프로필 입력) + 운영진 승인제
+- 활동보드: 추첨, 포인트 랭킹, 챌린지, 건의함
 - 신규 가입 웹훅 알림(선택)
 
 ## 승인제 흐름
@@ -11,7 +12,7 @@
 2. `member_profiles.approval_status = pending` 저장
 3. 가입 직후 `APPROVAL_NOTIFY_WEBHOOK_URL`이 있으면 운영진 알림 전송
 4. 운영진 계정으로 로그인 후 승인/반려 처리
-5. 승인된 회원만 사진 업로드 가능
+5. 승인된 회원만 활동보드 기능 사용 가능
 
 ## 회원가입/승인 점검
 - 가입 폼은 이메일 형식, 비밀번호 6자 이상, 비밀번호 확인, 실명 2자 이상, 출생연도 1989~2004, 자기소개 10자 이상, 개인정보 동의를 검사합니다.
@@ -39,7 +40,7 @@
 - Netlify 함수는 `Authorization: Bearer <access_token>` 검증 후
   `member_profiles.role = 'admin'` + `approval_status = 'approved'` 조건일 때만 승인 API 허용
 - 운영진 권한(admin) 부여/해제는 Netlify `OWNER_EMAIL`과 일치하는 모임장 계정만 가능
-- Supabase 정책은 승인된 회원만 사진 업로드/삭제 가능하도록 제한
+- Supabase 정책은 승인된 회원만 활동보드 기능을 사용할 수 있도록 제한
 - 신규 가입 알림은 Netlify `APPROVAL_NOTIFY_WEBHOOK_URL` 웹훅으로 전송 가능
 
 ## 최초 배포 순서
@@ -109,6 +110,10 @@ where email = '운영진이메일@example.com';
 - `replace` 모드는 고급/위험 모드로 분리했고, 체크박스와 확인 문구 `교체합니다`가 있어야 실행됩니다.
 - 저장 후 `operation_logs`에 `attendance_preview`, `attendance_append`, `attendance_replace` 작업 메타데이터를 기록합니다.
 - 현재 aggregate 구조에 맞춰 `attendance_logs(attendance_date, event_type)` 유니크 인덱스를 추가했습니다. 배포 전 같은 날짜/유형 중복 로그가 있으면 먼저 병합/정리해야 합니다.
+- 운영진 화면의 `구글시트 출석 가져오기`는 Google Sheets CSV를 날짜/유형별 묶음으로 읽고, 기존 `admin-attendance` 미리보기/반영 절차를 그대로 사용합니다.
+- 시트 열은 `Date`, `Name`, `Category`를 권장합니다. 날짜 열 제목이 비어 있어도 첫 번째 열을 날짜로 읽습니다.
+- 지원 출석 유형은 `정기런`, `번개런`, `공식 행사`, `등산`, `소모임`입니다.
+- 비공개 Google Sheet는 바로 읽을 수 없습니다. `파일 > 공유 > 웹에 게시`로 CSV를 게시하거나, 추후 Google 서비스 계정 연동을 별도로 설정해야 합니다.
 
 ### 출석 DB 변경
 - `attendance_logs_unique_scope`: `attendance_logs(attendance_date, event_type)` unique index
@@ -127,6 +132,9 @@ where email = '운영진이메일@example.com';
 11. 같은 명단을 두 번 저장해도 중복 출석이 생기지 않는지 확인합니다.
 12. 출석 입력 내역이 `operation_logs`에 남는지 확인합니다.
 13. 모바일 화면에서 미리보기 표가 한 줄 카드처럼 줄바꿈되어 읽히는지 확인합니다.
+14. Google Sheets CSV 주소를 넣고 `시트 불러오기`를 누르면 월 기준으로 날짜/유형별 묶음이 생성되는지 확인합니다.
+15. 시트 전체 미리보기에서 미일치/동명이인/미승인 회원이 있으면 반영이 막히는지 확인합니다.
+16. 시트 반영을 한 번 더 실행해도 이미 반영된 출석은 중복 저장되지 않는지 확인합니다.
 
 ## 운영진 시스템 점검
 - 운영 관리의 `시스템` 탭에 `시스템 점검` 섹션을 추가했습니다.
